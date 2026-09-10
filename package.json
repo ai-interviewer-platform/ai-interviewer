@@ -1,0 +1,38 @@
+{
+  "name": "ai-interviewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:local:setup": "node scripts/local-postgres.mjs setup",
+    "db:local:start": "node scripts/local-postgres.mjs start",
+    "db:local:stop": "node scripts/local-postgres.mjs stop",
+    "db:local:status": "node scripts/local-postgres.mjs status",
+    "db:local:verify": "node scripts/local-postgres.mjs verify",
+    "db:local:verify-auth": "node scripts/verify-better-auth-local.mjs",
+    "migrate:postgres": "node scripts/apply-migrations.mjs",
+    "check": "tsc --noEmit && node --check public/app.js && node --check public/personal-adapter.js && node --check public/model.js && node --check public/discovery.js",
+    "test": "node --test test/*.test.mjs prototype/model.test.mjs",
+    "test:prototype": "node --test prototype/model.test.mjs",
+    "test:browser": "node prototype/browser-check.mjs",
+    "test:discovery": "node prototype/discovery-check.mjs",
+    "lint": "oxlint src scripts test public --deny-warnings"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.3",
+    "better-auth": "1.7.3",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@cloudflare/workers-types": "5.20260908.1",
+    "@types/node": "24.3.1",
+    "@types/pg": "8.15.5",
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "0.45.2",
+    "oxlint": "1.18.0",
+    "playwright": "1.63.0",
+    "typescript": "5.9.2",
+    "wrangler": "4.130.0"
+  }
+}
