@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:voice": "esbuild src/browser/voice-agent.js --bundle --format=esm --target=es2022 --outfile=public/voice-agent.js",
+    "predev": "npm run build:voice",
     "dev": "wrangler dev",
     "db:local:setup": "node scripts/local-postgres.mjs setup",
     "db:local:start": "node scripts/local-postgres.mjs start",
@@ -11,15 +13,15 @@
     "db:local:verify": "node scripts/local-postgres.mjs verify",
     "db:local:verify-auth": "node scripts/verify-better-auth-local.mjs",
     "migrate:postgres": "node scripts/apply-migrations.mjs",
-    "check": "tsc --noEmit && node --check public/app.js && node --check public/personal-adapter.js && node --check public/model.js && node --check public/discovery.js",
-    "test": "node --test test/*.test.mjs prototype/model.test.mjs",
-    "test:prototype": "node --test prototype/model.test.mjs",
-    "test:browser": "node prototype/browser-check.mjs",
-    "test:discovery": "node prototype/discovery-check.mjs",
-    "lint": "oxlint src scripts test public --deny-warnings"
+    "check": "npm run build:voice && tsc --noEmit && node --check src/browser/voice-agent.js && node --check public/voice-agent.js && node --check public/app.js && node --check public/personal-adapter.js && node --check public/model.js && node --check public/discovery.js",
+    "test": "node --test test/*.test.mjs",
+    "test:browser": "node test/browser/app-check.mjs",
+    "test:discovery": "node test/browser/discovery-check.mjs",
+    "lint": "oxlint src scripts test public --ignore-pattern public/voice-agent.js --deny-warnings"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.3",
+    "@deepgram/agents": "0.1.2",
     "better-auth": "1.7.3",
     "pg": "8.16.3"
   },
@@ -30,6 +32,7 @@
     "@types/pg": "8.15.5",
     "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",
+    "esbuild": "0.28.2",
     "oxlint": "1.18.0",
     "playwright": "1.63.0",
     "typescript": "5.9.2",

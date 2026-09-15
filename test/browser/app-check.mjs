@@ -2,10 +2,10 @@ import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
-import { scenes } from './model.js';
+import { scenes } from '../../public/model.js';
 
-const base = process.env.PROTOTYPE_URL;
-if (!base) throw new Error('Set PROTOTYPE_URL to the URL printed by npm run dev.');
+const base = process.env.APP_URL;
+if (!base) throw new Error('Set APP_URL to the URL printed by npm run dev.');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
@@ -17,6 +17,7 @@ try {
   for (const [title, path] of scenes) {
     await page.goto(`${base}/#${path}`);
     await page.locator('h1').waitFor();
+    await page.evaluate(async () => Promise.all(document.getAnimations().map((animation) => animation.finished)));
     assert.ok(await page.title(), title);
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     for (const violation of result.violations) issues.push({ screen: title, id: violation.id, nodes: violation.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) });
@@ -66,16 +67,15 @@ try {
   await page.goto(`${base}/#roadmap?topic=sets&view=list`);
   await page.getByRole('link', { name: /Seen-value tracking/ }).click();
   await page.getByRole('dialog', { name: 'Seen-value tracking' }).waitFor();
-  await page.getByRole('link', { name: 'Set up interview', exact: true }).click();
+  await page.getByRole('link', { name: 'Practice', exact: true }).click();
   await page.getByRole('link', { name: 'Back to roadmap' }).click();
   assert.match(page.url(), /topic=sets&view=list/);
   await page.getByRole('dialog', { name: 'Seen-value tracking' }).waitFor();
   await page.keyboard.press('Escape');
   await page.waitForURL(/return=seen/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'leaf-seen');
-  await page.getByRole('link', { name: 'Close topic detail' }).click();
-  await page.waitForURL(/return=sets/);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'topic-sets');
+  assert.equal(await page.locator('#topic-sets').getAttribute('aria-current'), 'true');
+  assert.equal(await page.locator('.selected-topic #leaf-seen').isVisible(), true);
   for (const [path, button, expected] of [
     ['interview?state=runner', 'Retry prepared run', '#test-body'],
     ['interview?state=offline', 'Continue in text', '#message'],
@@ -112,7 +112,7 @@ try {
   await action.hover();
   await page.mouse.down();
   await action.evaluate(async (el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
-  assert.equal(await action.evaluate((el) => getComputedStyle(el).transform), 'matrix(0.96, 0, 0, 0.96, 0, 0)');
+  assert.equal(await action.evaluate((el) => getComputedStyle(el).transform), 'matrix(1, 0, 0, 1, 0, 1)');
   await page.screenshot({ path: 'output/playwright/motion-pressed.png', fullPage: true });
   await page.mouse.up();
   await page.keyboard.press('Tab');

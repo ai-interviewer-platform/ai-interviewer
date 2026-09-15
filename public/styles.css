@@ -1,42 +1,3 @@
-:root {
-  color-scheme: dark;
-  --canvas: oklch(0.17 0.006 60);
-  --surface: oklch(0.205 0.007 60);
-  --raised: oklch(0.255 0.009 60);
-  --input: oklch(0.19 0.006 60);
-  --hover: oklch(0.29 0.012 60);
-  --divider: oklch(0.34 0.012 60);
-  --control-border: oklch(0.52 0.016 60);
-  --text: oklch(0.94 0.012 75);
-  --muted: oklch(0.75 0.018 70);
-  --accent: oklch(0.82 0.12 65);
-  --accent-ink: oklch(0.22 0.025 50);
-  --accent-surface: oklch(0.285 0.032 60);
-  --success: oklch(0.80 0.11 155);
-  --error: oklch(0.78 0.12 25);
-  --caution: oklch(0.85 0.085 80);
-  --focus: oklch(0.91 0.075 70);
-  --syntax-keyword: oklch(0.83 0.065 310);
-  --syntax-function: oklch(0.86 0.07 90);
-  --evidence-bg: oklch(0.30 0.028 75);
-  --overlay: oklch(0.1 0 0 / 0.72);
-  --shadow: 0 0 0 1px oklch(1 0 0 / 0.06), 0 14px 40px oklch(0 0 0 / 0.18);
-  /* Reference inspection found 200ms; prototype tokens reuse that observed value. */
-  --motion-feedback: 200ms;
-  --motion-disclosure: 200ms;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --radius-control: 6px;
-  --radius-pane: 10px;
-  --text-small: 0.8125rem;
-  --text-body: 0.9375rem;
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
-  font-size: 16px;
-  color: var(--text);
-  background: var(--canvas);
-  font-variant-numeric: tabular-nums;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
 * { box-sizing: border-box; }
 body { margin: 0; }
 #app { min-height: 100dvh; display: flex; flex-direction: column; }
@@ -305,7 +266,7 @@ summary { cursor: pointer; min-height: 32px; }
 .token-list { margin: 0; font-size: 0.875rem; }
 .token-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--divider); }
 .token-list dd { color: var(--muted); margin: 0; }
-dialog { color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: 14px; padding: 1.75rem; width: min(38rem, calc(100vw - 2rem)); max-height: calc(100dvh - 3rem); overflow: auto; box-shadow: var(--shadow); overscroll-behavior: contain; }
+dialog { color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: 14px; padding: 1.75rem; width: min(38rem, calc(100vw - 2rem)); max-height: calc(100dvh - 3rem); overflow: auto; box-shadow: var(--shadow); overscroll-behavior: none; }
 dialog:has(.scene-grid) { width: min(65rem, calc(100vw - 2rem)); }
 dialog::backdrop { background: var(--overlay); }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
@@ -318,16 +279,6 @@ dialog > .actions { margin-top: 1.5rem; }
 .scene-link small { color: var(--muted); grid-row: 2; grid-column: 1 / -1; }
 .scene-link svg { grid-column: 2; grid-row: 1; color: var(--muted); }
 .dialog-footer { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .button,
-  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .node-inner { transition: transform var(--motion-feedback) var(--ease-out), background-color var(--motion-feedback) var(--ease-out), border-color var(--motion-feedback) var(--ease-out); }
-  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .button:active:not(:disabled) { transform: scale(0.96); }
-  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .topic-node:active .node-inner { transform: scale(0.96); }
-  :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] { transition: opacity var(--motion-disclosure) var(--ease-out), transform var(--motion-disclosure) var(--ease-out); opacity: 1; transform: translateY(0); }
-  @starting-style { :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] { opacity: 0; transform: translateY(8px); } }
-  @media (hover: hover) and (pointer: fine) { :root:not([data-input="keyboard"]):not([data-reduce="true"]) .topic-node:hover:not(:active) .node-inner { transform: translateY(-2px); } }
-}
-@media (prefers-contrast: more) { :root { --divider: var(--control-border); --muted: var(--text); } }
 @media (forced-colors: active) { :focus-visible { outline-color: Highlight; } .button, .topic-node, .badge { border: 1px solid ButtonText; } .selected { outline: 2px solid Highlight; } }
 /* Below this width the prompt and code cannot both retain a readable measure. */
 @media (max-width: 64rem) {

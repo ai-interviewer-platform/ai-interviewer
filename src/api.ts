@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { authenticatedUserId } from "./auth";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
+import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled, grantDeepgramAccessToken } from "./deepgram";
 import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
 
@@ -50,6 +51,10 @@ function isInputMode(value: string | null): value is "text" | "voice" {
 
 function isFamiliarity(value: string | null): value is "unanswered" | "familiar" | "not_recalled" {
   return value === "unanswered" || value === "familiar" || value === "not_recalled";
+}
+
+function isVoiceRole(value: string | null): value is "user" | "assistant" {
+  return value === "user" || value === "assistant";
 }
 
 async function withTransaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -227,7 +232,56 @@ async function appendCandidateMessage(pool: Pool, attempt: AttemptRow, body: Rec
   return json({ eventId }, { status: 201 });
 }
 
-async function requestHelp(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+  const text = string(body.text);
+  const role = string(body.role);
+  const providerSessionId = string(body.providerSessionId);
+  const sourceId = string(body.sourceId);
+  const sourceOrder = body.sourceOrder;
+  const occurrenceOffsetMs = body.occurrenceOffsetMs;
+  if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice evidence.");
+  if (!text?.trim() || !isVoiceRole(role) || !providerSessionId || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) {
+    return badRequest("A Deepgram transcript and stable event metadata are required.");
+  }
+
+  const speaker = role === "user" ? "candidate" : attempt.mode === "coach" ? "coach" : "interviewer";
+  const eventId = await withTransaction(pool, async (client) => {
+    const eventId = await addEvent(client, {
+      attemptId: attempt.id,
+      eventType: role === "user" ? "candidate_voice" : "interviewer_voice",
+      sourceId,
+      sourceOrder,
+      occurrenceOffsetMs,
+      payload: { inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
+    });
+    const existing = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
+    if (!existing.rows[0]) {
+      await client.query(
+        "INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)",
+        [id(), attempt.id, eventId, speaker, text.trim(), occurrenceOffsetMs],
+      );
+      if (role === "assistant") {
+        await client.query(
+          `UPDATE assistance_events
+              SET delivered = true, content = $1
+            WHERE id = (
+              SELECT assistance.id
+                FROM assistance_events assistance
+                JOIN attempt_events event ON event.id = assistance.event_id
+               WHERE assistance.attempt_id = $2 AND assistance.accepted = true AND assistance.delivered = false
+               ORDER BY event.occurrence_offset_ms DESC, assistance.created_at DESC
+               LIMIT 1
+            )`,
+          [text.trim(), attempt.id],
+        );
+      }
+    }
+    return eventId;
+  });
+  return json({ eventId }, { status: 201 });
+}
+
+async function requestHelp(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const category = string(body.category);
   const sourceId = string(body.sourceId);
   const sourceOrder = body.sourceOrder;
@@ -237,11 +291,19 @@ async function requestHelp(pool: Pool, attempt: AttemptRow, body: Record<string,
     const eventId = await addEvent(client, { attemptId: attempt.id, eventType: "help_requested", sourceId, sourceOrder, occurrenceOffsetMs, payload: { category } });
     const existing = await client.query<{ id: string }>("SELECT id FROM assistance_events WHERE event_id = $1", [eventId]);
     if (!existing.rows[0]) {
-      await client.query("INSERT INTO assistance_events (id, attempt_id, event_id, category, offered, accepted, delivered, content) VALUES ($1, $2, $3, $4, false, false, false, '')", [id(), attempt.id, eventId, category]);
+      await client.query("INSERT INTO assistance_events (id, attempt_id, event_id, category, offered, accepted, delivered, content) VALUES ($1, $2, $3, $4, true, true, false, '')", [id(), attempt.id, eventId, category]);
     }
     return eventId;
   });
-  return json({ eventId, delivered: false, message: `Your ${category} request was recorded, but no guidance was delivered because the live conversation provider is not configured.` }, { status: 202 });
+  const voiceReady = attempt.input_mode === "voice" && deepgramVoiceEnabled(env);
+  return json({
+    eventId,
+    delivered: false,
+    voiceReady,
+    message: voiceReady
+      ? `Your ${category} request was recorded and is ready for the live interviewer.`
+      : `Your ${category} request was recorded, but no guidance was delivered because the live conversation provider is not configured.`,
+  }, { status: 202 });
 }
 
 async function saveDraft(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
@@ -410,7 +472,12 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
   const url = new URL(request.url);
   const path = url.pathname;
   if (path === "/api/health" && request.method === "GET") return json({ status: "ok" });
-  if (path === "/api/personal-availability" && request.method === "GET") return json({ collectionEnabled: personalCollectionEnabled(env) });
+  if (path === "/api/personal-availability" && request.method === "GET") return json({
+    collectionEnabled: personalCollectionEnabled(env),
+    voiceEnabled: deepgramVoiceEnabled(env),
+    voiceProvider: DEEPGRAM_VOICE_PROVIDER,
+    thinkingModel: DEEPGRAM_THINKING_MODEL,
+  });
   if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
   if (path === "/api/catalog" && request.method === "GET") return catalog(pool);
   const userId = await authenticatedUserId(request, env, pool);
@@ -421,7 +488,7 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
     const body = await requestBody(request);
     return body ? createAttempt(pool, userId, body) : badRequest("Expected a JSON request body.");
   }
-  const attemptMatch = /^\/api\/attempts\/([^/]+)(?:\/(draft|run|finish|retry|review|related|messages|help))?(?:\/findings\/([^/]+)\/corrections)?$/.exec(path);
+  const attemptMatch = /^\/api\/attempts\/([^/]+)(?:\/(draft|run|finish|retry|review|related|messages|help|voice-token|voice-transcript))?(?:\/findings\/([^/]+)\/corrections)?$/.exec(path);
   if (!attemptMatch) return notFound();
   const attempt = await ownedAttempt(pool, decodeURIComponent(attemptMatch[1]), userId);
   if (!attempt) return forbidden();
@@ -439,9 +506,17 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
     const body = await requestBody(request);
     return body ? appendCandidateMessage(pool, attempt, body) : badRequest("Expected a JSON request body.");
   }
+  if (action === "voice-token" && request.method === "POST") {
+    if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice input.");
+    return grantDeepgramAccessToken(env);
+  }
+  if (action === "voice-transcript" && request.method === "POST") {
+    const body = await requestBody(request);
+    return body ? appendVoiceTranscript(pool, attempt, body) : badRequest("Expected a JSON request body.");
+  }
   if (action === "help" && request.method === "POST") {
     const body = await requestBody(request);
-    return body ? requestHelp(pool, attempt, body) : badRequest("Expected a JSON request body.");
+    return body ? requestHelp(pool, env, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "finish" && request.method === "POST") {
     const body = await requestBody(request);

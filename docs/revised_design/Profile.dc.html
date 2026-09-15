@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Profile" style="display:flex;flex-direction:{{ shellDir }};min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="profile" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="profile" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;padding:36px 40px 48px;max-width:1240px;box-sizing:border-box;margin:0 auto;width:100%">
+    <section class="enter" aria-label="Identity" style="--i:0;display:flex;align-items:center;gap:22px;padding:22px 24px;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);margin-bottom:16px;flex-wrap:wrap">
+      <span aria-hidden="true" style="display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);font-family:var(--font-display);font-weight:600;font-size:1.5rem;color:var(--accent)">A</span>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:var(--text-page);line-height:1.1;letter-spacing:-0.02em">Alex</h1><span style="display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;font-size:12px;color:var(--ink-2);box-shadow:var(--ring)"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>Demo profile</span></div>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body)">Internship preparation · Python · 3 fictional sessions</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><span style="padding:3px 9px;border-radius:5px;font-size:12px;color:var(--ink-2);background:var(--recess);box-shadow:var(--shadow-recess)">Arrays</span><span style="padding:3px 9px;border-radius:5px;font-size:12px;color:var(--ink-2);background:var(--recess);box-shadow:var(--shadow-recess)">Loops</span><span style="padding:3px 9px;border-radius:5px;font-size:12px;color:var(--ink-2);background:var(--recess);box-shadow:var(--shadow-recess)">Sets</span></div>
+      </div>
+      <button type="button" class="pressable" style="margin-left:auto;display:inline-flex;align-items:center;min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">Edit profile</button>
+    </section>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:16px">
+      <section class="enter" aria-labelledby="activity-h" style="--i:1;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 20px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h4l2-5 3 10 2-5h3"></path></svg></span>
+          <h2 id="activity-h" style="margin:0;font-size:var(--text-pane);font-weight:600">Practice activity</h2>
+          <span style="margin-left:auto;font-size:12px;color:var(--ink-3)">Last 16 weeks · activity, not mastery</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(16,1fr);gap:4px;padding:12px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess)">
+          <sc-for list="{{ weeks }}" as="w" hint-placeholder-count="16">
+            <span style="display:grid;grid-template-rows:repeat(7,1fr);gap:3px"><sc-for list="{{ w.days }}" as="d" hint-placeholder-count="7"><span title="{{ d.title }}" style="aspect-ratio:1;border-radius:2px;background:{{ d.bg }}"></span></sc-for></span>
+          </sc-for>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:var(--ink-3)"><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span style="display:inline-flex;align-items:center;gap:4px;margin-left:16px">Less<span style="width:9px;height:9px;border-radius:2px;background:var(--accent);opacity:0.3"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--accent);opacity:0.6"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--accent)"></span>More</span></div>
+      </section>
+      <section class="enter" aria-labelledby="stats-h" style="--i:2;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 20px;display:flex;flex-direction:column">
+        <h2 id="stats-h" style="margin:0 0 14px;font-size:var(--text-pane);font-weight:600">Recorded so far</h2>
+        <dl style="margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+            <div style="padding:12px 14px;border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess);display:flex;flex-direction:column-reverse;gap:4px"><dt style="font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;font-weight:600">{{ s.k }}</dt><dd style="margin:0;font-family:var(--font-mono);font-size:1.375rem;font-weight:500;color:var(--ink)">{{ s.v }}</dd></div>
+          </sc-for>
+        </dl>
+        <p style="margin:auto 0 0;padding-top:14px;font-size:12px;color:var(--ink-3);line-height:1.5">Counts describe prepared practice. They don’t rank ability or predict an interview outcome.</p>
+      </section>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+      <section class="enter" aria-labelledby="recent-h" style="--i:3;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 10px">
+        <h2 id="recent-h" style="margin:0 0 6px;font-size:var(--text-pane);font-weight:600">Recent</h2>
+        <sc-for list="{{ recent }}" as="r" hint-placeholder-count="3">
+          <a href="{{ r.href }}" style="display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 0;box-shadow:inset 0 -1px 0 var(--divider)" style-hover="color:var(--accent)">
+            <span style="font-size:13px;font-weight:500">{{ r.title }}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">{{ r.when }}</span>
+            <span style="grid-column:1 / -1;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)"><span style="width:6px;height:6px;border-radius:50%;background:{{ r.dot }}"></span>{{ r.status }}</span>
+          </a>
+        </sc-for>
+      </section>
+      <section class="enter" aria-labelledby="focus-h" style="--i:4;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);padding:18px 22px 20px;display:flex;flex-direction:column;gap:10px">
+        <span style="font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--evidence)">Current focus</span>
+        <h2 id="focus-h" style="margin:0;font-family:var(--font-display);font-weight:600;font-size:1.375rem;letter-spacing:-0.015em;line-height:1.15">Stopping at the first qualifying event</h2>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">One finding across two attempts describes the same decision: return at the match instead of overwriting the answer. Evidence stays inspectable in each review.</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <a href="#review" class="pressable" style="display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 14px;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)">Open the review</a>
+          <a href="#roadmap" style="display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover);color:var(--ink)">Choose another focus</a>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const nav = this.props.nav ?? 'sidebar';
+    const active = new Set([5 * 7 + 2, 5 * 7 + 4, 8 * 7 + 1, 11 * 7 + 3, 11 * 7 + 4, 13 * 7 + 2, 14 * 7 + 1, 14 * 7 + 5, 15 * 7 + 1, 15 * 7 + 2]);
+    const strong = new Set([11 * 7 + 4, 15 * 7 + 1]);
+    const weeks = Array.from({ length: 16 }, (_, w) => ({ days: Array.from({ length: 7 }, (_, d) => { const i = w * 7 + d; const on = active.has(i);
+      return { title: on ? 'Prepared practice' : 'No activity', bg: strong.has(i) ? 'var(--accent)' : on ? 'oklch(from var(--accent) l c h / 0.5)' : 'var(--plane)' }; }) }));
+    return {
+      theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row', weeks,
+      stats: [{ k: 'Attempts', v: '3' }, { k: 'Reviews', v: '1' }, { k: 'Retries', v: '0' }, { k: 'Guided', v: '1' }],
+      recent: [
+        { href: '#review', title: 'First repeated tag', when: 'Today 10:42', status: 'Review ready · 1 finding', dot: 'var(--accent)' },
+        { href: '#interview', title: 'First threshold alert', when: 'Yesterday', status: 'Draft saved', dot: 'var(--ink-3)' },
+        { href: '#review?state=pending', title: 'First consecutive pair', when: 'Sep 11', status: 'Review pending', dot: 'var(--pending)' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

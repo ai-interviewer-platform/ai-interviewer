@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Home" style="display:flex;flex-direction:{{ shellDir }};min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="home" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="home" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;padding:36px 40px 48px;max-width:1240px;box-sizing:border-box;margin:0 auto;width:100%">
+    <div class="enter" style="--i:0;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:28px;flex-wrap:wrap">
+      <div>
+        <p style="margin:0 0 10px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Your practice · In progress</p>
+        <h1 style="margin:0 0 8px;font-family:var(--font-display);font-weight:600;font-size:var(--text-page);line-height:1.1;letter-spacing:-0.02em">Welcome back, Alex.</h1>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-reading)">Pick up the thread. Your last attempt is ready when you are.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-small);color:var(--ink-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>Internship preparation · Python · Demo profile</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px 28px;align-items:start">
+      <section class="enter" aria-labelledby="focus-title" style="--i:1;background:linear-gradient(180deg,var(--plane-lit),var(--plane));border-radius:var(--radius-pane);box-shadow:var(--ring),var(--light-top),var(--shadow-contact);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;box-shadow:inset 0 -1px 0 var(--divider)">
+          <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V3m0 1c4-3 8 3 12 0v8c-4 3-8-3-12 0"></path></svg></span>
+          <span style="font-size:var(--text-pane);font-weight:600">Your next step</span>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:var(--text-small);color:var(--ink-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>Review ready</span>
+        </div>
+        <div style="padding:22px 22px 8px">
+          <p style="margin:0 0 10px;font-size:var(--text-small);color:var(--ink-3)"><span style="color:var(--ink-2)">Maps &amp; sets</span> / First repeated tag</p>
+          <h2 id="focus-title" style="margin:0 0 12px;font-family:var(--font-display);font-weight:600;font-size:var(--text-feature);line-height:1.15;letter-spacing:-0.015em;text-wrap:balance">You found the match.<br>What happened next?</h2>
+          <p style="margin:0;max-width:46ch;color:var(--ink-2);font-size:var(--text-reading);line-height:1.6;text-wrap:pretty">You described stopping at the first match. The saved code keeps scanning and overwrites the answer. Look at the evidence before deciding what to practice.</p>
+        </div>
+        <div style="margin:18px 22px 0;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);overflow:hidden">
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 14px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3);box-shadow:inset 0 -1px 0 var(--divider)"><span>first_repeated_tag.py</span><span>checkpoint 04:26 · revision 1</span></div>
+          <pre style="margin:0;padding:10px 0 12px;font-family:var(--font-mono);font-size:var(--text-code);line-height:1.75;color:var(--ink)"><span style="display:flex;padding:0 14px;color:var(--ink-2)"><span style="width:28px;color:var(--ink-3);flex:0 0 auto">4</span><span style="white-space:pre">    <span style="color:var(--syntax-keyword)">if</span> tag <span style="color:var(--syntax-keyword)">in</span> seen:</span></span><span class="annotation" style="display:flex;padding:0 14px;background:var(--evidence-soft);box-shadow:inset 2px 0 0 var(--evidence)"><span style="width:28px;color:var(--evidence);flex:0 0 auto">5</span><span style="white-space:pre">        answer = index</span><span style="margin-left:auto;color:var(--evidence);font-size:11px">← overwrites</span></span><span style="display:flex;padding:0 14px;color:var(--ink-2)"><span style="width:28px;color:var(--ink-3);flex:0 0 auto">6</span><span style="white-space:pre">    seen.add(tag)</span></span></pre>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:18px 22px 20px">
+          <a href="#review" class="pressable" style="display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 16px;border-radius:var(--radius-control);font-size:var(--text-body);font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)">Open your review<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12m-5-5 5 5-5 5"></path></svg></a>
+          <a href="#setup" class="pressable" style="display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 14px;border-radius:var(--radius-control);font-size:var(--text-body);font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover);color:var(--ink)">New interview</a>
+          <span style="margin-left:auto;font-size:var(--text-small);color:var(--ink-3)">Finding · limitation shown in review</span>
+        </div>
+      </section>
+
+      <section class="enter" aria-labelledby="thread-title" style="--i:2;background:var(--plane);border-radius:var(--radius-pane);box-shadow:var(--ring);padding:14px 18px 18px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h4l2-5 3 10 2-5h3"></path></svg></span>
+          <h2 id="thread-title" style="margin:0;font-size:var(--text-pane);font-weight:600;white-space:nowrap">Your practice thread</h2>
+          <span style="margin-left:auto;font-size:var(--text-small);color:var(--ink-3);white-space:nowrap">Current attempt</span>
+        </div>
+        <div role="list" aria-label="Attempt stages" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);margin-bottom:18px">
+          <sc-for list="{{ stages }}" as="s" hint-placeholder-count="3">
+            <button type="button" role="listitem" aria-current="{{ s.current }}" onClick="{{ s.select }}" class="pressable" style="min-height:32px;border:0;border-radius:6px;font-size:12px;font-weight:600;color:{{ s.color }};background:{{ s.bg }};box-shadow:{{ s.shadow }};display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background 200ms var(--ease-settle),color 200ms var(--ease-settle),box-shadow 200ms var(--ease-settle)"><sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"></path></svg></sc-if>{{ s.label }}</button>
+          </sc-for>
+        </div>
+        <ol style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column">
+          <sc-for list="{{ steps }}" as="st" hint-placeholder-count="3">
+            <li style="display:grid;grid-template-columns:20px 1fr;gap:12px;padding:10px 0;box-shadow:inset 0 -1px 0 var(--divider)">
+              <span aria-hidden="true" style="display:grid;place-items:center;width:20px;height:20px;border-radius:50%;margin-top:1px;font-size:10px;font-weight:600;font-family:var(--font-mono);color:{{ st.markColor }};background:{{ st.markBg }};box-shadow:{{ st.markShadow }}">{{ st.mark }}</span>
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                <span style="display:flex;justify-content:space-between;gap:10px;font-size:var(--text-body);font-weight:500;color:{{ st.titleColor }}">{{ st.title }}<span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);white-space:nowrap">{{ st.when }}</span></span>
+                <span style="font-size:var(--text-small);color:var(--ink-2)">{{ st.detail }}</span>
+              </span>
+            </li>
+          </sc-for>
+        </ol>
+        <p style="margin:12px 0 0;font-size:12px;color:var(--ink-3);line-height:1.5">Activity, not a readiness score. Guided work stays labeled.</p>
+      </section>
+
+      <section class="enter" aria-labelledby="history-title" style="--i:3;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 6px">
+          <h2 id="history-title" style="margin:0;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Recent activity</h2>
+          <a href="#sessions" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 8px;border-radius:6px;font-size:var(--text-small);font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover);color:var(--ink)">All sessions<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12m-5-5 5 5-5 5"></path></svg></a>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ activity }}" as="a" hint-placeholder-count="3">
+            <a href="{{ a.href }}" style="display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:14px;padding:13px 6px;box-shadow:inset 0 -1px 0 var(--divider);border-radius:6px" style-hover="background:var(--hover)">
+              <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.path }}"></path></svg></span>
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:var(--text-body);font-weight:500">{{ a.title }}</span><span style="font-size:var(--text-small);color:var(--ink-2)">{{ a.detail }}</span></span>
+              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2)"><span style="width:6px;height:6px;border-radius:50%;background:{{ a.dot }}"></span>{{ a.status }}</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">{{ a.when }}</span></span>
+            </a>
+          </sc-for>
+        </div>
+      </section>
+
+      <section class="enter" aria-labelledby="route-title" style="--i:4;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 6px">
+          <h2 id="route-title" style="margin:0;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Your learning path</h2>
+          <a href="#roadmap" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 8px;border-radius:6px;font-size:var(--text-small);font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover);color:var(--ink)">Open roadmap</a>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 0;box-shadow:inset 0 -1px 0 var(--divider),inset 0 1px 0 var(--divider);font-size:var(--text-small)">
+          <span style="padding:7px 10px;border-radius:6px;color:var(--ink-2);box-shadow:var(--ring)">Sequences</span>
+          <span aria-hidden="true" style="color:var(--ink-3);font-family:var(--font-mono)">→</span>
+          <a href="#roadmap?topic=sets" style="display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-soft);font-weight:500">Maps &amp; sets<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V3h5m4 0h5v5M3 12v5h5m4 0h5v-5"></path></svg></a>
+          <span aria-hidden="true" style="color:var(--ink-3);font-family:var(--font-mono)">→</span>
+          <span style="padding:7px 10px;border-radius:6px;color:var(--ink-2);box-shadow:var(--ring)">Repeated values</span>
+        </div>
+        <p style="margin:12px 0 0;font-size:var(--text-small);color:var(--ink-2);line-height:1.55">Explore a topic, open its subtopics, then choose a problem. Connections show suggested order, not locks.</p>
+      </section>
+    </div>
+    <div class="enter" style="--i:5;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:32px;padding-top:14px;border-top:var(--divider-dashed);font-size:12px;color:var(--ink-3)">
+      <span style="margin-right:auto">Fictional profile and activity · nothing here measures mastery</span>
+      <a href="#sample" style="color:var(--ink-2)" style-hover="color:var(--ink)">Explore the guided sample</a>
+      <a href="#review?source=sample" style="color:var(--ink-2)" style-hover="color:var(--ink)">Example review</a>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;}}">
+class Component extends DCLogic {
+  state = { stage: 1 };
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const nav = this.props.nav ?? 'sidebar';
+    const cur = this.state.stage;
+    const labels = ['Attempt', 'Review', 'Retry'];
+    const stages = labels.map((label, i) => ({
+      label, done: i < cur, current: i === cur ? 'step' : undefined,
+      select: () => this.setState({ stage: i }),
+      color: i === cur ? 'var(--ink)' : i < cur ? 'var(--ink-2)' : 'var(--ink-3)',
+      bg: i === cur ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent',
+      shadow: i === cur ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none',
+    }));
+    const stepData = [
+      { title: 'Attempt saved', detail: 'First repeated tag · prepared code, text transcript', when: 'Today 10:42' },
+      { title: 'Review the evidence', detail: 'One finding at checkpoint 04:26 · limitation stated', when: 'Ready' },
+      { title: 'Try it differently', detail: 'Fresh Coach practice from the saved checkpoint', when: 'When you’re ready' },
+    ];
+    const steps = stepData.map((s, i) => ({ ...s,
+      mark: i < cur ? '✓' : String(i + 1),
+      markColor: i < cur ? 'var(--accent-ink)' : i === cur ? 'var(--accent)' : 'var(--ink-3)',
+      markBg: i < cur ? 'var(--accent)' : 'transparent',
+      markShadow: i < cur ? 'none' : i === cur ? 'inset 0 0 0 1.5px var(--accent)' : 'inset 0 0 0 1px var(--control-border)',
+      titleColor: i <= cur ? 'var(--ink)' : 'var(--ink-2)',
+    }));
+    const code = 'm6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14', clock = 'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 3v4l3 2', msg = 'M17 3H3v11h4v4l5-4h5Z';
+    return {
+      theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row',
+      stages, steps,
+      activity: [
+        { href: '#review', path: code, title: 'First repeated tag', detail: 'Mock · text · 1 finding', status: 'Review ready', dot: 'var(--accent)', when: 'Today 10:42' },
+        { href: '#interview?problem=alert', path: clock, title: 'First threshold alert', detail: 'Mock · voice preview', status: 'Draft saved', dot: 'var(--ink-3)', when: 'Yesterday' },
+        { href: '#review?state=pending&problem=runs', path: msg, title: 'First consecutive pair', detail: 'Mock · text', status: 'Review pending', dot: 'var(--pending)', when: 'Sep 11' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,3 +1,5 @@
+import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
+
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
 async function api(path, options = {}) {
@@ -32,11 +34,14 @@ function collectionUnavailableMarkup() {
 function dashboardMarkup(state) {
   const attempts = state.attempts.map((attempt) => `<li class="activity-line"><span class="activity-symbol">↳</span><span><strong>${escapeHtml(attempt.title)}</strong><small>${escapeHtml(attempt.mode)} · ${escapeHtml(attempt.status)}${attempt.review_status ? ` · review ${escapeHtml(attempt.review_status)}` : ""}</small></span><button class="button quiet small" type="button" data-open-attempt="${escapeHtml(attempt.id)}">Open</button></li>`).join("");
   const problems = state.catalog.map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.difficulty)}</span><button class="button secondary small" type="button" data-start-problem="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("");
-  return `<main id="main" class="page-main"><header class="app-header"><a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a><nav aria-label="Primary"><button class="button nav-link current" type="button" data-personal-page="home">Home</button><button class="button nav-link" type="button" data-personal-page="catalog">Roadmap</button><button class="button nav-link" type="button" data-personal-page="sessions">Sessions</button></nav><div class="header-end"><a class="button quiet" href="#sample">Guided sample</a><button class="button quiet" type="button" data-sign-out>Sign out</button></div></header><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><span class="folio-index" aria-hidden="true">→</span><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div><ol class="drawer-problems">${problems}</ol></section></main>`;
+  return `<main id="main" class="page-main"><header class="app-header"><a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a><nav aria-label="Primary"><button class="button nav-link current" type="button" data-personal-page="home">Home</button><button class="button nav-link" type="button" data-personal-page="catalog">Roadmap</button><button class="button nav-link" type="button" data-personal-page="sessions">Sessions</button></nav><div class="header-end"><a class="button quiet" href="#sample">Guided sample</a><button class="button quiet" type="button" data-sign-out>Sign out</button></div></header><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div><ol class="drawer-problems">${problems}</ol></section></main>`;
 }
 
 function setupMarkup(state, problem) {
-  return `<main id="main" class="page-main"><a class="back-link" href="#welcome">← Back to home</a><div class="setup-grid"><section><p class="eyebrow">Personal setup</p><h1>Make room to think.</h1><p class="intro">Text practice is ready for the real evidence path. Voice stays unavailable until the provider transport and personal-data disclosures are verified.</p><div class="setup-problem"><span aria-hidden="true">⌘</span><div><span class="small muted">Selected problem</span><h2>${escapeHtml(problem.title)}</h2><p>${escapeHtml(problem.topic)} · Python · English</p></div></div><p>${escapeHtml(problem.prompt)}</p></section><form id="personal-setup-form" class="setup-form"><h2>Session preferences</h2><input type="hidden" name="problemId" value="${escapeHtml(problem.id)}"><label for="practice-goal">What are you preparing for?</label><input id="practice-goal" name="practiceGoal" value="Coding interviews" required><label for="studied-topics">Topics you have studied</label><input id="studied-topics" name="studiedTopics" autocomplete="off"><label for="concern">Anything you want to work on? <span class="muted">Optional</span></label><input id="concern" name="concern" autocomplete="off"><fieldset><legend>Practice mode</legend><div class="choice-pair"><label class="choice"><input type="radio" name="mode" value="mock" checked><span>Mock<small>Neutral clarification and requested help.</small></span></label><label class="choice"><input type="radio" name="mode" value="coach"><span>Coach<small>Requested guidance is recorded.</small></span></label></div></fieldset><div class="notice">Text input is selected. Voice and retained audio are disabled until their runtime and policy gates are complete.</div><label class="check-row"><input type="checkbox" name="consent" required><span>Allow transcript, code checkpoints, and test evidence to be stored for this review.<small>Without personal session records, use the guided sample instead.</small></span></label><div class="actions"><button class="button primary" type="submit">Start interview</button><a class="button quiet" href="#sample">Use the sample instead</a></div></form></div></main>`;
+  const voiceChoice = state.voiceEnabled
+    ? `<label class="choice"><input type="radio" name="inputMode" value="voice" checked><span>Voice<small>Deepgram listens and speaks; ${escapeHtml(state.thinkingModel)} thinks.</small></span></label>`
+    : `<label class="choice"><input type="radio" name="inputMode" value="voice" disabled><span>Voice<small>Add the server-side Deepgram key to enable it.</small></span></label>`;
+  return `<main id="main" class="page-main"><a class="back-link" href="#welcome">← Back to home</a><div class="setup-grid"><section><p class="eyebrow">Personal setup</p><h1>Make room to think.</h1><p class="intro">Voice is the primary interview path when Deepgram is configured. Text remains available when speaking is not practical.</p><div class="setup-problem"><span aria-hidden="true">⌘</span><div><span class="small muted">Selected problem</span><h2>${escapeHtml(problem.title)}</h2><p>${escapeHtml(problem.topic)} · Python · English</p></div></div><p>${escapeHtml(problem.prompt)}</p></section><form id="personal-setup-form" class="setup-form"><h2>Session preferences</h2><input type="hidden" name="problemId" value="${escapeHtml(problem.id)}"><label for="practice-goal">What are you preparing for?</label><input id="practice-goal" name="practiceGoal" value="Coding interviews" required><label for="studied-topics">Topics you have studied</label><input id="studied-topics" name="studiedTopics" autocomplete="off"><label for="concern">Anything you want to work on? <span class="muted">Optional</span></label><input id="concern" name="concern" autocomplete="off"><fieldset><legend>Input</legend><div class="choice-pair">${voiceChoice}<label class="choice"><input type="radio" name="inputMode" value="text" ${state.voiceEnabled ? "" : "checked"}><span>Text<small>Type the conversation without microphone access.</small></span></label></div></fieldset><fieldset><legend>Practice mode</legend><div class="choice-pair"><label class="choice"><input type="radio" name="mode" value="mock" checked><span>Mock<small>Neutral clarification and requested help.</small></span></label><label class="choice"><input type="radio" name="mode" value="coach"><span>Coach<small>Requested guidance is recorded.</small></span></label></div></fieldset><div class="notice">Voice streams audio to Deepgram for transcription and spoken replies. Session transcripts are stored here; raw audio is not retained.</div><label class="check-row"><input type="checkbox" name="consent" required><span>Allow Deepgram processing plus transcript, code-checkpoint, and test-evidence storage for this review.<small>Without personal session records, use the guided sample instead.</small></span></label><div class="actions"><button class="button primary" type="submit">Start interview</button><a class="button quiet" href="#sample">Use the sample instead</a></div></form></div></main>`;
 }
 
 function workspaceMarkup(state) {
@@ -46,7 +51,9 @@ function workspaceMarkup(state) {
   const runs = detail.runs.map((run) => `<li><strong>${escapeHtml(run.status)}</strong> · ${escapeHtml(run.tests_passed)} passed, ${escapeHtml(run.tests_failed)} failed <small>${escapeHtml(run.runner_error || "")}</small></li>`).join("") || `<li>Run the visible tests to create an immutable checkpoint.</li>`;
   const review = detail.review ? `<p class="small">Review: <strong>${escapeHtml(detail.review.status)}</strong>${detail.review.failure_reason ? ` · ${escapeHtml(detail.review.failure_reason)}` : ""} <button class="button quiet small" type="button" data-open-review>Inspect review</button></p>` : "";
   const disabled = detail.attempt.status === "completed" ? "disabled" : "";
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><a class="button quiet small" href="#welcome">← Sessions</a><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">Text evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p>${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="Explain your approach…" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">Messages are stored as text evidence. A live interviewer response is unavailable until the selected voice transport is verified.</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><ul class="test-list">${runs}</ul>${review}</section></div></div></main>`;
+  const isVoice = detail.attempt.input_mode === "voice";
+  const voiceControl = isVoice ? `<span id="voice-status" class="small muted" role="status">Voice ready</span><button class="button primary small" type="button" data-voice-toggle ${disabled}>Start voice</button>` : "";
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><a class="button quiet small" href="#welcome">← Sessions</a><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p>${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><ul class="test-list">${runs}</ul>${review}</section></div></div></main>`;
 }
 
 function reviewMarkup(state) {
@@ -62,10 +69,60 @@ function relatedMarkup(state) {
 }
 
 export function mountPersonal(root) {
-  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, page: "home", sourceOrder: 0, openedAt: performance.now(), selectedProblemId: null };
+  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", sourceOrder: 0, openedAt: performance.now(), selectedProblemId: null };
   let authMode = "sign-in";
+  let voiceSession = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
+  const setVoiceStatus = (status) => {
+    const labels = { connecting: "Connecting…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking", reconnecting: "Reconnecting…", stopped: "Voice ready" };
+    const statusNode = root.querySelector("#voice-status");
+    if (statusNode) { statusNode.textContent = labels[status] ?? status; statusNode.dataset.voiceState = status; }
+    const button = root.querySelector("[data-voice-toggle]");
+    if (button) button.textContent = voiceSession?.active ? "Stop voice" : "Start voice";
+  };
+  const stopVoice = () => {
+    voiceSession?.stop();
+    voiceSession = null;
+    setVoiceStatus("stopped");
+  };
+  const appendTranscript = ({ role, text, occurrenceOffsetMs }) => {
+    const messages = root.querySelector(".messages");
+    if (!messages) return;
+    if (messages.querySelector(".muted")) messages.innerHTML = "";
+    const speaker = role === "user" ? "candidate" : state.attempt.attempt.mode === "coach" ? "coach" : "interviewer";
+    messages.insertAdjacentHTML("beforeend", `<div class="message"><div class="speaker">${escapeHtml(speaker)}<time>${escapeHtml(occurrenceOffsetMs)} ms</time></div><p>${escapeHtml(text)}</p></div>`);
+    messages.scrollTop = messages.scrollHeight;
+  };
+  const getVoiceToken = async () => {
+    const attemptId = state.attempt?.attempt.id;
+    if (!attemptId) throw new Error("Open a voice attempt before connecting.");
+    const response = await fetch(`/api/attempts/${encodeURIComponent(attemptId)}/voice-token`, { method: "POST", credentials: "same-origin" });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || typeof payload.accessToken !== "string") throw new Error(payload.error || "Deepgram voice could not start.");
+    return payload.accessToken;
+  };
+  const startVoice = async () => {
+    if (!state.attempt || state.attempt.attempt.input_mode !== "voice") throw new Error("This attempt uses text input.");
+    if (voiceSession?.active) { stopVoice(); return; }
+    voiceSession = createDeepgramVoiceSession({
+      attempt: state.attempt.attempt,
+      problem: state.attempt.problem,
+      getToken: getVoiceToken,
+      onStatus: setVoiceStatus,
+      onError: (error) => showError(error.message),
+      onTranscript: async ({ role, text, providerSessionId }) => {
+        const metadata = sourceMetadata(state, `deepgram-${role}`);
+        await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/voice-transcript`, {
+          method: "POST",
+          body: { role, text, providerSessionId, ...metadata },
+        });
+        appendTranscript({ role, text, occurrenceOffsetMs: metadata.occurrenceOffsetMs });
+      },
+    });
+    await voiceSession.start();
+  };
   const render = () => {
+    if (!state.attempt || state.page !== "workspace" || state.selectedProblemId) stopVoice();
     if (!state.collectionEnabled) { root.innerHTML = collectionUnavailableMarkup(); return; }
     if (!state.user) { root.innerHTML = authMarkup(); return; }
     if (state.page === "review") { root.innerHTML = reviewMarkup(state); return; }
@@ -80,6 +137,9 @@ export function mountPersonal(root) {
   const reload = async () => {
     const availability = await api("/api/personal-availability");
     state.collectionEnabled = availability.collectionEnabled === true;
+    state.voiceEnabled = availability.voiceEnabled === true;
+    state.voiceProvider = availability.voiceProvider || VOICE_PROVIDER;
+    state.thinkingModel = availability.thinkingModel || THINKING_MODEL;
     if (!state.collectionEnabled) return;
     const [me, catalog, attempts] = await Promise.all([api("/api/me"), api("/api/catalog"), api("/api/attempts")]);
     state.user = me;
@@ -87,6 +147,7 @@ export function mountPersonal(root) {
     state.attempts = attempts.attempts;
   };
   const openAttempt = async (attemptId) => {
+    stopVoice();
     state.attempt = await api(`/api/attempts/${encodeURIComponent(attemptId)}`);
     state.review = state.attempt.review ? await api(`/api/attempts/${encodeURIComponent(attemptId)}/review`).catch(() => null) : null;
     state.related = [];
@@ -119,13 +180,14 @@ export function mountPersonal(root) {
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
       else if (control.hasAttribute("data-open-review")) { state.page = "review"; render(); }
       else if (control.hasAttribute("data-open-related")) { state.related = (await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/related`)).relatedProblems; state.page = "related"; render(); }
+      else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
       else if (control.dataset.retryCheckpoint) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/retry`, { method: "POST", body: { checkpointId: control.dataset.retryCheckpoint, practiceGoal: "Focused retry" } }); await openAttempt(result.attemptId); }
       else if (control.hasAttribute("data-sign-out")) { await api("/api/auth/sign-out", { method: "POST" }); state.user = null; state.attempt = null; render(); }
       else if (control.hasAttribute("data-save-draft")) { await saveDraft(); await reload(); state.attempt = null; render(); }
       else if (control.hasAttribute("data-run")) { await saveDraft(); await openAttempt(state.attempt.attempt.id); const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/run`, { method: "POST", body: sourceMetadata(state, "run") }); showError(`Run recorded: ${result.testsPassed} passed, ${result.testsFailed} failed.`); await openAttempt(state.attempt.attempt.id); }
       else if (control.hasAttribute("data-finish")) { await saveDraft(); await openAttempt(state.attempt.attempt.id); const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/finish`, { method: "POST", body: sourceMetadata(state, "finish") }); showError(`Attempt completed. Review dispatch: ${result.dispatch}.`); await openAttempt(state.attempt.attempt.id); }
-      else if (control.hasAttribute("data-help")) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/help`, { method: "POST", body: { category: "hint", ...sourceMetadata(state, "help") } }); showError(result.message); await openAttempt(state.attempt.attempt.id); }
+      else if (control.hasAttribute("data-help")) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/help`, { method: "POST", body: { category: "hint", ...sourceMetadata(state, "help") } }); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else showError(result.message); }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
   root.addEventListener("submit", async (event) => {
@@ -140,13 +202,19 @@ export function mountPersonal(root) {
         await reload(); render();
       } else if (form.id === "personal-setup-form") {
         const data = new FormData(form);
-        const result = await api("/api/attempts", { method: "POST", body: { problemId: data.get("problemId"), mode: data.get("mode"), inputMode: "text", saveAudio: false, consent: data.get("consent") === "on", familiarity: "unanswered", practiceGoal: data.get("practiceGoal"), setupContext: { studiedTopics: data.get("studiedTopics"), concern: data.get("concern") } } });
+        const result = await api("/api/attempts", { method: "POST", body: { problemId: data.get("problemId"), mode: data.get("mode"), inputMode: data.get("inputMode"), saveAudio: false, consent: data.get("consent") === "on", familiarity: "unanswered", practiceGoal: data.get("practiceGoal"), setupContext: { studiedTopics: data.get("studiedTopics"), concern: data.get("concern") } } });
         await openAttempt(result.attemptId);
       } else if (form.id === "personal-message-form") {
         const message = new FormData(form).get("message");
         if (typeof message !== "string" || !message.trim()) return;
-        await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/messages`, { method: "POST", body: { text: message, ...sourceMetadata(state, "message") } });
-        await openAttempt(state.attempt.attempt.id);
+        if (state.attempt.attempt.input_mode === "voice") {
+          if (!voiceSession?.active) throw new Error("Start voice before sending a typed message to the live interviewer.");
+          voiceSession.sendText(message.trim());
+          form.reset();
+        } else {
+          await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/messages`, { method: "POST", body: { text: message, ...sourceMetadata(state, "message") } });
+          await openAttempt(state.attempt.attempt.id);
+        }
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
         await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/review/findings/${encodeURIComponent(form.dataset.findingId)}/corrections`, { method: "POST", body: { reason } });
@@ -155,5 +223,12 @@ export function mountPersonal(root) {
       }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
+  const stopOnNavigation = () => {
+    if (!location.hash.startsWith("#personal")) {
+      stopVoice();
+      window.removeEventListener("hashchange", stopOnNavigation);
+    }
+  };
+  window.addEventListener("hashchange", stopOnNavigation);
   (async () => { try { await reload(); render(); } catch (error) { state.user = null; root.innerHTML = authMarkup(error instanceof Error ? error.message : "The data service is unavailable."); } })();
 }

@@ -1,0 +1,324 @@
+/* Interview trainer · design-system.css (revision candidate)
+   Semantic tokens, material recipes, and motion policy. Feature stylesheets consume these;
+   they never redefine :root, durations, or easing. Existing token names are kept where the
+   role survives; new roles are added only where the rendered examples repeat them. */
+
+:root {
+  color-scheme: dark;
+
+  /* Planes — five depths, one light source (above). Hue 160 at ~0.005 chroma: a green-grey graphite. */
+  --ground:      oklch(0.165 0.005 160);
+  --plane:       oklch(0.215 0.005 160);
+  --plane-lit:   oklch(0.245 0.006 160);
+  --recess:      oklch(0.14 0.005 160);
+  --raised:      oklch(0.285 0.006 160);
+  --raised-lit:  oklch(0.32 0.006 160);
+  --hover:       oklch(1 0 0 / 0.045);
+  --overlay:     oklch(0.08 0.005 160 / 0.7);
+
+  /* Legacy aliases (styles.css, discovery.css, practice.css keep working) */
+  --canvas: var(--ground);
+  --surface: var(--plane);
+  --input: var(--recess);
+  --feature-fill: var(--plane);
+
+  /* Edges — hairline ring replaces the 1px mid-grey border. Dividers separate information; rings bound a plane. */
+  --ring:            0 0 0 1px oklch(1 0 0 / 0.085);
+  --ring-strong:     0 0 0 1px oklch(1 0 0 / 0.16);
+  --divider:         oklch(1 0 0 / 0.07);
+  --divider-dashed:  1px dashed oklch(1 0 0 / 0.12);
+  --control-border:  oklch(1 0 0 / 0.14);
+
+  /* Light and shadow */
+  --light-top:       inset 0 1px 0 oklch(1 0 0 / 0.06);
+  --light-top-strong:inset 0 1px 0 oklch(1 0 0 / 0.12);
+  --shadow-contact:  0 1px 2px oklch(0 0 0 / 0.5);
+  --shadow-ambient:  0 12px 32px -12px oklch(0 0 0 / 0.7);
+  --shadow-float:    0 1px 2px oklch(0 0 0 / 0.5), 0 24px 56px -16px oklch(0 0 0 / 0.75);
+  --shadow-recess:   inset 0 1px 3px oklch(0 0 0 / 0.4);
+  --shadow: var(--ring), var(--shadow-float);
+
+  /* Ink */
+  --ink:    oklch(0.955 0.004 160);
+  --ink-2:  oklch(0.73 0.008 160);
+  --ink-3:  oklch(0.56 0.008 160);
+  --text: var(--ink);
+  --muted: var(--ink-2);
+
+  /* Interaction — teal is action and selection, nothing else. */
+  --accent:        oklch(0.80 0.10 175);
+  --accent-lit:    oklch(0.86 0.10 175);
+  --accent-deep:   oklch(0.72 0.10 175);
+  --accent-ink:    oklch(0.20 0.03 175);
+  --accent-soft:   oklch(0.80 0.10 175 / 0.14);
+  --accent-surface: var(--accent-soft);
+  --focus:         var(--accent);
+
+  /* Evidence and feedback — every color arrives with a word. */
+  --evidence:      oklch(0.83 0.11 80);
+  --evidence-soft: oklch(0.83 0.11 80 / 0.14);
+  --evidence-bg:   var(--evidence-soft);
+  --caution:       var(--evidence);
+  --coach:         oklch(0.80 0.09 300);
+  --coach-soft:    oklch(0.80 0.09 300 / 0.14);
+  --success:       oklch(0.80 0.12 150);
+  --success-soft:  oklch(0.80 0.12 150 / 0.14);
+  --error:         oklch(0.76 0.14 25);
+  --error-soft:    oklch(0.76 0.14 25 / 0.14);
+  --pending:       oklch(0.78 0.08 230);
+
+  /* Roadmap category identity — local to nodes and legend. */
+  --node-purple: oklch(0.83 0.09 300);
+  --node-yellow: oklch(0.90 0.11 95);
+  --node-green:  oklch(0.85 0.12 155);
+  --level-blue:  oklch(0.82 0.10 225);
+  --feature-mark: var(--ink-3);
+
+  /* Syntax */
+  --syntax-keyword:  oklch(0.82 0.08 300);
+  --syntax-function: oklch(0.86 0.09 90);
+  --syntax-string:   oklch(0.82 0.10 150);
+
+  /* Type — three families, eight roles. */
+  --font-ui:      'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Gabarito', 'Bahnschrift', var(--font-ui);
+  --font-mono:    'Geist Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+  --text-page:    2rem;       /* page title · display 600 · -0.02em · 1.1 */
+  --text-feature: 1.625rem;   /* learning moment · display 600 · -0.015em · 1.15 */
+  --text-section: 1rem;       /* section heading · ui 600 · 1.35 */
+  --text-pane:    0.8125rem;  /* pane label · ui 600 · 1.4 */
+  --text-eyebrow: 0.6875rem;  /* eyebrow · ui 600 · .12em · uppercase · ink-3 */
+  --text-reading: 0.9375rem;  /* problem prose, findings · 1.6 */
+  --text-body:    0.875rem;   /* interface copy · 1.5 */
+  --text-small:   0.8125rem;  /* supporting metadata · 1.5 */
+  --text-code:    0.8125rem;  /* code, timestamps, line refs · mono · 1.7 */
+
+  /* Shape — radius follows nesting: pane 14 → card 10 → control 8 → inner 6. */
+  --radius-pane:    14px;
+  --radius-card:    10px;
+  --radius-control: 8px;
+  --radius-inner:   6px;
+
+  /* Motion — decelerate in, accelerate out. Duration scales with size. */
+  --ease-enter:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-settle: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-exit:   cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --ease-breathe:cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-out: var(--ease-settle);
+  --motion-press:      150ms;
+  --motion-feedback:   200ms;
+  --motion-enter:      350ms;
+  --motion-pane:       450ms;
+  --motion-exit:       120ms;
+  --motion-disclosure: var(--motion-enter);
+  --stagger:           40ms;
+
+  font-family: var(--font-ui);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--ground);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light theme: same roles, inverted light. Shadows soften; rings darken. */
+[data-theme="light"] {
+  color-scheme: light;
+  --ground:      oklch(0.955 0.004 160);
+  --plane:       oklch(0.995 0.002 160);
+  --plane-lit:   oklch(1 0 0);
+  --recess:      oklch(0.93 0.005 160);
+  --raised:      oklch(0.985 0.003 160);
+  --raised-lit:  oklch(1 0 0);
+  --hover:       oklch(0 0 0 / 0.04);
+  --overlay:     oklch(0.3 0.005 160 / 0.4);
+  --ring:            0 0 0 1px oklch(0 0 0 / 0.08);
+  --ring-strong:     0 0 0 1px oklch(0 0 0 / 0.16);
+  --divider:         oklch(0 0 0 / 0.08);
+  --divider-dashed:  1px dashed oklch(0 0 0 / 0.14);
+  --control-border:  oklch(0 0 0 / 0.14);
+  --light-top:       inset 0 1px 0 oklch(1 0 0 / 0.9);
+  --light-top-strong:inset 0 1px 0 oklch(1 0 0 / 1);
+  --shadow-contact:  0 1px 2px oklch(0 0 0 / 0.08);
+  --shadow-ambient:  0 12px 32px -12px oklch(0 0 0 / 0.16);
+  --shadow-float:    0 1px 2px oklch(0 0 0 / 0.08), 0 24px 56px -16px oklch(0 0 0 / 0.22);
+  --shadow-recess:   inset 0 1px 3px oklch(0 0 0 / 0.1);
+  --ink:    oklch(0.20 0.006 160);
+  --ink-2:  oklch(0.46 0.008 160);
+  --ink-3:  oklch(0.60 0.008 160);
+  --accent:      oklch(0.56 0.10 175);
+  --accent-lit:  oklch(0.62 0.10 175);
+  --accent-deep: oklch(0.50 0.10 175);
+  --accent-ink:  oklch(0.99 0 0);
+  --accent-soft: oklch(0.56 0.10 175 / 0.12);
+  --evidence:      oklch(0.62 0.13 75);
+  --evidence-soft: oklch(0.72 0.13 80 / 0.18);
+  --coach:         oklch(0.55 0.13 300);
+  --coach-soft:    oklch(0.55 0.13 300 / 0.12);
+  --success:       oklch(0.55 0.13 150);
+  --success-soft:  oklch(0.55 0.13 150 / 0.12);
+  --error:         oklch(0.55 0.17 25);
+  --error-soft:    oklch(0.55 0.17 25 / 0.12);
+  --pending:       oklch(0.55 0.10 230);
+  --syntax-keyword:  oklch(0.50 0.12 300);
+  --syntax-function: oklch(0.55 0.12 70);
+  --syntax-string:   oklch(0.52 0.12 150);
+  --node-purple: oklch(0.88 0.07 300);
+  --node-yellow: oklch(0.93 0.09 95);
+  --node-green:  oklch(0.90 0.09 155);
+  --level-blue:  oklch(0.60 0.12 225);
+}
+
+/* ---- Material recipes (shared; feature files consume, never redefine) ---- */
+
+.plane {            /* working plane: reading pane, principal home feature */
+  background: linear-gradient(180deg, var(--plane-lit), var(--plane));
+  border-radius: var(--radius-pane);
+  box-shadow: var(--ring), var(--light-top), var(--shadow-contact);
+}
+.plane-quiet {      /* secondary panels: lists, transcript, thread */
+  background: var(--plane);
+  border-radius: var(--radius-pane);
+  box-shadow: var(--ring);
+}
+.recess {           /* editor interior, fields, inset code */
+  background: var(--recess);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--shadow-recess);
+}
+.float {            /* dialog, drawer, menu */
+  background: var(--raised);
+  border-radius: var(--radius-pane);
+  box-shadow: var(--ring-strong), var(--light-top), var(--shadow-float);
+}
+.icon-well {        /* small anchor beside a pane or section title */
+  display: grid; place-items: center; width: 28px; height: 28px;
+  background: linear-gradient(180deg, var(--raised-lit), var(--raised));
+  border-radius: var(--radius-inner);
+  box-shadow: var(--ring), var(--light-top);
+  color: var(--ink-2);
+}
+
+/* Controls: three materials, three weights. */
+.control-primary {
+  color: var(--accent-ink);
+  background: linear-gradient(180deg, var(--accent-lit), var(--accent-deep));
+  box-shadow: var(--light-top-strong), var(--shadow-contact), 0 8px 18px -8px var(--accent);
+}
+.control-raised {
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--raised-lit), var(--raised));
+  box-shadow: var(--ring), var(--light-top), var(--shadow-contact);
+}
+.control-ghost {
+  color: var(--ink-2);
+  background: transparent;
+  box-shadow: var(--ring);
+}
+.control-quiet { color: var(--ink-2); background: transparent; }
+
+/* Annotation: selected evidence / active learning context. Never a verdict. */
+.annotation { background: var(--evidence-soft); box-shadow: inset 2px 0 0 var(--evidence); }
+
+/* ---- Motion ---- */
+@keyframes ds-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ds-enter-left { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes ds-reveal-line { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+@keyframes ds-breathe { 0%, 100% { transform: scale(1); opacity: 0.55; } 50% { transform: scale(1.35); opacity: 1; } }
+@keyframes ds-breathe-tight { 0%, 100% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.12); opacity: 0.8; } }
+@keyframes ds-bar { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+@keyframes ds-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Motion runs only for pointer input with no reduced-motion preference (OS or in-app). */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .enter {
+    animation: ds-enter var(--motion-enter) var(--ease-enter) both;
+    animation-delay: calc(min(var(--i, 0), 6) * var(--stagger));
+  }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .pressable {
+    transition: transform var(--motion-press) var(--ease-settle), box-shadow var(--motion-press) var(--ease-settle), background var(--motion-feedback) var(--ease-settle), color var(--motion-feedback) var(--ease-settle);
+  }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .pressable:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: var(--ring), var(--shadow-contact);
+  }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] {
+    transition: opacity var(--motion-enter) var(--ease-enter), transform var(--motion-enter) var(--ease-enter);
+    opacity: 1; transform: none;
+  }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer[open] { transform: none; opacity: 1; }
+  @starting-style {
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] { opacity: 0; transform: translateY(8px); }
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer[open] { transform: translateX(-24px); opacity: 0; }
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root { --divider: var(--control-border); --ink-2: var(--ink); --ink-3: var(--ink-2); }
+}
+@media (forced-colors: active) {
+  .plane, .plane-quiet, .float, .control-primary, .control-raised, .control-ghost { border: 1px solid CanvasText; box-shadow: none; }
+  :focus-visible { outline-color: Highlight; }
+}
+
+/* Runtime motion uses the revision's timing and pointer/reduction gates. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) :is(.button,.icon-button,.road-node) { transition: transform var(--motion-press) var(--ease-settle), box-shadow var(--motion-feedback) var(--ease-settle), color var(--motion-feedback) var(--ease-settle); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) :is(.button,.icon-button,.road-node):active:not(:disabled) { transform: translateY(1px); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer[open] { transition-duration: var(--motion-pane); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog { transition: opacity var(--motion-exit) var(--ease-exit), transform var(--motion-exit) var(--ease-exit), display var(--motion-exit) allow-discrete, overlay var(--motion-exit) allow-discrete; opacity: 0; transform: translateY(8px); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] { opacity: 1; transform: none; }
+}
+:root[data-reduce="true"] *, :root[data-input="keyboard"] * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .setting-row input::before { transition: transform var(--motion-feedback) var(--ease-spring); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .locate-marker { animation: ds-enter-left var(--motion-enter) var(--ease-enter); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer { transform: translateX(-100%); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer[open] { transform: none; }
+  @starting-style {
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) dialog[open] { opacity: 0; transform: translateY(8px); }
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) #problem-drawer[open] { transform: translateX(-100%); opacity: 0; }
+  }
+}
+:root[data-reduce="true"] *::before, :root[data-input="keyboard"] *::before { animation: none !important; transition: none !important; }
+[data-theme="light"] { --accent: oklch(0.46 0.10 175); --syntax-function: oklch(0.50 0.12 70); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .stage-track::before { transition: transform var(--motion-feedback) var(--ease-settle); }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #voice-status[data-voice-state="listening"]::before { animation: ds-breathe 1600ms var(--ease-breathe) infinite; }
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) #voice-status[data-voice-state="speaking"]::before { animation: ds-breathe-tight 600ms var(--ease-breathe) infinite; }
+}
+
+/* Width change is intentional: the floating navbar compacts around its measured contents. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-input="keyboard"]):not([data-reduce="true"]) .floating-nav .app-header { transition: width var(--motion-enter) var(--ease-enter); }
+  @media (hover: hover) and (pointer: fine) {
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) .road-node:hover { transform: translateY(-2px); }
+    :root:not([data-input="keyboard"]):not([data-reduce="true"]) .subtopic-card:hover { box-shadow: var(--ring-strong),var(--light-top),var(--shadow-contact); }
+  }
+}
+
+/* Supplied Home/Profile v2 motion recipes. */
+.v2-home-7{transition:transform 220ms var(--ease-settle),box-shadow 220ms var(--ease-settle),background 220ms var(--ease-settle)}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-7:hover{transform:translateY(-2px);box-shadow:var(--ring-strong),var(--light-top-strong),var(--shadow-float);background:linear-gradient(180deg,var(--raised),var(--plane-lit))}}
+.v2-home-10{transition:transform 260ms var(--ease-spring)}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-41:hover{background:var(--hover);color:var(--ink)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-44:hover{background:var(--hover)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-63:hover{background:var(--hover);color:var(--ink)}}
+.v2-home-65{transition:background 160ms var(--ease-settle)}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-65:hover{background:var(--hover)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-72:hover{color:var(--ink)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-home-73:hover{color:var(--ink)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-profile-26:hover{transform:scale(1.25);box-shadow:var(--ring-strong)}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-profile-40:hover{background:var(--hover);color:var(--ink)}}
+.v2-profile-42{transition:transform 200ms var(--ease-settle),box-shadow 200ms var(--ease-settle),background 200ms var(--ease-settle)}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-profile-42:hover{transform:translateY(-2px);box-shadow:var(--ring-strong),var(--light-top),var(--shadow-ambient);background:var(--plane-lit)}}
+.v2-profile-50{transition:transform 220ms var(--ease-settle),box-shadow 220ms var(--ease-settle),background 220ms var(--ease-settle)}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-profile-50:hover{transform:translateY(-2px);box-shadow:var(--ring-strong),var(--light-top-strong),var(--shadow-float);background:linear-gradient(180deg,var(--raised),var(--plane-lit))}}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-reduce="true"]):not([data-input="keyboard"]) .v2-profile-66:hover{background:var(--hover)}}
+.v2-home-44{transition:background 180ms var(--ease-settle)}
+.v2-home-57{transition:background 200ms var(--ease-settle),color 200ms var(--ease-settle),box-shadow 200ms var(--ease-settle)}
+.v2-profile-26{transition:transform 140ms var(--ease-spring)}
+.v2-profile-66{transition:background 160ms var(--ease-settle)}

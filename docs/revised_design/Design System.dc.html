@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button,input{font:inherit}button{cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Design system" style="min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <div style="max-width:1180px;margin:0 auto;padding:48px 40px 80px;box-sizing:border-box;display:flex;flex-direction:column;gap:56px">
+
+    <header class="enter" style="--i:0;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:40px;align-items:end">
+      <div>
+        <p style="margin:0 0 12px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Interview trainer · Design and motion system · Revision 2</p>
+        <h1 style="margin:0 0 14px;font-family:var(--font-display);font-weight:600;font-size:2.5rem;line-height:1.05;letter-spacing:-0.025em;text-wrap:balance">Same evidence, more depth.</h1>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-reading);line-height:1.6;max-width:56ch;text-wrap:pretty">A quiet coding workspace that is lit rather than flat. Five planes, one light source, three control materials, and a motion language that decelerates in and leaves quickly. Colors still arrive with words. The guided sample stays labeled.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+        <sc-for list="{{ facts }}" as="f" hint-placeholder-count="4">
+          <div style="padding:10px 12px;border-radius:var(--radius-inner);background:var(--plane);box-shadow:var(--ring);display:flex;flex-direction:column;gap:2px"><span style="letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);font-size:11px">{{ f.k }}</span><span style="color:var(--ink)">{{ f.v }}</span></div>
+        </sc-for>
+      </div>
+    </header>
+
+    <nav aria-label="Specimen sections" class="enter" style="--i:1;display:flex;flex-wrap:wrap;gap:6px;padding:12px 0;border-top:var(--divider-dashed);border-bottom:var(--divider-dashed);font-size:12px">
+      <sc-for list="{{ toc }}" as="t" hint-placeholder-count="8">
+        <a href="{{ t.href }}" style="padding:6px 10px;border-radius:6px;color:var(--ink-2);box-shadow:var(--ring)" style-hover="color:var(--ink);background:var(--hover)">{{ t.label }}</a>
+      </sc-for>
+      <span style="margin-left:auto;color:var(--ink-3);padding:6px 0">Screens: <a href="Home.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Home</a> · <a href="Practice.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Practice</a> · <a href="Review.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Review</a> · <a href="Roadmap.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Roadmap</a> · <a href="Sessions.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Sessions</a> · <a href="Setup.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Setup</a> · <a href="Preferences.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Preferences</a> · <a href="Profile.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Profile</a> · <a href="Critique.dc.html" style="color:var(--accent);text-decoration:underline;text-underline-offset:3px">Critique</a></span>
+    </nav>
+
+    <!-- 01 Character -->
+    <section id="character" class="enter" style="--i:2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px">
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">01 · Character</p>
+        <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">A lit desk, not a dashboard</h2>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">The product connects a learning statement to the line of code that supports it. Everything in the system serves that pairing: planes hold reading, recesses hold code, annotation locates evidence, and the one saturated color means “this is the action.”</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <sc-for list="{{ principles }}" as="p" hint-placeholder-count="3">
+          <div style="padding:16px;border-radius:var(--radius-card);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);display:flex;flex-direction:column;gap:8px">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ p.dot }}"></span>
+            <span style="font-size:var(--text-body);font-weight:600">{{ p.title }}</span>
+            <span style="font-size:12px;color:var(--ink-2);line-height:1.5">{{ p.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- 02 Planes -->
+    <section id="planes" class="enter" style="--i:3;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px">
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">02 · Planes and light</p>
+        <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Five depths, one light source</h2>
+        <p style="margin:0 0 16px;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Light comes from above. A plane gets a 1px top light and a contact shadow; a recess gets an inner top shadow; a float gets ambient shadow because it truly overlaps. The hairline ring is a box-shadow so it stays crisp at any density and never doubles with a divider.</p>
+        <dl style="margin:0;display:flex;flex-direction:column;font-size:12px">
+          <sc-for list="{{ planeTokens }}" as="t" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:110px 1fr;gap:12px;padding:8px 0;box-shadow:inset 0 -1px 0 var(--divider)"><dt style="font-family:var(--font-mono);color:var(--ink)">{{ t.k }}</dt><dd style="margin:0;color:var(--ink-2)">{{ t.v }}</dd></div>
+          </sc-for>
+        </dl>
+      </div>
+      <div style="position:relative;padding:28px 28px 52px;border-radius:var(--radius-pane);background:var(--ground);box-shadow:var(--ring)">
+        <span style="position:absolute;top:10px;left:14px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">ground</span>
+        <div style="position:relative;padding:22px;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">
+          <span style="position:absolute;top:8px;left:14px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">plane · lit top, contact</span>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+            <div style="position:relative;padding:32px 14px 14px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);font-family:var(--font-mono);font-size:12px;color:var(--ink)"><span style="position:absolute;top:8px;left:12px;font-size:11px;color:var(--ink-3)">recess · inner shadow</span>return answer</div>
+            <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+              <span style="padding:8px 14px;border-radius:var(--radius-control);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);font-size:13px;font-weight:600">raised · control</span>
+              <span style="padding:8px 14px;border-radius:var(--radius-control);color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent);font-size:13px;font-weight:600">accent · action</span>
+            </div>
+          </div>
+          <div style="position:absolute;right:-24px;bottom:-34px;padding:12px 14px;border-radius:var(--radius-card);background:var(--raised);box-shadow:var(--ring-strong),var(--light-top),var(--shadow-float);font-size:12px;display:flex;flex-direction:column;gap:2px"><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">float · ambient</span><span style="font-weight:600">Delete demo sessions?</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 Color -->
+    <section id="color" class="enter" style="--i:4">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px;margin-bottom:20px">
+        <div>
+          <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">03 · Color roles</p>
+          <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Graphite, teal, and four words</h2>
+        </div>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Neutrals carry a trace of green-grey (hue 160, chroma ≈ 0.005) so the workspace feels like one material rather than #222. Teal is action and selection only. Amber locates evidence and is never a verdict. Lilac is the coach’s voice. Result colors keep their semantic roles and always pair with text.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+        <sc-for list="{{ swatches }}" as="s" hint-placeholder-count="12">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="display:block;height:56px;border-radius:var(--radius-card);background:{{ s.bg }};box-shadow:{{ s.shadow }}"></span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink)">{{ s.token }}</span>
+            <span style="font-size:11px;color:var(--ink-3);line-height:1.4">{{ s.use }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- 04 Type -->
+    <section id="type" class="enter" style="--i:5;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px">
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">04 · Type roles</p>
+        <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Three families, eight roles</h2>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55"><strong style="color:var(--ink);font-weight:600">Gabarito</strong> for the page title and the learning moment: warm, slightly geometric, unmistakably not a system font. <strong style="color:var(--ink);font-weight:600">Geist</strong> for every interface role. <strong style="color:var(--ink);font-weight:600">Geist Mono</strong> for code, line references, and timestamps, so a precise location always looks precise. Local fallbacks: Bahnschrift, Segoe UI, Cascadia Code.</p>
+      </div>
+      <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:8px 22px">
+        <sc-for list="{{ typeRoles }}" as="r" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:baseline;padding:14px 0;box-shadow:inset 0 -1px 0 var(--divider)">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);line-height:1.5">{{ r.spec }}</span>
+            <span style="font-family:{{ r.family }};font-size:{{ r.size }};font-weight:{{ r.weight }};letter-spacing:{{ r.tracking }};line-height:{{ r.lh }};color:{{ r.color }};text-transform:{{ r.transform }}">{{ r.sample }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- 05 Shape -->
+    <section id="shape" class="enter" style="--i:6;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px">
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">05 · Shape</p>
+        <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Radius follows nesting</h2>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">One radius for everything is what made the old UI read as generated. Now the curve tightens as a surface nests: pane 14 → card 10 → control 8 → inner 6. Circles remain for avatars and point markers. A status doesn’t get a pill by default; it gets a dot and a word.</p>
+      </div>
+      <div style="display:flex;gap:24px;align-items:stretch">
+        <div style="flex:1;padding:16px;border-radius:14px;background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);display:flex;flex-direction:column;gap:12px">
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">14 · pane</span>
+          <div style="padding:14px;border-radius:10px;background:var(--recess);box-shadow:var(--shadow-recess);display:flex;flex-direction:column;gap:10px">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">10 · card / recess</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="padding:8px 12px;border-radius:8px;background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);font-size:12px;font-weight:600">8 · control</span>
+              <span style="padding:4px 8px;border-radius:6px;background:var(--plane);box-shadow:var(--ring);font-family:var(--font-mono);font-size:11px;color:var(--ink-2)">6 · inner</span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+          <div style="padding:12px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);display:flex;flex-direction:column;gap:8px"><span style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px">status · before</span><span style="display:inline-flex;align-self:flex-start;padding:2px 8px;border:1px solid oklch(0.51 0 0);border-radius:4px;font-size:12px;color:oklch(0.74 0 0)">Review ready</span></div>
+          <div style="padding:12px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);display:flex;flex-direction:column;gap:8px"><span style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px">status · after</span><span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink)"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>Review ready</span></div>
+          <div style="grid-column:1 / -1;padding:12px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);color:var(--ink-2);line-height:1.5">Pending is blue, drafts are grey, ready is teal, runner failure is red — and every one is also a word. Color never carries the state alone.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 Controls -->
+    <section id="controls" class="enter" style="--i:7">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px;margin-bottom:20px">
+        <div>
+          <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">06 · Controls</p>
+          <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Three materials, three weights</h2>
+        </div>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Primary is lit teal with a soft glow and dark ink (contrast stays above 4.5:1). Secondary is a raised graphite control with a ring and contact edge. Ghost is a hairline. Quiet is text. Press drops the top light and travels 1px; hover brightens; focus is a 2px teal ring outside the control and always beats material highlights.</p>
+      </div>
+      <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:6px 22px 18px">
+        <div style="display:grid;grid-template-columns:120px repeat(5,1fr);gap:12px;align-items:center;padding:12px 0 8px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3);box-shadow:inset 0 -1px 0 var(--divider)"><span></span><span>rest</span><span>hover</span><span>focus</span><span>pressed</span><span>disabled</span></div>
+        <sc-for list="{{ controlRows }}" as="row" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:120px repeat(5,1fr);gap:12px;align-items:center;padding:14px 0;box-shadow:inset 0 -1px 0 var(--divider)">
+            <span style="font-size:12px;font-weight:600">{{ row.name }}</span>
+            <sc-for list="{{ row.states }}" as="s" hint-placeholder-count="5">
+              <span><button type="button" tabindex="-1" style="display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:{{ s.weight }};color:{{ s.color }};background:{{ s.bg }};box-shadow:{{ s.shadow }};transform:{{ s.transform }};opacity:{{ s.opacity }};cursor:{{ s.cursor }}">{{ row.label }}</button></span>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="display:grid;grid-template-columns:120px 1fr 1fr 1fr;gap:12px;align-items:center;padding:16px 0 4px">
+          <span style="font-size:12px;font-weight:600">Tracks &amp; fields</span>
+          <div role="tablist" style="display:inline-flex;gap:2px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);align-self:flex-start;justify-self:start">
+            <sc-for list="{{ seg }}" as="s" hint-placeholder-count="3">
+              <button type="button" role="tab" aria-selected="{{ s.selected }}" onClick="{{ s.select }}" style="min-height:28px;padding:0 12px;border:0;border-radius:6px;font-size:12px;font-weight:600;color:{{ s.color }};background:{{ s.bg }};box-shadow:{{ s.shadow }};transition:background 200ms var(--ease-settle),box-shadow 200ms var(--ease-settle)">{{ s.label }}</button>
+            </sc-for>
+          </div>
+          <label style="display:flex;align-items:center;gap:12px;font-size:12px;cursor:pointer"><button type="button" role="switch" aria-checked="{{ switchOn }}" onClick="{{ toggleSwitch }}" style="position:relative;width:36px;height:22px;border:0;border-radius:11px;padding:0;background:{{ switchBg }};box-shadow:{{ switchShadow }};transition:background 200ms var(--ease-settle)"><span style="position:absolute;top:3px;left:{{ knobLeft }};width:16px;height:16px;border-radius:50%;background:{{ knobBg }};box-shadow:var(--light-top-strong),var(--shadow-contact);transition:left 200ms var(--ease-spring)"></span></button>{{ switchLabel }}</label>
+          <input value="Arrays, loops, sets" aria-label="Field sample" style="min-height:34px;padding:0 12px;border:0;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);color:var(--ink);font-size:13px;outline:none;width:100%;box-sizing:border-box" style-focus="box-shadow:var(--shadow-recess),0 0 0 2px var(--accent)">
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 Components -->
+    <section id="components" class="enter" style="--i:8">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px;margin-bottom:20px">
+        <div>
+          <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">07 · Components in context</p>
+          <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">The parts that recur</h2>
+        </div>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Pane headers own their icon well and title inside the surface, so the toolbar above the work no longer competes. Findings sit beside their evidence. Activity is one continuous list with dividers. Test results align expected and observed and mark the observed cell, not the whole row.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+        <div style="border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact);overflow:hidden;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;box-shadow:inset 0 -1px 0 var(--divider)"><span aria-hidden="true" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"></path></svg></span><span style="font-size:var(--text-pane);font-weight:600">Code</span><span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">first_duplicate.py</span></div>
+          <div style="margin:10px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);padding:10px 0;font-family:var(--font-mono);font-size:12px;line-height:1.8">
+            <span style="display:flex;padding:0 12px;color:var(--ink-2)"><span style="width:30px;color:var(--ink-3);flex:0 0 auto">5</span><span style="white-space:pre">    <span style="color:var(--syntax-keyword)">if</span> value <span style="color:var(--syntax-keyword)">in</span> seen:</span></span>
+            <span style="display:flex;padding:0 12px;background:var(--evidence-soft);box-shadow:inset 2px 0 0 var(--evidence)"><span style="width:30px;color:var(--evidence);flex:0 0 auto">6</span><span style="white-space:pre">        answer = value</span></span>
+            <span style="display:flex;padding:0 12px;color:var(--ink-2)"><span style="width:30px;color:var(--ink-3);flex:0 0 auto">7</span><span style="white-space:pre">    seen.add(value)</span></span>
+          </div>
+          <span style="padding:0 14px 12px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">pane header · inset editor · annotation</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          <p style="margin:0;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--evidence)">A moment to revisit</p>
+          <h3 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:1.125rem;line-height:1.2;letter-spacing:-0.01em">Your plan stops. Your code keeps going.</h3>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-card);background:var(--evidence-soft);box-shadow:inset 2px 0 0 var(--evidence)"><span style="display:flex;flex-direction:column;gap:1px"><span style="font-size:12px;font-weight:600">Evidence · test run</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-2)">04:26 · line 6</span></span><span style="margin-left:auto;font-size:12px;color:var(--evidence);font-weight:500">Located</span></div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px"><span style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);padding-top:3px">Limit</span><span style="color:var(--ink-2)">One case and one sentence of transcript.</span></div>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">finding · citation · limitation</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:6px 16px 12px;display:flex;flex-direction:column">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:10px;padding:10px 0;box-shadow:inset 0 -1px 0 var(--divider)">
+              <span aria-hidden="true" style="display:grid;place-items:center;width:24px;height:24px;border-radius:5px;background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"></path></svg></span>
+              <span style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:500">{{ r.title }}</span><span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2)"><span style="width:5px;height:5px;border-radius:50%;background:{{ r.dot }}"></span>{{ r.status }}</span></span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">{{ r.when }}</span>
+            </div>
+          </sc-for>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px">
+            <span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Input</span><code style="font-family:var(--font-mono);font-size:11px;padding:6px 8px;border-radius:5px;background:var(--recess);box-shadow:var(--shadow-recess)">[7,2,7,2]</code></span>
+            <span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Expected</span><code style="font-family:var(--font-mono);font-size:11px;padding:6px 8px;border-radius:5px;background:var(--recess);box-shadow:var(--shadow-recess)">7</code></span>
+            <span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Observed ≠</span><code style="font-family:var(--font-mono);font-size:11px;padding:6px 8px;border-radius:5px;background:var(--recess);box-shadow:var(--shadow-recess),inset 2px 0 0 var(--error);color:var(--error)">2</code></span>
+          </div>
+          <span style="margin-top:12px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">activity list · test result</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 Motion -->
+    <section id="motion" class="enter" style="--i:9">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px;margin-bottom:20px">
+        <div>
+          <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">08 · Motion</p>
+          <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.5rem;letter-spacing:-0.015em;line-height:1.15">Nothing moves linearly</h2>
+          <p style="margin:0;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Decelerate in, accelerate out. Siblings stagger by 40 ms, capped at six. Duration scales with size: 150 press, 200 state, 350 enter, 450 pane. Code and evidence never move; annotation arrives around them. Motion never editorializes: a failing case and a passing case enter the same way. Gates are unchanged: OS preference, in-app preference, pointer input.</p>
+        </div>
+        <dl style="margin:0;display:grid;grid-template-columns:1fr 1fr;gap:0 24px;font-size:12px;align-content:start">
+          <sc-for list="{{ motionTokens }}" as="t" hint-placeholder-count="8">
+            <div style="display:grid;grid-template-columns:110px 1fr;gap:10px;padding:8px 0;box-shadow:inset 0 -1px 0 var(--divider)"><dt style="font-family:var(--font-mono);color:var(--ink)">{{ t.k }}</dt><dd style="margin:0;color:var(--ink-2)">{{ t.v }}</dd></div>
+          </sc-for>
+        </dl>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600">Staggered entrance</span><button type="button" onClick="{{ replay }}" style="min-height:26px;padding:0 10px;border:0;border-radius:6px;font-size:11px;font-weight:600;color:var(--ink-2);background:transparent;box-shadow:var(--ring)" style-hover="background:var(--hover)">Replay</button></div>
+          {{ staggerDemo }}
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">ease-enter · 350ms · 40ms stagger</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px">
+          <span style="font-size:12px;font-weight:600">State track advance</span>
+          <div role="list" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+            <sc-for list="{{ track }}" as="s" hint-placeholder-count="3">
+              <button type="button" onClick="{{ s.select }}" style="min-height:30px;border:0;border-radius:6px;font-size:12px;font-weight:600;color:{{ s.color }};background:{{ s.bg }};box-shadow:{{ s.shadow }};display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background 200ms var(--ease-settle),color 200ms var(--ease-settle),box-shadow 200ms var(--ease-settle)"><sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"></path></svg></sc-if>{{ s.label }}</button>
+            </sc-for>
+          </div>
+          <span style="font-size:12px;color:var(--ink-2)">The raised pill moves; completed stages keep a check. Click a stage.</span>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">ease-settle · 200ms</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600">Evidence reveal</span><button type="button" onClick="{{ toggleCite }}" aria-pressed="{{ cited }}" style="min-height:26px;padding:0 10px;border:0;border-radius:6px;font-size:11px;font-weight:600;color:{{ citeColor }};background:{{ citeBg }};box-shadow:var(--ring)">{{ citeLabel }}</button></div>
+          <div style="border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);padding:8px 0;font-family:var(--font-mono);font-size:12px;line-height:1.8">
+            <span style="display:flex;padding:0 12px;color:var(--ink-2)"><span style="width:28px;color:var(--ink-3);flex:0 0 auto">5</span><span style="white-space:pre">    if value in seen:</span></span>
+            <span style="display:flex;padding:0 12px;background:{{ lineBg }};box-shadow:{{ lineShadow }};transition:background 250ms var(--ease-settle),box-shadow 250ms var(--ease-settle)"><span style="width:28px;color:{{ lineNum }};flex:0 0 auto">6</span><span style="white-space:pre">        answer = value</span><sc-if value="{{ cited }}" hint-placeholder-val="{{ true }}"><span style="margin-left:auto;font-size:11px;color:var(--evidence);animation:ds-enter-left 350ms var(--ease-enter) both">← 04:26</span></sc-if></span>
+            <span style="display:flex;padding:0 12px;color:var(--ink-2)"><span style="width:28px;color:var(--ink-3);flex:0 0 auto">7</span><span style="white-space:pre">    seen.add(value)</span></span>
+          </div>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">code stays still · marker enters from the left</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px">
+          <span style="font-size:12px;font-weight:600">Press and settle</span>
+          <div style="display:flex;gap:10px;align-items:center"><button type="button" class="pressable" style="min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)">Press me</button><button type="button" class="pressable" style="min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">And me</button></div>
+          <span style="font-size:12px;color:var(--ink-2)">Down: 1px travel, top light dropped, 150 ms. Up: spring-soft. Replaces scale(0.96), which also shrank the label.</span>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">ease-settle down · ease-spring up</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600">Voice indicator</span><div role="tablist" style="display:inline-flex;gap:2px;padding:2px;border-radius:6px;background:var(--recess);box-shadow:var(--shadow-recess)"><sc-for list="{{ voiceStates }}" as="v" hint-placeholder-count="3"><button type="button" onClick="{{ v.select }}" aria-selected="{{ v.selected }}" style="min-height:22px;padding:0 8px;border:0;border-radius:4px;font-size:11px;font-weight:600;color:{{ v.color }};background:{{ v.bg }}">{{ v.label }}</button></sc-for></div></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess)">{{ voiceDemo }}<span style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:600;color:var(--coach)">Interviewer</span><span style="font-size:11px;color:var(--ink-2)">{{ voiceCaption }}</span></span></div>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">one sine breathe · period and amplitude change, label stays</span>
+        </div>
+        <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:150px;position:relative;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600">Drawer from its origin</span><button type="button" onClick="{{ toggleDrawer }}" style="min-height:26px;padding:0 10px;border:0;border-radius:6px;font-size:11px;font-weight:600;color:var(--ink-2);background:transparent;box-shadow:var(--ring)" style-hover="background:var(--hover)">{{ drawerLabel }}</button></div>
+          <div style="position:relative;height:84px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);overflow:hidden">
+            <span style="position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">workspace stays put</span>
+            {{ drawerDemo }}
+          </div>
+          <span style="margin-top:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">enter 450ms ease-enter · exit 120ms ease-exit</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="enter" style="--i:10;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:20px;border-top:var(--divider-dashed);font-size:12px;color:var(--ink-3)">
+      <span>Specimen renders the tokens in design-system.css. Values are design parameters to inspect at display scale, not measured usability results.</span>
+      <span>Toggle theme in Tweaks · <a href="Critique.dc.html" style="color:var(--accent);text-decoration:underline;text-underline-offset:3px">Read the critique</a></span>
+    </footer>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  state = { seg: 0, switchOn: true, track: 1, cited: true, replayKey: 0, voice: 0, drawer: false };
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const h = React.createElement;
+    const segStyle = (on) => ({ color: on ? 'var(--ink)' : 'var(--ink-2)', bg: on ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: on ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' });
+    const raised = 'linear-gradient(180deg,var(--raised-lit),var(--raised))', raisedShadow = 'var(--ring), var(--light-top), var(--shadow-contact)';
+    const accent = 'linear-gradient(180deg,var(--accent-lit),var(--accent-deep))', accentShadow = 'var(--light-top-strong), var(--shadow-contact), 0 8px 18px -8px var(--accent)';
+    const states = (base) => ['rest', 'hover', 'focus', 'pressed', 'disabled'].map((s) => ({ ...base.rest, ...(base[s] ?? {}), transform: s === 'pressed' ? 'translateY(1px)' : 'none', opacity: s === 'disabled' ? 0.45 : 1, cursor: s === 'disabled' ? 'not-allowed' : 'pointer' }));
+    const controlRows = [
+      { name: 'Primary', label: 'Open review', states: states({ rest: { weight: 600, color: 'var(--accent-ink)', bg: accent, shadow: accentShadow }, hover: { bg: 'linear-gradient(180deg,var(--accent-lit),var(--accent-lit))' }, focus: { shadow: accentShadow + ', 0 0 0 2px var(--ground), 0 0 0 4px var(--accent)' }, pressed: { shadow: 'var(--shadow-contact)' } }) },
+      { name: 'Secondary', label: 'Save & exit', states: states({ rest: { weight: 600, color: 'var(--ink)', bg: raised, shadow: raisedShadow }, hover: { bg: 'linear-gradient(180deg,var(--raised-lit),var(--raised-lit))' }, focus: { shadow: raisedShadow + ', 0 0 0 2px var(--ground), 0 0 0 4px var(--accent)' }, pressed: { shadow: 'var(--ring), var(--shadow-contact)' } }) },
+      { name: 'Ghost', label: 'Try the sample', states: states({ rest: { weight: 500, color: 'var(--ink-2)', bg: 'transparent', shadow: 'var(--ring)' }, hover: { bg: 'var(--hover)', color: 'var(--ink)' }, focus: { shadow: 'var(--ring), 0 0 0 2px var(--ground), 0 0 0 4px var(--accent)' }, pressed: { bg: 'var(--recess)' } }) },
+      { name: 'Quiet', label: 'Hide guidance', states: states({ rest: { weight: 500, color: 'var(--ink-2)', bg: 'transparent', shadow: 'none' }, hover: { bg: 'var(--hover)', color: 'var(--ink)' }, focus: { shadow: '0 0 0 2px var(--ground), 0 0 0 4px var(--accent)' }, pressed: { bg: 'var(--recess)' } }) },
+    ];
+    const chips = ['Attempt', 'Review', 'Retry', 'Related'];
+    const staggerDemo = h('div', { key: this.state.replayKey, style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+      chips.map((c, i) => h('span', { key: c, style: { padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: raised, boxShadow: raisedShadow, animation: `ds-enter var(--motion-enter) var(--ease-enter) both`, animationDelay: `${i * 40}ms` } }, c)));
+    const vs = this.state.voice;
+    const voiceCfg = [{ label: 'Listening', period: 1600, amp: 1, caption: 'Listening · facts only' }, { label: 'Thinking', period: 900, amp: 0.55, caption: 'Thinking' }, { label: 'Speaking', period: 600, amp: 1.2, caption: 'Speaking · text record kept' }][vs];
+    const voiceDemo = h('span', { key: vs, 'aria-hidden': true, style: { display: 'inline-flex', alignItems: 'center', gap: 3, height: 18 } },
+      [0, 1, 2, 3, 4].map((i) => h('span', { key: i, style: { width: 3, height: 18 * voiceCfg.amp, maxHeight: 18, borderRadius: 2, background: 'var(--coach)', transformOrigin: 'center', animation: `ds-bar ${voiceCfg.period}ms var(--ease-breathe) ${i * (voiceCfg.period / 8)}ms infinite` } })));
+    const drawerDemo = this.state.drawer ? h('div', { key: 'd', style: { position: 'absolute', top: 6, bottom: 6, left: 6, width: '46%', borderRadius: 8, background: 'var(--raised)', boxShadow: 'var(--ring-strong), var(--light-top), var(--shadow-float)', padding: '8px 10px', fontSize: 11, color: 'var(--ink)', animation: 'ds-enter-left var(--motion-pane) var(--ease-enter) both' } }, h('span', { style: { fontWeight: 600 } }, 'Problems'), h('div', { style: { marginTop: 6, height: 4, width: '70%', borderRadius: 2, background: 'var(--recess)' } }), h('div', { style: { marginTop: 4, height: 4, width: '50%', borderRadius: 2, background: 'var(--recess)' } })) : null;
+    const cited = this.state.cited;
+    return {
+      theme,
+      facts: [{ k: 'Planes', v: '5 · ground, plane, recess, raised, float' }, { k: 'Type', v: 'Gabarito · Geist · Geist Mono' }, { k: 'Accent', v: 'Teal · action and selection only' }, { k: 'Motion', v: '5 eases · 40 ms stagger · exit 120 ms' }],
+      toc: [['#character', '01 Character'], ['#planes', '02 Planes'], ['#color', '03 Color'], ['#type', '04 Type'], ['#shape', '05 Shape'], ['#controls', '06 Controls'], ['#components', '07 Components'], ['#motion', '08 Motion']].map(([href, label]) => ({ href, label })),
+      principles: [
+        { dot: 'var(--accent)', title: 'Lit, not glowing', text: 'A top light and a contact shadow describe material. No ambient spotlight behind text; ambient shadow only where a surface really overlaps.' },
+        { dot: 'var(--evidence)', title: 'Evidence over verdicts', text: 'Amber locates. It never grades. A finding keeps its limitation in view and its citation one click from the code line.' },
+        { dot: 'var(--coach)', title: 'Quiet chrome', text: 'Navigation and factual status stay legible but recede. The exercise title and the current action establish local hierarchy.' },
+      ],
+      planeTokens: [{ k: '--ground', v: 'Page and space around panes. Flat.' }, { k: '--plane', v: 'Reading panes, principal home feature. Gradient to --plane-lit.' }, { k: '--recess', v: 'Editor interior, fields, inset evidence. Inner top shadow.' }, { k: '--raised', v: 'Controls, selected pills, icon wells. Ring + top light + contact.' }, { k: '--ring', v: '1px box-shadow ring; replaces the 1px border everywhere.' }, { k: '--shadow-float', v: 'Dialogs, drawer, menus. The only ambient shadow.' }],
+      swatches: [
+        { token: '--ground', bg: 'var(--ground)', shadow: 'var(--ring)', use: 'Canvas' }, { token: '--plane', bg: 'linear-gradient(180deg,var(--plane-lit),var(--plane))', shadow: 'var(--ring), var(--light-top)', use: 'Working plane' }, { token: '--recess', bg: 'var(--recess)', shadow: 'var(--shadow-recess)', use: 'Editor, fields' }, { token: '--raised', bg: 'linear-gradient(180deg,var(--raised-lit),var(--raised))', shadow: 'var(--ring), var(--light-top)', use: 'Controls' }, { token: '--ink', bg: 'var(--ink)', shadow: 'none', use: 'Primary text' }, { token: '--ink-2 / -3', bg: 'linear-gradient(90deg,var(--ink-2) 50%,var(--ink-3) 50%)', shadow: 'none', use: 'Supporting · faint' },
+        { token: '--accent', bg: 'var(--accent)', shadow: 'none', use: 'Action, selection' }, { token: '--evidence', bg: 'var(--evidence)', shadow: 'none', use: 'Cited location' }, { token: '--coach', bg: 'var(--coach)', shadow: 'none', use: 'Interviewer voice' }, { token: '--success', bg: 'var(--success)', shadow: 'none', use: 'Case passed' }, { token: '--error', bg: 'var(--error)', shadow: 'none', use: 'Case failed, runner' }, { token: '--pending', bg: 'var(--pending)', shadow: 'none', use: 'Review pending' },
+      ],
+      typeRoles: [
+        { spec: 'page · Gabarito 32/600 · −.02em', family: 'var(--font-display)', size: '2rem', weight: 600, tracking: '-0.02em', lh: 1.1, color: 'var(--ink)', transform: 'none', sample: 'Welcome back, Alex.' },
+        { spec: 'feature · Gabarito 26/600 · −.015em', family: 'var(--font-display)', size: '1.625rem', weight: 600, tracking: '-0.015em', lh: 1.15, color: 'var(--ink)', transform: 'none', sample: 'You found the match. What happened next?' },
+        { spec: 'section · Geist 16/600', family: 'var(--font-ui)', size: '1rem', weight: 600, tracking: '-0.01em', lh: 1.35, color: 'var(--ink)', transform: 'none', sample: 'Recent activity' },
+        { spec: 'pane · Geist 13/600', family: 'var(--font-ui)', size: '0.8125rem', weight: 600, tracking: '0', lh: 1.4, color: 'var(--ink)', transform: 'none', sample: 'Tests & results' },
+        { spec: 'eyebrow · Geist 11/600 · .12em · caps', family: 'var(--font-ui)', size: '0.6875rem', weight: 600, tracking: '0.12em', lh: 1.4, color: 'var(--ink-3)', transform: 'uppercase', sample: 'A moment to revisit' },
+        { spec: 'reading · Geist 15/400 · 1.6', family: 'var(--font-ui)', size: '0.9375rem', weight: 400, tracking: '0', lh: 1.6, color: 'var(--ink-2)', transform: 'none', sample: 'Scan the list from left to right. Return the value as soon as it repeats.' },
+        { spec: 'supporting · Geist 13/400', family: 'var(--font-ui)', size: '0.8125rem', weight: 400, tracking: '0', lh: 1.5, color: 'var(--ink-2)', transform: 'none', sample: 'Text record only · spoken delivery not assessed' },
+        { spec: 'code · Geist Mono 13/400 · 1.7', family: 'var(--font-mono)', size: '0.8125rem', weight: 400, tracking: '0', lh: 1.7, color: 'var(--ink)', transform: 'none', sample: '04:26 · line 6 · return answer' },
+      ],
+      controlRows,
+      seg: ['Graph', 'List', 'Table'].map((label, i) => ({ label, selected: i === this.state.seg, select: () => this.setState({ seg: i }), ...segStyle(i === this.state.seg) })),
+      switchOn: this.state.switchOn, toggleSwitch: () => this.setState({ switchOn: !this.state.switchOn }), switchLabel: this.state.switchOn ? 'Reduce motion · on' : 'Reduce motion · off',
+      switchBg: this.state.switchOn ? 'var(--accent)' : 'var(--recess)', switchShadow: this.state.switchOn ? 'var(--light-top-strong)' : 'var(--shadow-recess)', knobLeft: this.state.switchOn ? '17px' : '3px', knobBg: this.state.switchOn ? 'var(--accent-ink)' : 'var(--ink-2)',
+      rows: [{ title: 'First repeated tag', status: 'Review ready', dot: 'var(--accent)', when: '10:42' }, { title: 'First threshold alert', status: 'Draft saved', dot: 'var(--ink-3)', when: 'Yesterday' }, { title: 'First consecutive pair', status: 'Review pending', dot: 'var(--pending)', when: 'Sep 11' }],
+      motionTokens: [{ k: '--ease-enter', v: 'expo-out (.16,1,.3,1) · anything appearing' }, { k: '--ease-settle', v: '(.25,1,.5,1) · state changes, pill moves' }, { k: '--ease-exit', v: '(.4,0,1,1) · menus and dialogs leave in 120ms' }, { k: '--ease-spring', v: '(.34,1.3,.64,1) · ≤4% overshoot · switches, pills' }, { k: '--ease-breathe', v: 'sine-like · voice indicator only' }, { k: '--motion-press', v: '150ms · 1px travel, top light dropped' }, { k: '--motion-pane', v: '450ms · drawer, narrow pane switch' }, { k: '--stagger', v: '40ms · index-based, capped at 6' }],
+      staggerDemo, replay: () => this.setState({ replayKey: this.state.replayKey + 1 }),
+      track: ['Attempt', 'Review', 'Retry'].map((label, i) => ({ label, done: i < this.state.track, select: () => this.setState({ track: i }), color: i === this.state.track ? 'var(--ink)' : i < this.state.track ? 'var(--ink-2)' : 'var(--ink-3)', bg: i === this.state.track ? raised : 'transparent', shadow: i === this.state.track ? raisedShadow : 'none' })),
+      cited, toggleCite: () => this.setState({ cited: !cited }), citeLabel: cited ? 'Clear' : 'Locate 04:26', citeColor: cited ? 'var(--ink-2)' : 'var(--evidence)', citeBg: cited ? 'transparent' : 'var(--evidence-soft)',
+      lineBg: cited ? 'var(--evidence-soft)' : 'transparent', lineShadow: cited ? 'inset 2px 0 0 var(--evidence)' : 'none', lineNum: cited ? 'var(--evidence)' : 'var(--ink-3)',
+      voiceStates: ['Listening', 'Thinking', 'Speaking'].map((label, i) => ({ label, selected: i === vs, select: () => this.setState({ voice: i }), color: i === vs ? 'var(--ink)' : 'var(--ink-3)', bg: i === vs ? 'var(--raised)' : 'transparent' })),
+      voiceDemo, voiceCaption: voiceCfg.caption,
+      drawerDemo, toggleDrawer: () => this.setState({ drawer: !this.state.drawer }), drawerLabel: this.state.drawer ? 'Close' : 'Open drawer',
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -57,7 +57,7 @@ export const scenes = [
   ['Your practice', 'welcome', 'Personal home, current focus, and activity'],
   ['New practice home', 'welcome?state=empty', 'Honest first-use state without invented progress'],
   ['Learning map', 'roadmap', 'Connected topics and practice selection'],
-  ['Topic detail', 'roadmap?topic=sets', 'Expanded topic with a nested subtopic tree'],
+  ['Topic detail', 'roadmap?topic=sets', 'Selected topic with subtopic cards beneath the map'],
   ['Problem drawer', 'roadmap?topic=sets&leaf=seen', 'Final practice node opens a sliding left panel'],
   ['List view', 'roadmap?view=list', 'An equivalent, linear path'],
   ['Session history', 'sessions', 'Review ready, saved draft, and return'],

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Practice" style="display:flex;flex-direction:{{ shellDir }};height:100vh;min-height:720px;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="sessions" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="sessions" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;padding:14px 16px 10px;box-sizing:border-box">
+    <div class="enter" style="--i:0;display:flex;align-items:center;gap:14px;padding:2px 4px 12px;flex-wrap:wrap">
+      <a href="#sessions" aria-label="Back to sessions" style="display:grid;place-items:center;width:32px;height:32px;border-radius:var(--radius-control);color:var(--ink-2);box-shadow:var(--ring)" style-hover="background:var(--hover);color:var(--ink)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H4m5-5-5 5 5 5"></path></svg></a>
+      <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+        <span style="font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Maps &amp; sets · Guided sample</span>
+        <h1 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:1.25rem;line-height:1.2;letter-spacing:-0.01em">First duplicate</h1>
+      </div>
+      <span style="display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:500;color:var(--ink-2);box-shadow:var(--ring)"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-3)"></span>Not scored · no recording</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-right:6px">04:26 elapsed</span>
+        <button type="button" class="pressable" style="min-height:34px;padding:0 12px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2);background:transparent" style-hover="background:var(--hover);color:var(--ink)">Save &amp; exit</button>
+        <button type="button" class="pressable" style="min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">Review this moment</button>
+      </div>
+    </div>
+
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,40%) 10px minmax(0,1fr)">
+      <div style="display:grid;min-width:0;min-height:0;gap:10px;grid-template-rows:minmax(0,1fr) minmax(200px,36%)">
+        <section class="enter" aria-label="Problem" style="--i:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;box-shadow:inset 0 -1px 0 var(--divider)">
+            <span aria-hidden="true" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5C7 3 4 3 2 4v12c3-1 5-1 8 1 3-2 5-2 8-1V4c-2-1-5-1-8 1Zm0 0v12"></path></svg></span>
+            <span style="font-size:var(--text-pane);font-weight:600;white-space:nowrap">Problem</span>
+            <span style="margin-left:auto;font-size:12px;color:var(--ink-3)">Original exercise</span>
+          </div>
+          <sc-if value="{{ guide }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:flex-start;gap:10px;margin:12px 14px 0;padding:10px 12px;border-radius:var(--radius-card);background:var(--coach-soft);box-shadow:inset 0 0 0 1px var(--coach-soft)">
+              <span style="width:6px;height:6px;border-radius:50%;background:var(--coach);margin-top:7px;flex:0 0 auto"></span>
+              <span style="font-size:var(--text-small);line-height:1.5;color:var(--ink)"><strong style="font-weight:600">Follow a candidate’s attempt.</strong> <span style="color:var(--ink-2)">Read the plan, run the prepared sample tests, then open the review.</span></span>
+              <button type="button" onClick="{{ hideGuide }}" aria-label="Hide guidance" style="margin-left:auto;border:0;background:transparent;color:var(--ink-3);padding:0 2px;line-height:1;font-size:16px">×</button>
+            </div>
+          </sc-if>
+          <div style="overflow:auto;padding:18px 20px 22px;flex:1">
+            <p style="margin:0 0 16px;font-size:var(--text-reading);line-height:1.6;color:var(--ink);font-weight:500">Return the first value you encounter for a second time.</p>
+            <p style="margin:0 0 16px;font-size:var(--text-reading);line-height:1.6;color:var(--ink-2)">Scan the list from left to right. Return the value as soon as it repeats. If no value repeats, return <code style="font-family:var(--font-mono);font-size:0.85em;color:var(--ink);background:var(--recess);padding:1px 5px;border-radius:4px">None</code>.</p>
+            <h3 style="margin:20px 0 8px;font-size:var(--text-pane);font-weight:600">Example</h3>
+            <div style="border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess);padding:10px 14px;font-family:var(--font-mono);font-size:var(--text-code);line-height:1.8;display:grid;grid-template-columns:auto 1fr;gap:0 18px">
+              <span style="color:var(--ink-3)">input</span><span>[7, 2, 7, 2]</span>
+              <span style="color:var(--ink-3)">output</span><span style="color:var(--syntax-string)">7</span>
+            </div>
+            <p style="margin:10px 0 0;font-size:var(--text-small);line-height:1.55;color:var(--ink-2)">The second 7 appears before the second 2, so the answer is 7.</p>
+            <h3 style="margin:20px 0 8px;font-size:var(--text-pane);font-weight:600">Keep in mind</h3>
+            <ul style="margin:0;padding:0 0 0 18px;color:var(--ink-2);font-size:var(--text-small);line-height:1.6"><li>The input may be empty.</li><li>Scan in the order given; don’t sort the input.</li><li>Return a value instead of printing it.</li></ul>
+            <details style="margin-top:16px;font-size:var(--text-small);color:var(--ink-2)"><summary style="cursor:pointer;color:var(--ink);font-weight:500;min-height:28px;display:flex;align-items:center">Clarifying the requirement</summary><p style="margin:6px 0 0;line-height:1.55">“First” means the earliest qualifying position in a left-to-right scan. Ask about an ambiguity before choosing your approach.</p></details>
+          </div>
+        </section>
+
+        <section class="enter" aria-label="Interviewer" style="--i:2;display:flex;flex-direction:column;min-height:0;overflow:hidden;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring)">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;box-shadow:inset 0 -1px 0 var(--divider)">
+            <span aria-hidden="true" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H3v11h4v4l5-4h5Z"></path></svg></span>
+            <span style="font-size:var(--text-pane);font-weight:600;white-space:nowrap">Interviewer</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)">{{ voiceBars }}<span>{{ voiceLabel }}</span></span>
+            <div style="margin-left:auto;display:flex;gap:2px">
+              <button type="button" onClick="{{ toggleVoice }}" aria-pressed="{{ voice }}" style="min-height:28px;padding:0 8px;border:0;border-radius:6px;font-size:12px;font-weight:500;color:var(--ink-2);background:transparent" style-hover="background:var(--hover)">{{ voiceToggleLabel }}</button>
+              <button type="button" aria-label="Expand conversation" style="display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;color:var(--ink-3);background:transparent" style-hover="background:var(--hover)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V3h5m4 0h5v5M3 12v5h5m4 0h5v-5"></path></svg></button>
+            </div>
+          </div>
+          <div style="overflow:auto;padding:12px 16px;flex:1;display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ messages }}" as="m" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:1fr auto;gap:2px 12px">
+                <span style="font-size:12px;font-weight:600;color:{{ m.color }}">{{ m.who }}</span>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">{{ m.time }}</span>
+                <p style="grid-column:1 / -1;margin:0;font-size:var(--text-small);line-height:1.55;color:var(--ink-2)">{{ m.text }}</p>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 var(--divider)">
+            <div style="flex:1;display:flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);color:var(--ink-3);font-size:13px">Explain your approach…</div>
+            <button type="button" class="pressable" aria-label="Send" style="display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:var(--radius-control);color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12m-5-5 5 5-5 5"></path></svg></button>
+          </div>
+        </section>
+      </div>
+
+      <div role="separator" aria-orientation="vertical" tabindex="0" style="position:relative;cursor:col-resize"><span style="position:absolute;left:4px;top:calc(50% - 16px);width:2px;height:32px;border-radius:2px;background:var(--divider)"></span></div>
+
+      <div style="display:grid;min-width:0;min-height:0;gap:10px;grid-template-rows:minmax(0,1fr) minmax(220px,36%)">
+        <section class="enter" aria-label="Code" style="--i:3;display:flex;flex-direction:column;min-height:0;overflow:hidden;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring),var(--light-top)">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px">
+            <span aria-hidden="true" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"></path></svg></span>
+            <span style="font-size:var(--text-pane);font-weight:600;white-space:nowrap">Code</span>
+            <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">first_duplicate.py</span>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-3)"><span>Python 3.12</span><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-3)"></span>Read-only preview</span></div>
+          </div>
+          <div style="flex:1;min-height:0;margin:0 10px;border-radius:var(--radius-card);background:var(--recess);box-shadow:var(--shadow-recess);overflow:auto">
+            <div role="code" style="margin:0;padding:14px 0;font-family:var(--font-mono);font-size:{{ codeSize }};line-height:1.85;min-width:max-content">
+              <sc-for list="{{ lines }}" as="l" hint-placeholder-count="8">
+                <span style="display:flex;align-items:baseline;padding:0 18px 0 0;background:{{ l.bg }};box-shadow:{{ l.shadow }}"><span aria-hidden="true" style="width:52px;text-align:right;padding-right:20px;color:{{ l.numColor }};flex:0 0 auto;user-select:none">{{ l.n }}</span><span style="color:var(--ink);white-space:pre">{{ l.code }}</span></span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px 10px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)"><span>prepared draft · revision 1</span><span>ln 8 · utf-8</span></div>
+        </section>
+
+        <section class="enter" aria-label="Tests and results" style="--i:4;display:flex;flex-direction:column;min-height:0;overflow:hidden;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring)">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;box-shadow:inset 0 -1px 0 var(--divider)">
+            <span aria-hidden="true" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4 4 8-8"></path></svg></span>
+            <span style="font-size:var(--text-pane);font-weight:600;white-space:nowrap">Tests &amp; results</span>
+            <span style="font-size:12px;color:var(--ink-3)">{{ runMeta }}</span>
+            <button type="button" onClick="{{ run }}" class="pressable" style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="m6 4 10 6-10 6Z"></path></svg>{{ runLabel }}</button>
+          </div>
+          <sc-if value="{{ ran }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:12px 16px 14px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:var(--text-body);font-weight:600;color:var(--error)"><span style="width:7px;height:7px;border-radius:50%;background:var(--error)"></span>A case needs another look</span>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">simulated · revision 1 · 3 cases</span>
+                <div role="tablist" style="margin-left:auto;display:inline-flex;gap:2px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+                  <sc-for list="{{ cases }}" as="c" hint-placeholder-count="3">
+                    <button type="button" role="tab" aria-selected="{{ c.selected }}" onClick="{{ c.select }}" style="display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 10px;border:0;border-radius:6px;font-size:12px;font-weight:500;color:{{ c.color }};background:{{ c.bg }};box-shadow:{{ c.shadow }}"><span style="width:5px;height:5px;border-radius:50%;background:{{ c.dot }}"></span>{{ c.label }}</button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px">
+                <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;font-weight:600">Input</span><code style="font-family:var(--font-mono);font-size:var(--text-code);padding:9px 12px;border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess)">{{ caseInput }}</code></div>
+                <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;font-weight:600">Expected</span><code style="font-family:var(--font-mono);font-size:var(--text-code);padding:9px 12px;border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess)">{{ caseExpected }}</code></div>
+                <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;font-weight:600">Observed {{ caseSign }}</span><code style="font-family:var(--font-mono);font-size:var(--text-code);padding:9px 12px;border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess),inset 2px 0 0 {{ caseColor }};color:{{ caseColor }}">{{ caseActual }}</code></div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ notRan }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px;text-align:center">
+              <span style="font-size:var(--text-body);font-weight:500">Give your approach a test</span>
+              <span style="font-size:var(--text-small);color:var(--ink-2);max-width:44ch">Run the prepared cases to see the result for this exact code. Nothing executes in the preview.</span>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 6px 0;font-size:11px;color:var(--ink-3)"><span>Fictional sample · excluded from personal activity</span><span>Help is available when you ask</span></div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;codeSize&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:13,&quot;min&quot;:11,&quot;max&quot;:16,&quot;step&quot;:1,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Editor&quot;}}">
+class Component extends DCLogic {
+  state = { guide: true, voice: false, ran: false, caseIndex: 2 };
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const nav = this.props.nav ?? 'sidebar';
+    const src = ['def first_duplicate(values):', '    seen = set()', '    answer = None', '    for value in values:', '        if value in seen:', '            answer = value', '        seen.add(value)', '    return answer'];
+    const lines = src.map((code, i) => ({ n: i + 1, code, bg: 'transparent', shadow: 'none', numColor: 'var(--ink-3)' }));
+    const casesData = [
+      { label: 'Case 1', input: '[]', expected: 'None', actual: 'None', pass: true },
+      { label: 'Case 2', input: '[1, 2, 3]', expected: 'None', actual: 'None', pass: true },
+      { label: 'Case 3', input: '[7, 2, 7, 2]', expected: '7', actual: '2', pass: false },
+    ];
+    const ci = this.state.caseIndex, cur = casesData[ci];
+    const cases = casesData.map((c, i) => ({ label: c.label, selected: i === ci, select: () => this.setState({ caseIndex: i }),
+      color: i === ci ? 'var(--ink)' : 'var(--ink-2)', bg: i === ci ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent',
+      shadow: i === ci ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none', dot: c.pass ? 'var(--success)' : 'var(--error)' }));
+    const voice = this.state.voice;
+    const bars = voice ? React.createElement('span', { 'aria-hidden': true, style: { display: 'inline-flex', alignItems: 'center', gap: 2, height: 12 } },
+      [0, 1, 2, 3].map((i) => React.createElement('span', { key: i, style: { width: 2, height: 12, borderRadius: 1, background: 'var(--coach)', transformOrigin: 'center', animation: `ds-bar 1100ms var(--ease-breathe) ${i * 140}ms infinite` } })))
+      : React.createElement('span', { 'aria-hidden': true, style: { width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-3)' } });
+    return {
+      theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row',
+      guide: this.state.guide, hideGuide: () => this.setState({ guide: false }),
+      voice, toggleVoice: () => this.setState({ voice: !voice }), voiceBars: bars,
+      voiceLabel: voice ? 'Listening · voice preview' : 'Text preview', voiceToggleLabel: voice ? 'Use text' : 'Use voice',
+      messages: [
+        { who: 'Sample candidate', time: '00:42', color: 'var(--ink)', text: 'Does “first” mean the earliest matching position as I scan from left to right?' },
+        { who: 'Interviewer', time: '00:49', color: 'var(--coach)', text: 'Yes. Return the first value you encounter for a second time.' },
+        { who: 'Sample candidate', time: '01:18', color: 'var(--ink)', text: 'I’ll track what I’ve seen and stop when I find the first match.' },
+      ],
+      lines, codeSize: `${this.props.codeSize ?? 13}px`,
+      ran: this.state.ran, notRan: !this.state.ran, run: () => this.setState({ ran: true, caseIndex: 2 }),
+      runLabel: this.state.ran ? 'Run again' : 'Run sample tests', runMeta: this.state.ran ? '2 of 3 pass' : 'No run yet',
+      cases, caseInput: cur.input, caseExpected: cur.expected, caseActual: cur.actual,
+      caseSign: cur.pass ? '✓' : '≠', caseColor: cur.pass ? 'var(--success)' : 'var(--error)',
+    };
+  }
+}
+</script>
+</body>
+</html>

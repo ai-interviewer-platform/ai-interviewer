@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Preferences" style="display:flex;flex-direction:{{ shellDir }};min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="preferences" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="preferences" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;padding:36px 40px 48px;max-width:1240px;box-sizing:border-box;margin:0 auto;width:100%">
+    <div class="enter" style="--i:0;margin-bottom:26px">
+      <p style="margin:0 0 10px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Your practice, your choices</p>
+      <h1 style="margin:0 0 8px;font-family:var(--font-display);font-weight:600;font-size:var(--text-page);line-height:1.1;letter-spacing:-0.02em">Recording preferences</h1>
+      <p style="margin:0;color:var(--ink-2);font-size:var(--text-reading)">Understand what is processed, what is kept, and what is not.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:200px minmax(0,640px);gap:40px;align-items:start">
+      <nav aria-label="Preference sections" class="enter" style="--i:1;display:flex;flex-direction:column;gap:2px">
+        <sc-for list="{{ sections }}" as="s" hint-placeholder-count="3">
+          <a href="{{ s.href }}" aria-current="{{ s.current }}" style="display:flex;align-items:center;min-height:36px;padding:0 12px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:{{ s.color }};background:{{ s.bg }};box-shadow:{{ s.shadow }}" style-hover="background:var(--hover)">{{ s.label }}</a>
+        </sc-for>
+      </nav>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="enter" style="--i:2;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);font-size:12px;color:var(--ink-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div>
+
+        <section class="enter" aria-labelledby="voice-h" style="--i:3;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 6px">
+          <h2 id="voice-h" style="margin:0 0 4px;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Voice and audio</h2>
+          <p style="margin:0 0 6px;font-size:var(--text-small);color:var(--ink-2)">Live speech processing is separate from saving audio. Text is always available.</p>
+          <sc-for list="{{ voiceRows }}" as="r" hint-placeholder-count="2">
+            <label style="display:grid;grid-template-columns:1fr 36px;gap:14px;align-items:center;padding:14px 0;box-shadow:inset 0 -1px 0 var(--divider);cursor:pointer">
+              <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">{{ r.title }}</span><span style="font-size:12px;color:var(--ink-2);line-height:1.5">{{ r.note }}</span></span>
+              <button type="button" role="switch" aria-checked="{{ r.on }}" onClick="{{ r.toggle }}" style="position:relative;width:36px;height:22px;border:0;border-radius:11px;padding:0;background:{{ r.trackBg }};box-shadow:{{ r.trackShadow }};transition:background 200ms var(--ease-settle)"><span style="position:absolute;top:3px;left:{{ r.knobLeft }};width:16px;height:16px;border-radius:50%;background:{{ r.knobBg }};box-shadow:var(--light-top-strong),var(--shadow-contact);transition:left 200ms var(--ease-spring)"></span></button>
+            </label>
+          </sc-for>
+        </section>
+
+        <section class="enter" aria-labelledby="records-h" style="--i:4;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 20px">
+          <h2 id="records-h" style="margin:0 0 4px;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Session records</h2>
+          <p style="margin:0 0 14px;font-size:var(--text-small);color:var(--ink-2);line-height:1.55">Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <sc-for list="{{ facts }}" as="f" hint-placeholder-count="3">
+              <div style="padding:10px 12px;border-radius:var(--radius-inner);background:var(--recess);box-shadow:var(--shadow-recess);display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">{{ f.k }}</span><span style="font-size:13px;color:var(--ink)">{{ f.v }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:var(--divider-dashed)">
+            <button type="button" class="pressable" style="display:inline-flex;align-items:center;min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">Export example record</button>
+            <button type="button" class="pressable" style="display:inline-flex;align-items:center;min-height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--error);background:transparent;box-shadow:var(--ring)" style-hover="background:var(--error-soft)">Delete demo sessions</button>
+            <span style="font-size:12px;color:var(--ink-3)">Affects this prototype tab’s demo history only.</span>
+          </div>
+        </section>
+
+        <section class="enter" aria-labelledby="motion-h" style="--i:5;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:18px 22px 6px">
+          <h2 id="motion-h" style="margin:0 0 4px;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Motion and appearance</h2>
+          <p style="margin:0 0 6px;font-size:var(--text-small);color:var(--ink-2)">Your operating-system preference is always respected.</p>
+          <sc-for list="{{ motionRows }}" as="r" hint-placeholder-count="1">
+            <label style="display:grid;grid-template-columns:1fr 36px;gap:14px;align-items:center;padding:14px 0;box-shadow:inset 0 -1px 0 var(--divider);cursor:pointer">
+              <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">{{ r.title }}</span><span style="font-size:12px;color:var(--ink-2);line-height:1.5">{{ r.note }}</span></span>
+              <button type="button" role="switch" aria-checked="{{ r.on }}" onClick="{{ r.toggle }}" style="position:relative;width:36px;height:22px;border:0;border-radius:11px;padding:0;background:{{ r.trackBg }};box-shadow:{{ r.trackShadow }};transition:background 200ms var(--ease-settle)"><span style="position:absolute;top:3px;left:{{ r.knobLeft }};width:16px;height:16px;border-radius:50%;background:{{ r.knobBg }};box-shadow:var(--light-top-strong),var(--shadow-contact);transition:left 200ms var(--ease-spring)"></span></button>
+            </label>
+          </sc-for>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px 0">
+            <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">Theme</span><span style="font-size:12px;color:var(--ink-2)">Same roles, inverted light. Follows the system by default.</span></span>
+            <div role="radiogroup" style="display:inline-flex;gap:2px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+              <sc-for list="{{ themes }}" as="t" hint-placeholder-count="3">
+                <button type="button" role="radio" aria-checked="{{ t.selected }}" onClick="{{ t.select }}" style="min-height:26px;padding:0 10px;border:0;border-radius:6px;font-size:12px;font-weight:600;color:{{ t.color }};background:{{ t.bg }};box-shadow:{{ t.shadow }}">{{ t.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;}}">
+class Component extends DCLogic {
+  state = { voice: false, audio: false, reduce: false, themeIdx: 0 };
+  renderVals() {
+    const nav = this.props.nav ?? 'sidebar';
+    const themeNames = ['System', 'Dark', 'Light'];
+    const ti = this.state.themeIdx;
+    const theme = ti === 2 ? 'light' : ti === 1 ? 'dark' : (this.props.theme ?? 'dark');
+    const sw = (key, title, note) => { const on = this.state[key]; return { title, note, on, toggle: () => this.setState({ [key]: !on }),
+      trackBg: on ? 'var(--accent)' : 'var(--recess)', trackShadow: on ? 'var(--light-top-strong)' : 'var(--shadow-recess)', knobLeft: on ? '17px' : '3px', knobBg: on ? 'var(--accent-ink)' : 'var(--ink-2)' }; };
+    const seg = (labels, idx, key) => labels.map((label, i) => ({ label, selected: i === idx, select: () => this.setState({ [key]: i }),
+      color: i === idx ? 'var(--ink)' : 'var(--ink-2)', bg: i === idx ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: i === idx ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' }));
+    const cur = 'recording';
+    const sections = [['recording', 'Recording & data'], ['motion', 'Motion & appearance'], ['system', 'Design system']].map(([id, label]) => ({ href: `#${id}`, label, current: id === cur ? 'page' : undefined,
+      color: id === cur ? 'var(--ink)' : 'var(--ink-2)', bg: id === cur ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: id === cur ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' }));
+    return {
+      theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row', sections,
+      voiceRows: [sw('voice', 'Use voice for interviews', 'Live speech processing is separate from saving audio. Text is always available.'), sw('audio', 'Save audio for replay', 'Optional audio alongside the transcript. Off by default.')],
+      facts: [{ k: 'Webcam', v: 'Never analyzed' }, { k: 'Training data', v: 'Not collected' }, { k: 'Typed sessions', v: 'Spoken delivery not assessed' }],
+      motionRows: [sw('reduce', 'Reduce motion in this preview', 'Removes entrances, press travel, and pane transitions. Visible state is preserved.')],
+      themes: seg(themeNames, ti, 'themeIdx'),
+    };
+  }
+}
+</script>
+</body>
+</html>

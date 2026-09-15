@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Sessions" style="display:flex;flex-direction:{{ shellDir }};min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="sessions" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="sessions" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;padding:36px 40px 48px;max-width:1240px;box-sizing:border-box;margin:0 auto;width:100%">
+    <div class="enter" style="--i:0;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:22px;flex-wrap:wrap">
+      <div>
+        <p style="margin:0 0 10px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Pick up where you left off</p>
+        <h1 style="margin:0 0 8px;font-family:var(--font-display);font-weight:600;font-size:var(--text-page);line-height:1.1;letter-spacing:-0.02em">Sessions</h1>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-reading)">Your work and its context, kept together. These are fictional records; no personal recording is stored.</p>
+      </div>
+      <a href="#setup" class="pressable" style="display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 16px;border-radius:var(--radius-control);font-size:var(--text-body);font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="m6 4 10 6-10 6Z"></path></svg>Start an interview</a>
+    </div>
+    <div class="enter" style="--i:1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div role="tablist" aria-label="Filter" style="display:inline-flex;gap:2px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+          <button type="button" role="tab" aria-selected="{{ f.selected }}" onClick="{{ f.select }}" style="display:inline-flex;align-items:center;gap:8px;min-height:30px;padding:0 12px;border:0;border-radius:6px;font-size:13px;font-weight:600;color:{{ f.color }};background:{{ f.bg }};box-shadow:{{ f.shadow }}">{{ f.label }}<span style="font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--ink-3)">{{ f.count }}</span></button>
+        </sc-for>
+      </div>
+      <span style="font-size:12px;color:var(--ink-3)">A review describes an attempt. It doesn’t predict an interview outcome.</span>
+    </div>
+
+    <section class="enter" aria-label="Session records" style="--i:2;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);overflow:hidden">
+      <div style="display:grid;grid-template-columns:28px minmax(0,1.6fr) 90px minmax(0,1fr) 110px 120px;align-items:center;gap:16px;padding:10px 20px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);box-shadow:inset 0 -1px 0 var(--divider)">
+        <span></span><span>Problem</span><span>Mode</span><span>Status</span><span style="text-align:right">When</span><span></span>
+      </div>
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+        <div class="enter" style="--i:{{ r.i }};display:grid;grid-template-columns:28px minmax(0,1.6fr) 90px minmax(0,1fr) 110px 120px;align-items:center;gap:16px;padding:14px 20px;box-shadow:inset 0 -1px 0 var(--divider)" style-hover="background:var(--hover)">
+          <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2)"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"></path></svg></span>
+          <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:var(--text-body);font-weight:600">{{ r.title }}</span><span style="font-size:12px;color:var(--ink-2)">{{ r.topic }}</span></span>
+          <span style="font-size:13px;color:var(--ink-2)">{{ r.mode }}</span>
+          <span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)"><span style="width:6px;height:6px;border-radius:50%;background:{{ r.dot }}"></span>{{ r.status }}<span style="font-size:12px;color:var(--ink-3)">{{ r.detail }}</span></span>
+          <span style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">{{ r.when }}</span>
+          <a href="{{ r.href }}" class="pressable" style="justify-self:end;display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:6px;font-size:12px;font-weight:600;color:{{ r.actionColor }};background:{{ r.actionBg }};box-shadow:{{ r.actionShadow }}">{{ r.action }}</a>
+        </div>
+      </sc-for>
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;font-size:12px;color:var(--ink-3)"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-3)"></span>3 fictional records · nothing recorded from a microphone</div>
+    </section>
+
+    <section class="enter" aria-label="Empty state preview" style="--i:6;margin-top:28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+      <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:28px;display:flex;flex-direction:column;align-items:flex-start;gap:8px">
+        <span style="font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Empty</span>
+        <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:1.25rem;letter-spacing:-0.01em">Your first session starts here</h2>
+        <p style="margin:0 0 8px;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Practice a problem, then return to its conversation, code, and review.</p>
+        <a href="#sample" class="pressable" style="display:inline-flex;align-items:center;min-height:34px;padding:0 14px;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">Try a guided sample</a>
+      </div>
+      <div style="border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:28px;display:flex;flex-direction:column;align-items:flex-start;gap:8px">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--error)"><span style="width:6px;height:6px;border-radius:50%;background:var(--error)"></span>Couldn’t load</span>
+        <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:1.25rem;letter-spacing:-0.01em">Session history couldn’t load</h2>
+        <p style="margin:0 0 8px;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">Your saved work is not marked as lost. Try loading the history again, or explore the guided sample.</p>
+        <div style="display:flex;gap:8px"><a href="#sessions" class="pressable" style="display:inline-flex;align-items:center;min-height:34px;padding:0 14px;border-radius:var(--radius-control);font-size:13px;font-weight:600;color:var(--ink);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">Try loading again</a><a href="#sample" style="display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover)">Try the sample</a></div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;}}">
+class Component extends DCLogic {
+  state = { filter: 0 };
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const nav = this.props.nav ?? 'sidebar';
+    const f = this.state.filter;
+    const filters = [['All', 3], ['Review ready', 1], ['Drafts', 1], ['Pending', 1]].map(([label, count], i) => ({ label, count: String(count), selected: i === f, select: () => this.setState({ filter: i }),
+      color: i === f ? 'var(--ink)' : 'var(--ink-2)', bg: i === f ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: i === f ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' }));
+    const all = [
+      { title: 'First repeated tag', topic: 'Maps & sets · text', mode: 'Mock', status: 'Review ready', detail: '1 finding', dot: 'var(--accent)', when: 'Today 10:42', action: 'Open review', href: '#review', primary: true, kind: 1 },
+      { title: 'First threshold alert', topic: 'Control flow · voice preview', mode: 'Mock', status: 'Draft saved', detail: 'checkpoint 02:10', dot: 'var(--ink-3)', when: 'Yesterday', action: 'Resume', href: '#interview', kind: 2 },
+      { title: 'First consecutive pair', topic: 'Consecutive groups · text', mode: 'Mock', status: 'Review pending', detail: 'no evaluation running', dot: 'var(--pending)', when: 'Sep 11', action: 'View attempt', href: '#review?state=pending', kind: 3 },
+    ];
+    const rows = all.filter((r) => f === 0 || r.kind === f).map((r, i) => ({ ...r, i: String(i + 3),
+      actionColor: r.primary ? 'var(--accent-ink)' : 'var(--ink)', actionBg: r.primary ? 'linear-gradient(180deg,var(--accent-lit),var(--accent-deep))' : 'linear-gradient(180deg,var(--raised-lit),var(--raised))',
+      actionShadow: r.primary ? 'var(--light-top-strong), var(--shadow-contact)' : 'var(--ring), var(--light-top), var(--shadow-contact)' }));
+    return { theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row', filters, rows };
+  }
+}
+</script>
+</body>
+</html>

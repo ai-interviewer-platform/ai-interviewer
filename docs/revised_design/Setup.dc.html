@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button,input,select{font:inherit}button{cursor:pointer}*{scrollbar-width:none}input::placeholder{color:var(--ink-3)}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Setup" style="display:flex;flex-direction:{{ shellDir }};min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <sc-if value="{{ sidebar }}" hint-placeholder-val="{{ true }}"><dc-import name="Sidebar" current="roadmap" hint-size="232px,100%"></dc-import></sc-if>
+  <sc-if value="{{ topnav }}" hint-placeholder-val="{{ false }}"><dc-import name="Topbar" current="roadmap" hint-size="100%,60px"></dc-import></sc-if>
+  <main style="flex:1;min-width:0;padding:36px 40px 48px;max-width:1240px;box-sizing:border-box;margin:0 auto;width:100%">
+    <a href="#roadmap" class="enter" style="--i:0;display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:0 10px 0 6px;border-radius:6px;font-size:13px;color:var(--ink-2);margin-bottom:24px" style-hover="background:var(--hover);color:var(--ink)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H4m5-5-5 5 5 5"></path></svg>Back to roadmap</a>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:48px;align-items:start">
+      <section class="enter" style="--i:1">
+        <p style="margin:0 0 10px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Before you begin</p>
+        <h1 style="margin:0 0 12px;font-family:var(--font-display);font-weight:600;font-size:var(--text-page);line-height:1.1;letter-spacing:-0.02em">Make room to think.</h1>
+        <p style="margin:0 0 24px;color:var(--ink-2);font-size:var(--text-reading);line-height:1.6;max-width:44ch">A conversational coding interview, with time to explain your approach and work through the details.</p>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:var(--radius-card);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">
+          <span aria-hidden="true" style="display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-inner);background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);color:var(--ink-2);flex:0 0 auto"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"></path></svg></span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Selected problem</span><span style="font-family:var(--font-display);font-weight:600;font-size:1.125rem;letter-spacing:-0.01em">First repeated tag</span><span style="font-size:12px;color:var(--ink-2)">Maps &amp; sets · Python · English</span></div>
+        </div>
+        <ol style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column">
+          <sc-for list="{{ expectations }}" as="e" hint-placeholder-count="3">
+            <li style="display:grid;grid-template-columns:22px 1fr;gap:12px;padding:10px 0;box-shadow:inset 0 -1px 0 var(--divider);font-size:var(--text-body);color:var(--ink-2)"><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);padding-top:3px">{{ e.n }}</span>{{ e.text }}</li>
+          </sc-for>
+        </ol>
+        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-3);line-height:1.5">This is a preview of personal setup. The next screen uses a prepared attempt, not a live AI interview.</p>
+      </section>
+
+      <form class="enter" onSubmit="{{ submit }}" style="--i:2;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring);padding:22px 24px 24px;display:flex;flex-direction:column;gap:18px">
+        <h2 style="margin:0;font-size:var(--text-section);font-weight:600;letter-spacing:-0.01em">Session preferences</h2>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">What are you preparing for?
+          <select style="min-height:38px;padding:0 12px;border:0;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);color:var(--ink);font-size:13px;font-weight:400"><option>Internship interviews</option><option>New-grad interviews</option><option>General coding practice</option></select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Topics you have studied
+          <input value="Arrays, loops, sets" style="min-height:38px;padding:0 12px;border:0;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);color:var(--ink);font-size:13px;outline:none" style-focus="box-shadow:var(--shadow-recess),0 0 0 2px var(--accent)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500"><span>Anything you want to work on? <span style="color:var(--ink-3);font-weight:400">Optional</span></span>
+          <input placeholder="Explaining why my approach works" style="min-height:38px;padding:0 12px;border:0;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess);color:var(--ink);font-size:13px;outline:none" style-focus="box-shadow:var(--shadow-recess),0 0 0 2px var(--accent)">
+        </label>
+        <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+          <legend style="font-size:13px;font-weight:500;padding:0;margin-bottom:8px">How would you like to respond?</legend>
+          <div role="radiogroup" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+            <sc-for list="{{ inputs }}" as="o" hint-placeholder-count="2">
+              <button type="button" role="radio" aria-checked="{{ o.selected }}" onClick="{{ o.select }}" class="pressable" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:0;border-radius:6px;text-align:left;color:{{ o.color }};background:{{ o.bg }};box-shadow:{{ o.shadow }}"><span style="font-size:13px;font-weight:600">{{ o.label }}</span><span style="font-size:12px;color:var(--ink-2)">{{ o.note }}</span></button>
+            </sc-for>
+          </div>
+        </fieldset>
+        <sc-if value="{{ voice }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-card);background:var(--coach-soft);font-size:12px;color:var(--ink)"><span style="width:6px;height:6px;border-radius:50%;background:var(--coach)"></span>No microphone is accessed in the prototype. Spoken delivery is not assessed.</div>
+        </sc-if>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ checks }}" as="c" hint-placeholder-count="2">
+            <label style="display:grid;grid-template-columns:1fr 36px;gap:14px;align-items:start;padding:12px 0;box-shadow:inset 0 -1px 0 var(--divider);cursor:pointer">
+              <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">{{ c.title }}</span><span style="font-size:12px;color:var(--ink-2);line-height:1.5">{{ c.note }}</span></span>
+              <button type="button" role="switch" aria-checked="{{ c.on }}" onClick="{{ c.toggle }}" style="position:relative;width:36px;height:22px;border:0;border-radius:11px;padding:0;background:{{ c.trackBg }};box-shadow:{{ c.trackShadow }};transition:background 200ms var(--ease-settle)"><span style="position:absolute;top:3px;left:{{ c.knobLeft }};width:16px;height:16px;border-radius:50%;background:{{ c.knobBg }};box-shadow:var(--light-top-strong),var(--shadow-contact);transition:left 200ms var(--ease-spring)"></span></button>
+            </label>
+          </sc-for>
+        </div>
+        <sc-if value="{{ consentError }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--radius-card);background:var(--error-soft);font-size:12px;color:var(--ink);line-height:1.5;animation:ds-enter 350ms var(--ease-enter) both"><span style="width:6px;height:6px;border-radius:50%;background:var(--error);margin-top:6px;flex:0 0 auto"></span>Personal review needs session records. You can use the guided sample without them.</div>
+        </sc-if>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+          <button type="submit" class="pressable" style="display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 16px;border:0;border-radius:var(--radius-control);font-size:var(--text-body);font-weight:600;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-lit),var(--accent-deep));box-shadow:var(--light-top-strong),var(--shadow-contact),0 8px 18px -8px var(--accent)"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="m6 4 10 6-10 6Z"></path></svg>Start interview preview</button>
+          <a href="#sample" style="display:inline-flex;align-items:center;min-height:38px;padding:0 12px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover);color:var(--ink)">Use the sample instead</a>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Shell&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sidebar&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;top&quot;],&quot;tsType&quot;:&quot;'sidebar' | 'top'&quot;,&quot;section&quot;:&quot;Shell&quot;}}">
+class Component extends DCLogic {
+  state = { input: 0, audio: false, consent: true, tried: false };
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const nav = this.props.nav ?? 'sidebar';
+    const inp = this.state.input;
+    const inputs = [['Text', 'No microphone needed'], ['Voice', 'Preview only']].map(([label, note], i) => ({ label, note, selected: i === inp, select: () => this.setState({ input: i }),
+      color: i === inp ? 'var(--ink)' : 'var(--ink-2)', bg: i === inp ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: i === inp ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' }));
+    const sw = (key, title, note) => { const on = this.state[key]; return { title, note, on, toggle: () => this.setState({ [key]: !on }),
+      trackBg: on ? 'var(--accent)' : 'var(--recess)', trackShadow: on ? 'var(--light-top-strong)' : 'var(--shadow-recess)', knobLeft: on ? '17px' : '3px', knobBg: on ? 'var(--accent-ink)' : 'var(--ink-2)' }; };
+    return {
+      theme, sidebar: nav === 'sidebar', topnav: nav === 'top', shellDir: nav === 'top' ? 'column' : 'row',
+      expectations: ['Clarify the problem before you code.', 'Run tests and talk through what you notice.', 'Review the evidence and choose what to retry.'].map((text, i) => ({ n: `0${i + 1}`, text })),
+      inputs, voice: inp === 1,
+      checks: [sw('audio', 'Save audio for replay', 'Optional in the product. Separate from live voice processing.'), sw('consent', 'Allow transcript, code, and session records for review', 'The product will explain retention before collecting anything. This prototype collects no session data.')],
+      consentError: this.state.tried && !this.state.consent,
+      submit: (e) => { e.preventDefault(); this.setState({ tried: true }); },
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -2,6 +2,7 @@ import { handleApi, processReview } from "./api";
 import { authFor } from "./auth";
 import { databaseForInvocation } from "./database";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
+import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import type { Env } from "./env";
 import { json, serverUnavailable } from "./http";
 
@@ -19,7 +20,12 @@ export default {
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
     if (url.pathname === "/api/personal-availability" && request.method === "GET") {
-      return json({ collectionEnabled: personalCollectionEnabled(env) });
+      return json({
+        collectionEnabled: personalCollectionEnabled(env),
+        voiceEnabled: deepgramVoiceEnabled(env),
+        voiceProvider: DEEPGRAM_VOICE_PROVIDER,
+        thinkingModel: DEEPGRAM_THINKING_MODEL,
+      });
     }
     if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
 

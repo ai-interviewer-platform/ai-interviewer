@@ -32,7 +32,7 @@ async function withPublicServer(run) {
   }
 }
 
-test("prototype routes use labeled fixtures and the personal route stays fail-closed", async () => {
+test("sample routes use labeled fixtures and the personal route stays fail-closed", async () => {
   await withPublicServer(async (baseUrl) => {
     const browser = await chromium.launch({ channel: "msedge", headless: true });
     try {

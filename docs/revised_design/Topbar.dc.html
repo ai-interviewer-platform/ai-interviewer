@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:inherit;text-decoration:none}a:hover{color:inherit}</style>
+</helmet>
+<header style="display:flex;align-items:center;gap:28px;min-height:60px;padding:0 24px;background:var(--plane);box-shadow:inset 0 -1px 0 var(--divider);font-family:var(--font-ui);color:var(--ink)">
+  <a href="#" style="display:flex;align-items:center;gap:10px">
+    <span aria-hidden="true" style="display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);font-family:var(--font-mono);font-size:15px;color:var(--accent)">[·]</span>
+    <span style="font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:-0.01em">Interview trainer</span>
+  </a>
+  <nav aria-label="Primary" style="display:inline-flex;gap:2px;padding:3px;border-radius:var(--radius-control);background:var(--recess);box-shadow:var(--shadow-recess)">
+    <sc-for list="{{ items }}" as="it" hint-placeholder-count="3">
+      <a href="{{ it.href }}" aria-current="{{ it.current }}" style="display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:0 12px;border-radius:6px;font-size:13px;font-weight:500;color:{{ it.color }};background:{{ it.bg }};box-shadow:{{ it.shadow }}">{{ it.label }}</a>
+    </sc-for>
+  </nav>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <a href="#preferences" style="display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 10px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover)">Preferences</a>
+    <a href="#system" style="display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 10px;border-radius:var(--radius-control);font-size:13px;font-weight:500;color:var(--ink-2)" style-hover="background:var(--hover)">Design system</a>
+    <a href="#profile" aria-label="Open profile" style="display:grid;place-items:center;width:32px;height:32px;margin-left:8px;border-radius:50%;background:linear-gradient(180deg,var(--raised-lit),var(--raised));box-shadow:var(--ring),var(--light-top);font-size:12px;font-weight:600">A</a>
+  </div>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:60},&quot;current&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;home&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;roadmap&quot;,&quot;sessions&quot;,&quot;profile&quot;,&quot;preferences&quot;,&quot;system&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const cur = this.props.current ?? 'home';
+    const mk = (id, label) => { const c = id === cur; return { href: `#${id}`, label, current: c ? 'page' : undefined, color: c ? 'var(--ink)' : 'var(--ink-2)', bg: c ? 'linear-gradient(180deg,var(--raised-lit),var(--raised))' : 'transparent', shadow: c ? 'var(--ring), var(--light-top), var(--shadow-contact)' : 'none' }; };
+    return { items: [mk('home', 'Home'), mk('roadmap', 'Roadmap'), mk('sessions', 'Sessions')] };
+  }
+}
+</script>
+</body>
+</html>

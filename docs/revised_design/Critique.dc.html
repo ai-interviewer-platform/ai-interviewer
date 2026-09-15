@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Gabarito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}button{font:inherit;cursor:pointer}*{scrollbar-width:none}</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Critique" style="min-height:100vh;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:var(--text-body);line-height:1.5">
+  <div style="max-width:1180px;margin:0 auto;padding:48px 40px 80px;box-sizing:border-box;display:flex;flex-direction:column;gap:48px">
+
+    <header class="enter" style="--i:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:40px;align-items:end">
+      <div>
+        <p style="margin:0 0 12px;font-size:var(--text-eyebrow);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-3)">Interview trainer · Critique of the current system</p>
+        <h1 style="margin:0 0 14px;font-family:var(--font-display);font-weight:600;font-size:2.5rem;line-height:1.05;letter-spacing:-0.025em;text-wrap:balance">Why it reads as vibecoded, and what changes.</h1>
+        <p style="margin:0;color:var(--ink-2);font-size:var(--text-reading);line-height:1.6;max-width:60ch;text-wrap:pretty">The current UI is coherent and honest. Its structure is better than its surface. Seven findings, each with the current construction beside the revised one, built from the same source values in <span style="font-family:var(--font-mono);font-size:0.9em">design-system.css</span>, <span style="font-family:var(--font-mono);font-size:0.9em">styles.css</span>, and <span style="font-family:var(--font-mono);font-size:0.9em">discovery.css</span>.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--ink-2)">
+        <div style="padding:12px 14px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);line-height:1.5"><span style="display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);margin-bottom:4px">What stays</span>Problem/conversation beside a wider code/results column. Visible labels for fictional data. Findings with limitations, not scores. Reduced-motion and keyboard gates.</div>
+        <div style="padding:12px 14px;border-radius:var(--radius-card);background:var(--plane);box-shadow:var(--ring);line-height:1.5"><span style="display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);margin-bottom:4px">What the existing proposal missed</span>It kept local fonts, a lilac accent and the top nav, and asked for “more depth” without a radius or motion scale. This revision commits to a type identity, a single action color, and a nesting rule.</div>
+      </div>
+    </header>
+
+    <sc-for list="{{ findings }}" as="f" hint-placeholder-count="7">
+      <section class="enter" style="--i:{{ f.i }};display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:32px;padding-top:32px;border-top:var(--divider-dashed)">
+        <div>
+          <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">{{ f.num }} · {{ f.tag }}</p>
+          <h2 style="margin:0 0 10px;font-family:var(--font-display);font-weight:600;font-size:1.375rem;letter-spacing:-0.015em;line-height:1.15;text-wrap:balance">{{ f.title }}</h2>
+          <p style="margin:0 0 12px;color:var(--ink-2);font-size:var(--text-body);line-height:1.55">{{ f.before }}</p>
+          <p style="margin:0;color:var(--ink);font-size:var(--text-body);line-height:1.55">{{ f.after }}</p>
+          <p style="margin:12px 0 0;font-family:var(--font-mono);font-size:11px;color:var(--ink-3);line-height:1.6">{{ f.source }}</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">BEFORE · current tokens</span>
+            <div style="flex:1;padding:18px;border-radius:6px;background:oklch(0.205 0 0);border:1px solid oklch(0.32 0 0);color:oklch(0.945 0 0);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;display:flex;flex-direction:column;gap:12px;min-height:180px">{{ f.beforeNode }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">AFTER · revised tokens</span>
+            <div style="flex:1;padding:18px;border-radius:var(--radius-pane);background:var(--ground);box-shadow:var(--ring);display:flex;flex-direction:column;gap:12px;min-height:180px">{{ f.afterNode }}</div>
+          </div>
+        </div>
+      </section>
+    </sc-for>
+
+    <section class="enter" style="--i:9;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;padding-top:32px;border-top:var(--divider-dashed)">
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">What to change in the repo</p>
+        <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column">
+          <sc-for list="{{ changes }}" as="c" hint-placeholder-count="6">
+            <li style="display:grid;grid-template-columns:24px 1fr;gap:12px;padding:10px 0;box-shadow:inset 0 -1px 0 var(--divider);font-size:13px;color:var(--ink-2);line-height:1.5"><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);padding-top:3px">{{ c.n }}</span><span><strong style="color:var(--ink);font-weight:600">{{ c.file }}</strong> — {{ c.text }}</span></li>
+          </sc-for>
+        </ol>
+      </div>
+      <div>
+        <p style="margin:0 0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">Open questions</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column">
+          <sc-for list="{{ questions }}" as="q" hint-placeholder-count="4">
+            <li style="display:grid;grid-template-columns:8px 1fr;gap:12px;padding:10px 0;box-shadow:inset 0 -1px 0 var(--divider);font-size:13px;color:var(--ink-2);line-height:1.5"><span style="width:6px;height:6px;border-radius:50%;background:var(--evidence);margin-top:7px"></span>{{ q.text }}</li>
+          </sc-for>
+        </ul>
+        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-3);line-height:1.5">Specimen: <a href="Design System.dc.html" style="color:var(--accent);text-decoration:underline;text-underline-offset:3px">Design System</a> · Screens: <a href="Home.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Home</a>, <a href="Practice.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Practice</a>, <a href="Review.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Review</a>, <a href="Roadmap.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Roadmap</a>, <a href="Sessions.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Sessions</a>, <a href="Setup.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Setup</a>, <a href="Preferences.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Preferences</a>, <a href="Profile.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Profile</a> · Baseline recreations: <a href="Current Home.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Current Home</a>, <a href="Current Practice.dc.html" style="color:var(--ink-2);text-decoration:underline;text-underline-offset:3px">Current Practice</a></p>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const h = React.createElement;
+    // BEFORE primitives use literal current values (design-system.css / styles.css / discovery.css).
+    const B = {
+      pane: (children, extra) => h('div', { style: { background: 'oklch(0.235 0 0)', border: '1px solid oklch(0.32 0 0)', borderRadius: 8, overflow: 'hidden', ...extra } }, children),
+      panelTop: (label) => h('div', { style: { display: 'flex', alignItems: 'center', minHeight: 40, padding: '0 12px', background: 'oklch(0.26 0 0)', borderBottom: '1px solid oklch(0.32 0 0)', fontSize: 13 } }, label),
+      btn: (label, kind) => h('span', { style: { display: 'inline-flex', alignItems: 'center', minHeight: 36, padding: '0 14px', borderRadius: 6, fontSize: 14, fontWeight: 500, ...(kind === 'primary' ? { background: 'oklch(0.94 0 0)', color: 'oklch(0.20 0 0)' } : kind === 'secondary' ? { background: 'oklch(0.26 0 0)', border: '1px solid oklch(0.51 0 0)' } : { color: 'oklch(0.74 0 0)' }) } }, label),
+      badge: (label, accent) => h('span', { style: { display: 'inline-flex', padding: '3px 9px', border: '1px solid ' + (accent ? 'oklch(0.51 0 0)' : 'oklch(0.32 0 0)'), borderRadius: 4, fontSize: 12, color: accent ? 'oklch(0.94 0 0)' : 'oklch(0.74 0 0)', background: accent ? 'oklch(0.30 0.025 300)' : 'transparent' } }, label),
+      muted: (t, size) => h('span', { style: { color: 'oklch(0.74 0 0)', fontSize: size ?? 13 } }, t),
+      code: (lines, hl) => h('div', { style: { background: 'oklch(0.21 0 0)', padding: '8px 0', fontFamily: 'Consolas, "Cascadia Code", monospace', fontSize: 13, lineHeight: 1.9 } }, lines.map((l, i) => h('div', { key: i, style: { display: 'flex', padding: '0 12px', background: i === hl ? 'oklch(0.30 0.028 75)' : 'transparent', borderLeft: i === hl ? '2px solid oklch(0.85 0.085 80)' : '2px solid transparent' } }, h('span', { style: { width: 28, color: 'oklch(0.74 0 0)' } }, i + 4), h('span', { style: { whiteSpace: 'pre' } }, l), i === hl ? h('span', { style: { marginLeft: 12, color: 'oklch(0.85 0.085 80)' } }, '←') : null))),
+    };
+    // AFTER primitives from the revised tokens.
+    const raised = 'linear-gradient(180deg,var(--raised-lit),var(--raised))', raisedShadow = 'var(--ring), var(--light-top), var(--shadow-contact)';
+    const A = {
+      plane: (children, extra) => h('div', { style: { background: 'linear-gradient(180deg,var(--plane-lit),var(--plane))', borderRadius: 'var(--radius-pane)', boxShadow: 'var(--ring), var(--light-top), var(--shadow-contact)', overflow: 'hidden', ...extra } }, children),
+      header: (label, meta) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', boxShadow: 'inset 0 -1px 0 var(--divider)', fontSize: 13, fontWeight: 600 } }, h('span', { style: { display: 'grid', placeItems: 'center', width: 24, height: 24, borderRadius: 5, background: raised, boxShadow: 'var(--ring), var(--light-top)', color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 11 } }, '</>'), label, meta ? h('span', { style: { marginLeft: 'auto', fontSize: 12, fontWeight: 400, color: 'var(--ink-3)' } }, meta) : null),
+      btn: (label, kind) => h('span', { style: { display: 'inline-flex', alignItems: 'center', minHeight: 34, padding: '0 14px', borderRadius: 'var(--radius-control)', fontSize: 13, fontWeight: kind === 'quiet' ? 500 : 600, ...(kind === 'primary' ? { color: 'var(--accent-ink)', background: 'linear-gradient(180deg,var(--accent-lit),var(--accent-deep))', boxShadow: 'var(--light-top-strong), var(--shadow-contact), 0 8px 18px -8px var(--accent)' } : kind === 'secondary' ? { color: 'var(--ink)', background: raised, boxShadow: raisedShadow } : kind === 'ghost' ? { color: 'var(--ink-2)', boxShadow: 'var(--ring)' } : { color: 'var(--ink-2)' }) } }, label),
+      dot: (label, color) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)' } }, h('span', { style: { width: 6, height: 6, borderRadius: '50%', background: color } }), label),
+      muted: (t, size) => h('span', { style: { color: 'var(--ink-2)', fontSize: size ?? 13 } }, t),
+      recess: (children, extra) => h('div', { style: { background: 'var(--recess)', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-recess)', ...extra } }, children),
+      code: (lines, hl, marker) => h('div', { style: { padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.85 } }, lines.map((l, i) => h('div', { key: i, style: { display: 'flex', padding: '0 12px', background: i === hl ? 'var(--evidence-soft)' : 'transparent', boxShadow: i === hl ? 'inset 2px 0 0 var(--evidence)' : 'none', color: i === hl ? 'var(--ink)' : 'var(--ink-2)' } }, h('span', { style: { width: 28, color: i === hl ? 'var(--evidence)' : 'var(--ink-3)' } }, i + 4), h('span', { style: { whiteSpace: 'pre' } }, l), i === hl && marker ? h('span', { style: { marginLeft: 'auto', fontSize: 11, color: 'var(--evidence)' } }, marker) : null))),
+    };
+    const lines = ['    if value in seen:', '        answer = value', '    seen.add(value)'];
+    const findings = [
+      { num: '01', tag: 'Surfaces', title: 'Everything sits on one plane', before: 'Panel, editor, badge and card share a near-identical grey, a 1px mid-grey border and a 6–8px radius. Nothing is lit; nothing recedes. This is the default look of every generated dark UI.', after: 'Five planes with one light source. The ring is a box-shadow so it stays crisp; a 1px top light and a contact shadow describe the plane; the editor is a recess with an inner shadow. Neutrals carry a trace of green so the surfaces feel like one material.', source: 'design-system.css --surface/--raised/--divider · styles.css .pane .panel-top .code-scroll',
+        beforeNode: B.pane([B.panelTop('Code'), B.code(lines, -1)]),
+        afterNode: A.plane([A.header('Code', 'first_duplicate.py'), A.recess(A.code(lines, -1), { margin: 10 })]) },
+      { num: '02', tag: 'Controls', title: 'Buttons differ by hue, not by material', before: 'Primary is a flat white fill, secondary a flat grey with a border, quiet is grey text. They read as clickable only because of colour, and the press animation scales the whole label by 4%.', after: 'Three materials, three weights: lit teal with a soft glow and dark ink, a raised graphite control with ring and contact edge, a hairline ghost. Press travels 1px and drops the top light, so the label never distorts.', source: 'styles.css .button.primary/.secondary/.quiet · design-system.css scale(0.96)',
+        beforeNode: h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' } }, B.btn('Open your review', 'primary'), B.btn('Review this moment', 'secondary'), B.btn('Hide guidance', 'quiet')),
+        afterNode: h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' } }, A.btn('Open your review', 'primary'), A.btn('Review this moment', 'secondary'), A.btn('Try the sample', 'ghost'), A.btn('Hide guidance', 'quiet')) },
+      { num: '03', tag: 'Chrome', title: 'Four bands sit above the work', before: 'App header, session header, a full-width guidance band, then a grey title bar on every pane. Before a single line of code, the eye crosses four horizontal chrome strips that all use the same border.', after: 'One session row with the exercise as a real title. Guidance lives inside the problem pane it explains. Pane titles belong to their surface with a small icon well, not a separate bar. Navigation moves to a sidebar (a top-nav variant is kept as a tweak).', source: 'styles.css .app-header .session-header .sample-guide .panel-top',
+        beforeNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, h('div', { style: { height: 34, borderBottom: '1px solid oklch(0.32 0 0)', display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 } }, h('b', null, '[·] Interview trainer'), B.muted('Home  Roadmap  Sessions', 12)), h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 } }, B.muted('← Sessions'), h('b', { style: { fontWeight: 500 } }, 'First duplicate'), B.badge('Guided sample', true)), h('div', { style: { padding: '8px 12px', background: 'oklch(0.30 0.025 300)', border: '1px solid oklch(0.32 0 0)', borderRadius: 6, fontSize: 12 } }, h('b', null, 'Follow a candidate’s attempt. '), B.muted('Read the plan, run the tests…', 12)), B.pane([B.panelTop('Problem'), h('div', { style: { padding: 12 } }, B.muted('MAPS & SETS', 11))])),
+        afterNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } }, h('span', { style: { display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 8, boxShadow: 'var(--ring)', color: 'var(--ink-2)', fontSize: 12 } }, '←'), h('span', { style: { display: 'flex', flexDirection: 'column' } }, h('span', { style: { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-3)' } }, 'Maps & sets · Guided sample'), h('span', { style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 17 } }, 'First duplicate')), h('span', { style: { marginLeft: 'auto' } }, A.dot('Not scored', 'var(--ink-3)'))), A.plane([A.header('Problem', 'Original exercise'), h('div', { style: { margin: '10px 12px 12px', padding: '8px 10px', borderRadius: 8, background: 'var(--coach-soft)', fontSize: 12 } }, h('b', { style: { fontWeight: 600 } }, 'Follow a candidate’s attempt. '), A.muted('Read the plan, run the tests…', 12))])) },
+      { num: '04', tag: 'Home', title: 'A strong idea with a decorative finish', before: 'The asymmetric lead feature and the learning question already work. But a 9rem lilac arrow occupies the feature’s best real estate, and every activity row gets its own bordered card.', after: 'The feature keeps its question and gains the thing the product is about: an inset excerpt of the code with the evidence line annotated. Recent activity becomes one continuous list with dividers, icon wells, and a dot-and-word status.', source: 'discovery.css .folio-index · practice.css .home-history .activity-line',
+        beforeNode: h('div', { style: { position: 'relative', padding: 14, background: 'oklch(0.245 0 0)', border: '1px solid oklch(0.32 0 0)', borderRadius: 6, minHeight: 150 } }, h('span', { style: { position: 'absolute', right: 14, top: -10, font: '6rem/1.1 Bahnschrift, sans-serif', color: 'oklch(0.56 0.06 300)' } }, '↳'), B.muted('Maps & sets / First repeated tag', 12), h('div', { style: { font: '500 22px/1.2 Bahnschrift, sans-serif', margin: '8px 0', letterSpacing: '-0.02em' } }, 'You found the match.', h('br'), 'What happened next?'), B.btn('Open your review', 'primary')),
+        afterNode: A.plane([h('div', { style: { padding: '14px 14px 0' } }, A.muted('Maps & sets / First repeated tag', 12), h('div', { style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 20, lineHeight: 1.15, letterSpacing: '-0.015em', margin: '6px 0 10px' } }, 'You found the match.', h('br'), 'What happened next?')), A.recess(A.code(['    if tag in seen:', '        answer = index'], 1, '← overwrites'), { margin: '0 14px' }), h('div', { style: { padding: 14 } }, A.btn('Open your review', 'primary'))]) },
+      { num: '05', tag: 'Evidence', title: 'The finding and its proof live apart', before: 'The finding shows a text link “04:26 · Inspect test-run evidence” between two dividers. The highlighted line is on the other side of the screen with a small arrow. The most trustworthy relationship in the product is the least visible one.', after: 'One annotation material, amber, marks the citation card, the code line and the transcript sentence together. Selecting the citation locates all three; the marker enters from the left while the code stays still. Amber is never a verdict, so the limitation stays beside it.', source: 'styles.css .evidence-link .evidence-line .selected-message',
+        beforeNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, h('div', { style: { borderTop: '1px solid oklch(0.32 0 0)', borderBottom: '1px solid oklch(0.32 0 0)', padding: '10px 0', fontSize: 13, color: 'oklch(0.85 0.085 80)', fontWeight: 500 } }, '⚑ 04:26 · Inspect test-run evidence'), B.pane([B.code(lines, 1)])),
+        afterNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-card)', background: 'var(--evidence-soft)', boxShadow: 'inset 2px 0 0 var(--evidence)' } }, h('span', { style: { display: 'flex', flexDirection: 'column' } }, h('span', { style: { fontSize: 12, fontWeight: 600 } }, 'Evidence · test run'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' } }, '04:26 · line 6 · transcript 01:18')), h('span', { style: { marginLeft: 'auto', fontSize: 12, color: 'var(--evidence)', fontWeight: 500 } }, 'Located')), A.recess(A.code(lines, 1, '← 04:26'))) },
+      { num: '06', tag: 'Type and shape', title: 'One radius, one weight, one voice', before: 'Bahnschrift and Segoe UI are Windows defaults; most headings use weight 500 and every container uses 6px. Statuses are bordered pills in the same grey as everything else, so hierarchy comes from size alone.', after: 'Gabarito carries the page title and the learning moment; Geist carries interface roles; Geist Mono carries every precise location. Radius follows nesting (14 → 10 → 8 → 6). Statuses become a dot and a word. Eyebrows track at .12em and never shout.', source: 'styles.css h1/h2 · --radius-control/--radius-pane · .badge',
+        beforeNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, B.muted('YOUR NEXT STEP', 11), h('div', { style: { font: '500 24px/1.2 Bahnschrift, sans-serif', letterSpacing: '-0.025em' } }, 'Welcome back, Alex.'), B.muted('Pick up the thread. Your last attempt is ready.'), h('div', { style: { display: 'flex', gap: 8 } }, B.badge('Review ready', true), B.badge('Draft saved'), B.badge('Runner unavailable'))),
+        afterNode: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, h('span', { style: { fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-3)' } }, 'Your practice · In progress'), h('div', { style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 26, lineHeight: 1.1, letterSpacing: '-0.02em' } }, 'Welcome back, Alex.'), A.muted('Pick up the thread. Your last attempt is ready.'), h('div', { style: { display: 'flex', gap: 16 } }, A.dot('Review ready', 'var(--accent)'), A.dot('Draft saved', 'var(--ink-3)'), A.dot('Runner unavailable', 'var(--error)'))) },
+      { num: '07', tag: 'Motion', title: 'Everything takes 200 ms and vanishes', before: 'One duration and one ease for press, disclosure and dialogs. Press is scale(0.96). Elements appear as a block and disappear instantly. Nothing distinguishes a pane opening from a button settling.', after: 'Five eases with a job each. Duration scales with size: 150 press, 200 state, 350 enter, 450 pane, 120 exit. Siblings stagger 40 ms, capped at six. The chart-equivalent here, code and evidence, is exempt: annotation arrives around it. All existing gates stay.', source: 'design-system.css --motion-feedback/--motion-disclosure/--ease-out',
+        beforeNode: h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: 13 } }, B.muted('Feedback'), h('span', null, '200 ms'), B.muted('Disclosure'), h('span', null, '200 ms'), B.muted('Ease'), h('span', { style: { fontFamily: 'Consolas, monospace', fontSize: 12 } }, 'cubic-bezier(.23,1,.32,1)'), B.muted('Press'), h('span', null, 'scale(0.96)'), B.muted('Exit'), h('span', null, 'none')),
+        afterNode: h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: 12 } }, ...[['enter', '350 ms · expo-out · 40 ms stagger'], ['settle', '200 ms · pill moves, state'], ['press', '150 ms · 1px travel'], ['pane', '450 ms · drawer, pane switch'], ['exit', '120 ms · ease-in'], ['breathe', 'sine · voice only']].flatMap(([k, v]) => [h('span', { key: k, style: { fontFamily: 'var(--font-mono)', color: 'var(--ink)' } }, k), h('span', { key: k + 'v', style: { color: 'var(--ink-2)' } }, v)])) },
+    ].map((f, i) => ({ ...f, i: String(i + 1) }));
+    return {
+      theme, findings,
+      changes: [
+        { n: '01', file: 'design-system.css', text: 'replace the flat palette with the five-plane set, ring/light/shadow tokens, radius scale, type roles and the five eases. Keep legacy aliases so feature files keep working during migration.' },
+        { n: '02', file: 'styles.css', text: 'move .pane, .panel-top, .button, .badge, dialog and .code-scroll onto the plane/recess/control recipes; retire .badge in favour of dot + word; drop the .sample-guide band into the problem pane.' },
+        { n: '03', file: 'discovery.css / practice.css', text: 'remove .folio-index; make .home-history one divided list; give .focus-work the plane recipe and an inset evidence excerpt.' },
+        { n: '04', file: 'app.js chrome()', text: 'render the sidebar shell (grouped Practice / You), keep the top-nav variant behind a preference until the sidebar is validated at narrow widths.' },
+        { n: '05', file: 'index.html', text: 'add the Geist / Geist Mono / Gabarito font link with local fallbacks, or self-host the three families.' },
+        { n: '06', file: 'docs/design-system.md', text: 'reconcile baseline and proposal into one specification; point #system at the new specimen sections.' },
+      ],
+      questions: [
+        { text: 'Sidebar vs top nav: the sidebar wins on the workspace, where the header stack was the problem, but costs 232px. Is a collapsed-to-icons rail acceptable below 1100px?' },
+        { text: 'Teal replaces lilac as the action colour and lilac is kept only for the coach’s voice. Does the lilac bracket mark in the favicon move to teal too?' },
+        { text: 'The light theme is derived from the same roles. Should it follow the OS by default, or stay opt-in until contrast is checked on the pastel roadmap nodes?' },
+        { text: 'Self-hosting fonts avoids an external request, which the current system explicitly values. Is the font request acceptable, or should the three families ship with the Worker assets?' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

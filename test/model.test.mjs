@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialAttempt, updateAttempt, fixtureResult, parseRoute, topics, topicTrees, exercises } from './model.js';
+import { initialAttempt, updateAttempt, fixtureResult, parseRoute, topics, topicTrees, exercises } from '../public/model.js';
 
 test('sample run, review and repair remain separate from the original', () => {
   const original = initialAttempt('duplicate');

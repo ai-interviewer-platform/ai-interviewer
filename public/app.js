@@ -1,6 +1,7 @@
 import { exercises, scenes, parseRoute, fixtureResult, initialAttempt, updateAttempt } from './model.js';
 
 import { homeScreen, roadmapScreen, getPracticeLeaf, problemDrawer } from './discovery.js';
+import { positionRoadmapConnections } from './roadmap.js';
 import { profileScreen } from './profile.js';
 import { mountPersonal } from './personal-adapter.js';
 
@@ -43,11 +44,13 @@ const state = {
   input: 'text', audio: false, consent: true, goal: 'Internship interviews', concern: '', studied: 'Arrays, loops, sets',
   conversation: 'compact', muted: false, guide: true, caseIndex: 2, checkpoint: 'run',
   leftTab: 'findings', mobilePane: 'problem', historyDeleted: false, reduce: false,
-  layout: 40, codeSize: 14, reviewState: '', sampleRoute: 'sample', replaying: false, replayPosition: 78, reviewOpened: false,
+  theme: 'dark', sessionFilter: 'All', layout: 40, codeSize: 14, reviewState: '', sampleRoute: 'sample', replaying: false, replayPosition: 78, reviewOpened: false,
 };
 try {
   const saved = JSON.parse(sessionStorage.getItem('interview-prototype') ?? 'null');
   if (saved) {
+    if (['dark', 'light', 'system'].includes(saved.theme)) state.theme = saved.theme;
+    state.reduce = saved.reduce === true;
     for (const kind of ['personal', 'sample']) {
       const record = saved[kind];
       if (!record) continue;
@@ -65,7 +68,7 @@ try {
 } catch { /* Prototype stays usable if session storage is blocked or corrupt. */ }
 function persist() {
   try {
-    sessionStorage.setItem('interview-prototype', JSON.stringify({ personal: state.personal, sample: state.sample, retry: state.retry, sampleRoute: state.sampleRoute, historyDeleted: state.historyDeleted, reviewOpened: state.reviewOpened }));
+    sessionStorage.setItem('interview-prototype', JSON.stringify({ theme: state.theme, reduce: state.reduce, personal: state.personal, sample: state.sample, retry: state.retry, sampleRoute: state.sampleRoute, historyDeleted: state.historyDeleted, reviewOpened: state.reviewOpened }));
     return true;
   } catch { return false; }
 }
@@ -95,12 +98,37 @@ function replayTime(seconds) { return `${Math.floor(seconds / 60)}:${String(seco
 function currentExercise() { return exercises[activeAttempt().problem]; }
 
 function chrome(content, workspace = false) {
-  return `<header class="app-header"><a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a>
-  <nav aria-label="Primary">${link('Home', 'welcome', route.page === 'welcome' ? 'nav-link current' : 'nav-link', 'book')}${link('Roadmap', 'roadmap', route.page === 'roadmap' ? 'nav-link current' : 'nav-link', 'map')}${link('Sessions', 'sessions', route.page === 'sessions' ? 'nav-link current' : 'nav-link', 'clock')}</nav>
-  <div class="header-end">${link('Preferences', 'preferences', 'quiet', 'settings')}<a class="avatar" href="#profile" aria-label="Open profile">${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></div></header>
-  <main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
-  ${workspace ? '' : `<footer class="page-footer"><span>Demo · fictional sessions</span><a href="#system">Design system & motion</a>${button('Explore screens', 'scenes', 'quiet small')}</footer>`}`;
+  const navItem = (label, path) => {
+    const current = route.page === path || (path === 'sessions' && workspace);
+    return link(label, path, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
+  };
+  return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
+    <a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a>
+    <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
+    <nav class="nav-account" aria-label="Account">${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
+  </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
+  ${workspace || ['welcome', 'profile'].includes(route.page) ? '' : `<footer class="page-footer"><span>Demo · fictional sessions</span>${button('Explore screens', 'scenes', 'quiet small')}</footer>`}</div></div>`;
 }
+
+function syncNavbar() {
+  document.documentElement.dataset.scrolled = String(window.scrollY > 0);
+}
+function measureNavbar() {
+  const header = document.querySelector('.floating-nav .app-header');
+  if (!header) return;
+  const style = getComputedStyle(header);
+  const children = [...header.children];
+  const contentWidth = children.reduce((width, child) => width + child.getBoundingClientRect().width, 0);
+  const width = contentWidth + parseFloat(style.columnGap) * (children.length - 1) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  header.style.setProperty('--nav-compact-width', `${Math.ceil(width)}px`);
+  document.documentElement.style.setProperty('--navbar-height', `${header.parentElement.getBoundingClientRect().height}px`);
+  syncNavbar();
+}
+const navbarObserver = new ResizeObserver(measureNavbar);
+const roadmapObserver = new ResizeObserver(positionRoadmapConnections);
+window.addEventListener('scroll', syncNavbar, { passive: true });
+window.addEventListener('resize', measureNavbar);
+document.fonts.ready.then(measureNavbar);
 
 const discoveryUI = { link, button, icon, badge, esc };
 function profile() { return profileScreen(state, discoveryUI); }
@@ -119,27 +147,39 @@ function syncProblemDrawer() {
   if (!drawer.open) drawer.showModal();
 }
 drawer.addEventListener('cancel', (event) => { event.preventDefault(); closeProblems(); });
+function outsideDrawer(event) {
+  const bounds = drawer.getBoundingClientRect();
+  return event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom;
+}
+let drawerPointerStartedOutside = false;
+drawer.addEventListener('pointerdown', event => { drawerPointerStartedOutside = outsideDrawer(event); });
+drawer.addEventListener('pointercancel', () => { drawerPointerStartedOutside = false; });
+drawer.addEventListener('click', event => {
+  if (drawerPointerStartedOutside && outsideDrawer(event)) closeProblems();
+  drawerPointerStartedOutside = false;
+});
 
 function sessionRow(title, detail, mode, status, path, action) {
-  return `<div class="session-row"><div class="session-title">${icon('code')}<span><strong>${title}</strong><small>${detail}</small></span></div><span>${mode}</span><span>${badge(status, status === 'Review ready' ? 'accent' : '')}</span>${link(action, path, 'quiet', 'arrow')}</div>`;
+  return `<div class="session-row"><div class="session-title">${icon('code')}<span><strong>${title}</strong><small>${detail}</small></span></div><span>${mode}</span><span>${badge(status, status === 'Review ready' ? 'accent' : '')}</span>${link(action, path, 'secondary session-action', 'arrow')}</div>`;
 }
 function emptyState(title, text, actions, glyph = 'book') {
   return `<section class="empty-state">${icon(glyph)}<h2>${title}</h2><p>${text}</p><div class="actions">${actions}</div></section>`;
 }
 function sessions() {
   const mode = route.params.get('state');
+  const filter = route.params.get('filter') || 'All';
   const empty = state.historyDeleted || mode === 'empty';
-  return `<div class="page-title"><div><p class="eyebrow">Pick up where you left off</p><h1>Sessions</h1><p>Your work and its context, kept together.</p></div>${link('Start an interview', 'setup', 'primary', 'play')}</div>
+  return `<div class="page-title"><div><p class="eyebrow">Practice history</p><h1>Sessions</h1></div>${link('Start an interview', 'setup', 'primary session-action', 'play')}</div>
   ${state.retry?.draft && state.retry.problem !== 'duplicate' ? `<div class="notice">${icon('clock')}Checkpoint retry · ${exercises[state.retry.problem].title} · Draft saved ${link('Resume retry', 'retry', 'secondary')}</div>` : ''}
   <div class="notice">${icon('book')} These are fictional session records. No personal recording is stored.</div>
-  ${mode === 'error' ? emptyState('Session history couldn’t load', 'Your saved work is not marked as lost. Try loading the history again, or explore the guided sample.', link('Try loading again', 'sessions', 'primary') + link('Try the sample', 'sample', 'secondary'), 'clock') : empty ? emptyState('Your first session starts here', 'Practice a problem, then return to its conversation, code, and review.', link('Try a guided sample', 'sample', 'primary'), 'message') : `<div class="session-table"><div class="table-heading"><span>Problem / activity</span><span>Mode</span><span>Status</span><span></span></div>${sessionRow(exercises[state.personal.problem].title, 'Fictional session · Today, 10:42', 'Mock', state.personal.draft ? 'Draft saved' : 'Review ready', state.personal.draft ? 'interview' : 'review', state.personal.draft ? 'Resume' : 'Open review')}${sessionRow('First threshold alert', 'Fictional session · Yesterday', 'Mock', 'Draft saved', 'interview?problem=alert', 'Resume')}${sessionRow('First consecutive pair', 'Fictional session · Earlier', 'Mock', 'Review pending', 'review?state=pending&problem=runs', 'View attempt')}</div><div class="history-bottom">${icon('shield')} A review describes an attempt. It doesn’t predict an interview outcome.</div>`}`;
+  ${mode === 'error' ? emptyState('Session history couldn’t load', 'Your saved work is not marked as lost. Try loading the history again, or explore the guided sample.', link('Try loading again', 'sessions', 'primary') + link('Try the sample', 'sample', 'secondary'), 'clock') : empty ? emptyState('Your first session starts here', 'Practice a problem, then return to its conversation, code, and review.', link('Try a guided sample', 'sample', 'primary'), 'message') : `<nav class="session-filters segmented" aria-label="Filter sessions">${['All', 'Review ready', 'Draft saved', 'Review pending'].map(label => link(label, `sessions?filter=${encodeURIComponent(label)}`, filter === label ? 'selected' : '')).join('')}</nav><div class="session-table" data-filter="${esc(filter)}"><div class="table-heading"><span>Problem / activity</span><span>Mode</span><span>Status</span><span></span></div>${sessionRow(exercises[state.personal.problem].title, 'Fictional session · Today, 10:42', 'Mock', state.personal.draft ? 'Draft saved' : 'Review ready', state.personal.draft ? 'interview' : 'review', state.personal.draft ? 'Resume' : 'Open review')}${sessionRow('First threshold alert', 'Fictional session · Yesterday', 'Mock', 'Draft saved', 'interview?problem=alert', 'Resume')}${sessionRow('First consecutive pair', 'Fictional session · Earlier', 'Mock', 'Review pending', 'review?state=pending&problem=runs', 'View attempt')}</div><div class="history-bottom">${icon('shield')} A review describes an attempt. It doesn’t predict an interview outcome.</div>`}`;
 }
 
 function setup() {
   const problem = route.params.get('problem') ?? state.personal.problem;
   const exercise = exercises[problem] ?? exercises.tags;
   const micError = route.params.get('state') === 'mic';
-  return `<a class="back-link" href="#${origin}">${icon('back')}Back to roadmap</a><div class="setup-grid"><section><p class="eyebrow">Before you begin</p><h1>Make room to think.</h1><p class="intro">A conversational coding interview, with time to explain your approach and work through the details.</p><div class="setup-problem">${icon('code')}<div><span class="small muted">Selected problem</span><h2>${exercise.title}</h2><p>${exercise.topic} · Python · English</p></div></div><ol class="setup-expectations"><li>Clarify the problem before you code.</li><li>Run tests and talk through what you notice.</li><li>Review the evidence and choose what to retry.</li></ol><div class="detail-note">This is a preview of personal setup. The next screen uses a prepared attempt, not a live AI interview.</div></section>
+  return `<a class="back-link" href="#${origin}">${icon('back')}Back to roadmap</a><div class="setup-grid"><section><p class="eyebrow">Before you begin</p><h1>Make room to think.</h1><div class="setup-problem">${icon('code')}<div><span class="small muted">Selected problem</span><h2>${exercise.title}</h2><p>${exercise.topic} · Python · English</p></div></div><div class="detail-note">This is a preview of personal setup. The next screen uses a prepared attempt, not a live AI interview.</div></section>
   <form id="setup-form" class="setup-form"><h2>Session preferences</h2><label for="goal">What are you preparing for?</label><select id="goal" name="goal">${['Internship interviews', 'New-grad interviews', 'General coding practice'].map((goal) => `<option ${state.goal === goal ? 'selected' : ''}>${goal}</option>`).join('')}</select><label for="studied">Topics you have studied</label><input id="studied" name="studied" value="${esc(state.studied)}" autocomplete="off"><label for="concern">Anything you want to work on? <span class="muted">Optional</span></label><input id="concern" name="concern" value="${esc(state.concern)}" placeholder="Explaining why my approach works" autocomplete="off">
   <fieldset><legend>How would you like to respond?</legend><div class="choice-pair"><label class="choice"><input type="radio" name="input" value="text" ${state.input === 'text' ? 'checked' : ''}>${icon('message')}<span>Text<small>No microphone needed</small></span></label><label class="choice"><input type="radio" name="input" value="voice" ${state.input === 'voice' ? 'checked' : ''}>${icon('mic')}<span>Voice<small>Preview only</small></span></label></div></fieldset>
   ${micError ? `<div class="inline-alert">Microphone unavailable in this preview. Continue with text; spoken delivery won’t be assessed.${button('Use text instead', 'use-text', 'quiet')}</div>` : state.input === 'voice' ? `<div class="notice">No microphone is accessed in the prototype. ${button('Preview microphone check', 'mic-check', 'quiet')}</div>` : ''}
@@ -159,10 +199,10 @@ function workspace() {
   const fixed = review ? condition === 'clear' : attempt.fixed;
   const code = review && state.checkpoint === 'start' ? `${exercise.original.split('\n')[0]}\n    pass` : fixed ? exercise.repaired : exercise.original;
   return `<div class="session-header"><div class="actions">${link('Sessions', 'sessions', 'quiet small', 'back')}<h1>${exercise.title}</h1>${badge(label, sample ? 'accent' : '')}</div><div class="actions"><span class="small muted">${review ? 'Fictional saved attempt' : 'No recording · prepared code'}</span>${review ? link('Back to roadmap', origin, 'secondary small') : button('Save & exit', 'save-exit', 'quiet small')}${retry ? link('View original', `review${sourceQuery()}`, 'quiet small') : ''}${review ? '' : button(retry ? 'Finish retry' : sample ? 'Review this moment' : 'Finish interview', retry ? 'finish-retry' : 'finish', 'secondary small')}</div></div>
-  ${sample && state.guide ? `<div class="sample-guide"><span class="guide-symbol">${icon('book')}</span><div><strong>${review ? 'Inspect the moment, not a score.' : retry ? 'What happens immediately after finding a repeat?' : 'Follow a candidate’s attempt.'}</strong><span>${review ? 'The transcript, highlighted line, and test describe the same checkpoint.' : retry ? 'Choose the prepared repair, then run the sample tests again.' : 'Read the plan below, run the prepared sample tests, then open the review.'}</span></div>${button('Hide guidance', 'hide-guide', 'quiet small')}</div>` : ''}
+
   ${condition === 'offline' ? `<div class="inline-alert workspace-alert">Connection interrupted. The prepared draft is still here. ${button('Reconnect preview', 'recover', 'quiet small')}${button('Continue in text', 'offline-text', 'quiet small')}</div>` : ''}
   <div class="mobile-switch segmented" aria-label="Workspace view">${['problem', 'code', 'conversation'].map((pane) => `<button type="button" class="button ${state.mobilePane === pane ? 'selected' : ''}" data-action="pane-${pane}" aria-pressed="${state.mobilePane === pane}">${pane === 'problem' && review ? 'Findings' : pane[0].toUpperCase() + pane.slice(1)}</button>`).join('')}</div>
-  <div class="workspace" data-pane="${state.mobilePane}" style="--left-width:${state.layout}%;--code-size:${state.codeSize}px"><div class="left-column ${condition === 'expanded' ? 'expanded' : state.conversation}"><section class="problem-pane pane"><div class="panel-top">${review ? tabs('left', ['Findings', 'Problem'], state.leftTab) : `<span>${icon('book')}Problem</span><span class="small muted">Original exercise</span>`}</div><div class="problem-scroll" ${review ? `role="tabpanel" aria-labelledby="left-${state.leftTab}"` : ''}>${review && state.leftTab === 'findings' ? findings(condition) : problemContent(exercise)}</div></section>
+  <div class="workspace" data-pane="${state.mobilePane}" style="--left-width:${state.layout}%;--code-size:${state.codeSize}px"><div class="left-column ${condition === 'expanded' ? 'expanded' : state.conversation}"><section class="problem-pane pane"><div class="panel-top">${review ? tabs('left', ['Findings', 'Problem'], state.leftTab) : `<span>${icon('book')}Problem</span><span class="small muted">Original exercise</span>`}</div>${sample && state.guide ? `<div class="sample-guide"><span class="guide-symbol">${icon('book')}</span><div><strong>${review ? 'Inspect the moment, not a score.' : retry ? 'What happens immediately after finding a repeat?' : 'Follow a candidate’s attempt.'}</strong><span>${review ? 'The transcript, highlighted line, and test describe the same checkpoint.' : retry ? 'Choose the prepared repair, then run the sample tests again.' : 'Read the plan below, run the prepared sample tests, then open the review.'}</span></div>${button('Hide guidance', 'hide-guide', 'quiet small')}</div>` : ''}<div class="problem-scroll" ${review ? `role="tabpanel" aria-labelledby="left-${state.leftTab}"` : ''}>${review && state.leftTab === 'findings' ? findings(condition) : problemContent(exercise)}</div></section>
   ${conversation(review, retry, sample, condition)}</div>
   <div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="60" aria-valuenow="${state.layout}" data-splitter="columns"></div>
   <div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>${icon('code')}${review ? 'Checkpoint code' : 'Code'}</span><div class="actions">${review ? `<label class="sr-only" for="checkpoint">Saved checkpoint</label><select id="checkpoint"><option value="run" ${state.checkpoint === 'run' ? 'selected' : ''}>04:26 · Test run</option><option value="start" ${state.checkpoint === 'start' ? 'selected' : ''}>00:00 · Starter code</option></select>` : '<span class="small muted">Python</span>'}${button('Layout', 'layout', 'quiet small', 'settings')}</div></div><div class="editor-subbar"><span class="mono">${exercise.function}.py</span><span>${review ? 'Read-only evidence' : 'Prepared code · read-only preview'}</span></div>
@@ -221,10 +261,10 @@ function related() {
   return `<a class="back-link" href="#complete">${icon('back')}Back to retry</a><div class="related-page"><p class="eyebrow">An optional next step</p><h1>Same decision.<br>A different problem.</h1><p class="intro">Practice stopping at the first qualifying event in a new setting.</p><section class="related-card"><div>${badge('Author-linked exercise')}<h2>First threshold alert</h2><p>Find the earliest reading above a threshold, rather than the earliest repeated tag.</p><div class="detail-note"><strong>Why it’s related</strong><p>Both tasks ask you to stop at the first match. This is an authored connection, not a claim that the exercises have equal difficulty.</p></div></div>${icon('code')}</section><fieldset class="familiar"><legend>Have you seen this problem before?</legend><label><input type="radio" name="familiar" value="no" checked>Not that I remember</label><label><input type="radio" name="familiar" value="yes">Yes, it’s familiar</label></fieldset><div class="actions">${link('Set up this practice', 'setup?problem=alert', 'primary', 'arrow')}${link('Finish for now', 'sessions', 'quiet')}</div><p id="familiar-note" class="small muted">Prior familiarity and any guidance will be noted in the product.</p></div>`;
 }
 function preferences() {
-  return `<div class="page-title"><div><p class="eyebrow">Your practice, your choices</p><h1>Recording preferences</h1><p>Understand what is processed, what is kept, and what is not.</p></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a><a href="#system">Design & motion preview</a></nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><p>Try these controls with fictional records only.</p><div class="actions">${button('Export example record', 'export', 'secondary')}${button('Delete demo sessions', 'delete', 'danger')}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2>Motion preference</h2><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
+  return `<div class="page-title"><div><p class="eyebrow">Preferences</p><h1>Recording preferences</h1></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a><a href="#system">Design & motion preview</a></nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><div class="actions">${button('Export example record', 'export', 'secondary')}${button('Delete demo sessions', 'delete', 'danger')}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2 id="appearance">Motion and appearance</h2><label class="setting-row"><span><strong>Theme</strong></span><select name="theme" aria-label="Theme">${['dark', 'light', 'system'].map(value => `<option value="${value}" ${state.theme === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
 }
 function system() {
-  return `<div class="page-title"><div><p class="eyebrow">Prototype foundation</p><h1>Quiet by design.</h1><p>Neutral surfaces. Pastel learning states. Motion with a reason.</p></div>${link('Explore the workspace', 'interview', 'secondary', 'arrow')}</div><section class="system-section"><div><h2>Color with a purpose</h2><p>Accent means action or selection. Error and success belong to specific results, never a person.</p></div><div class="swatches">${[['Canvas', 'canvas'], ['Surface', 'surface'], ['Raised', 'raised'], ['Accent', 'accent'], ['Success', 'success'], ['Error', 'error']].map(([label, token]) => `<div><span style="background:var(--${token})"></span><small>${label}</small></div>`).join('')}</div></section><section class="system-section"><div><h2>Readable at work</h2><p>Bahnschrift headings, Segoe UI body, and Consolas code use local platform fonts. No external font requests.</p></div><div><h2 class="type-specimen">Look closer. Try again.</h2><p>A review connects what you said with what your code did.</p><code class="type-code">return first_match</code><p class="small muted">Supporting text · revision 1 · 04:26</p></div></section><section class="system-section"><div><h2>Small, deliberate feedback</h2><p>Try pointer press and keyboard focus. Motion is removed for keyboard input and reduced-motion preferences.</p></div><div class="actions">${button('Primary action', 'specimen', 'primary')}${button('Secondary action', 'specimen', 'secondary')}${button('Open disclosure', 'motion-dialog', 'quiet')}</div></section><section class="system-section"><div><h2>Evidence, not verdicts</h2><p>State and uncertainty have words. A color is never the only explanation.</p></div><div class="actions">${badge('Review ready', 'accent')}${badge('Draft saved')}${badge('Finding disputed')}${badge('Runner unavailable', 'error')}</div></section><section class="system-section"><div><h2>Motion tokens</h2><p>No looping decoration, delayed results, or animated typing.</p></div><dl class="token-list"><div><dt>Feedback</dt><dd>200 ms · observed WhiteBox timing</dd></div><div><dt>Disclosure</dt><dd>200 ms · same shared timing</dd></div><div><dt>Ease</dt><dd>cubic-bezier(0.23, 1, 0.32, 1)</dd></div><div><dt>Pressed surface</dt><dd>scale(0.96) · pointer only</dd></div></dl></section>`;
+  return `<div class="page-title"><div><p class="eyebrow">Prototype foundation</p><h1>Graphite. Chalk. Annotation.</h1><p>A lit desk. Teal for action, amber for evidence, lilac for the coach.</p></div>${link('Explore the workspace', 'interview', 'secondary', 'arrow')}</div><section class="system-materials"><article class="plane"><h2>Working plane</h2><p>A top light and contact shadow bring the work forward.</p><div class="recess">Recess · code and evidence stay still</div></article><article class="plane-quiet"><h2>Quiet plane</h2><p>Conversation and supporting context.</p><div class="annotation">Annotation · a location, never a verdict</div></article><article class="float"><h2>Floating surface</h2><p>Dialogs and drawers carry the ambient shadow.</p>${button('Inspect floating surface', 'motion-dialog', 'secondary')}</article></section><section class="system-section"><div><h2>Color with a purpose</h2><p>Accent means action or selection. Error and success belong to specific results, never a person.</p></div><div class="swatches">${[['Canvas', 'canvas'], ['Surface', 'surface'], ['Raised', 'raised'], ['Accent', 'accent'], ['Success', 'success'], ['Error', 'error']].map(([label, token]) => `<div><span style="background:var(--${token})"></span><small>${label}</small></div>`).join('')}</div></section><section class="system-section"><div><h2>Readable at work</h2><p>Gabarito headings, Geist interface text, and Geist Mono code, with local platform fallbacks.</p></div><div><h2 class="type-specimen">Look closer. Try again.</h2><p>A review connects what you said with what your code did.</p><code class="type-code">return first_match</code><p class="small muted">Supporting text · revision 1 · 04:26</p></div></section><section class="system-section"><div><h2>Small, deliberate feedback</h2><p>Try pointer press and keyboard focus. Motion is removed for keyboard input and reduced-motion preferences.</p></div><div class="actions">${button('Primary action', 'specimen', 'primary')}${button('Secondary action', 'specimen', 'secondary')}${button('Open disclosure', 'motion-dialog', 'quiet')}</div></section><section class="system-section"><div><h2>Evidence, not verdicts</h2><p>State and uncertainty have words. A color is never the only explanation.</p></div><div class="actions">${badge('Review ready', 'accent')}${badge('Draft saved')}${badge('Finding disputed')}${badge('Runner unavailable', 'error')}</div></section><section class="system-section"><div><h2>Motion tokens</h2><p>No looping decoration, delayed results, or animated typing.</p></div><dl class="token-list"><div><dt>Feedback</dt><dd>200 ms · state feedback</dd></div><div><dt>Disclosure</dt><dd>350 ms entrance · 450 ms pane · 120 ms exit</dd></div><div><dt>Ease</dt><dd>Enter: cubic-bezier(.16, 1, .3, 1)</dd></div><div><dt>Pressed surface</dt><dd>1px travel · 150 ms · pointer only</dd></div></dl></section>`;
 }
 
 function render(navigation = false) {
@@ -249,9 +289,20 @@ function render(navigation = false) {
   const screens = { profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
+  navbarObserver.disconnect();
+  roadmapObserver.disconnect();
   app.innerHTML = chrome((screens[route.page] ?? welcome)(), workspacePage);
+  if (navigation) document.querySelectorAll('.home-layout > section, .profile-panel, .session-row, .setup-grid > *, .preferences-content').forEach((element, index) => { element.classList.add('enter'); element.style.setProperty('--i', index); });
+  document.querySelector('#main').classList.toggle('roadmap-main', route.page === 'roadmap');
+  const graph = document.querySelector('.road-grid');
+  if (graph) { positionRoadmapConnections(); roadmapObserver.observe(graph); }
+  navbarObserver.observe(document.querySelector('.floating-nav'));
+  measureNavbar();
+  const sessionFilter = route.params.get('filter');
+  if (route.page === 'sessions' && sessionFilter && sessionFilter !== 'All') document.querySelectorAll('.session-row').forEach(row => { row.hidden = row.querySelector('.badge')?.textContent !== sessionFilter; });
   document.title = `${document.querySelector('h1')?.textContent ?? 'Welcome'} · Interview trainer prototype`;
   document.documentElement.dataset.reduce = String(state.reduce);
+  document.documentElement.dataset.theme = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   document.querySelector('.map-scroll')?.scrollTo({ left: mapScroll });
   syncProblemDrawer();
   if (navigation && !drawer.open) {
@@ -282,13 +333,23 @@ function scenePicker() {
   showDialog('Explore the prototype', `<p>Jump to any screen or recovery state. All sessions, code, and results are fictional.</p><div class="scene-grid">${scenes.map(([title, path, description]) => `<a href="#${path}" class="scene-link"><strong>${title}</strong><small>${description}</small>${icon('arrow')}</a>`).join('')}</div><div class="dialog-footer">${button('Reset demo history', 'reset', 'quiet')}<span class="small muted">This resets only the prototype’s fixture state.</span></div>`);
 }
 function handleAction(action) {
+  if (action.startsWith('thread-stage-')) {
+    const stage = Number(action.slice(-1));
+    if (document.querySelector('.v2-home') && [0, 1, 2].includes(stage)) { state.homeStage = stage; render(); return; }
+    const track = document.querySelector('.stage-track');
+    if (!track || ![0, 1, 2].includes(stage)) return;
+    track.dataset.stage = stage;
+    track.querySelectorAll('button').forEach((item, index) => { item.classList.toggle('selected', index === stage); item.setAttribute('aria-pressed', String(index === stage)); });
+    document.querySelectorAll('.thread-steps li').forEach((item, index) => { if (index === stage) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current'); });
+    return;
+  }
   if (action.startsWith('case-')) { state.caseIndex = Number(action.slice(5)); render(); return; }
   if (action.startsWith('pane-')) { state.mobilePane = action.slice(5); render(); return; }
   if (action.startsWith('left-')) { state.leftTab = action.slice(5); render(); return; }
   switch (action) {
     case 'close-problems': closeProblems(); break;
     case 'pan-left': case 'pan-right': { const map = document.querySelector('.map-scroll'); map?.scrollBy({ left: map.clientWidth * (action === 'pan-left' ? -1 : 1) }); break; }
-    case 'edit-profile': showDialog('Edit profile', `<form id="profile-form"><label>Display name<input name="profile-name" required value="${esc(state.profile?.name || 'Alex')}"></label><label>Bio<textarea name="profile-bio" rows="3">${esc(state.profile?.bio || 'Building the habit of explaining my thinking, one problem at a time.')}</textarea></label><p class="small muted">Changes stay in this preview until you reload.</p><div class="actions"><button type="submit" class="button primary">Save profile</button>${button('Cancel', 'close-dialog', 'secondary')}</div></form>`); break;
+    case 'edit-profile': showDialog('Edit profile', `<form id="profile-form"><label>Display name<input name="profile-name" required value="${esc(state.profile?.name || 'Alex')}"></label><label>Bio<textarea name="profile-bio" rows="3">${esc(state.profile?.bio || '')}</textarea></label><p class="small muted">Changes stay in this preview until you reload.</p><div class="actions"><button type="submit" class="button primary">Save profile</button>${button('Cancel', 'close-dialog', 'secondary')}</div></form>`); break;
     case 'scenes': scenePicker(); break;
     case 'restart-sample': state.sample = initialAttempt('duplicate'); state.retry = null; state.sampleRoute = 'sample'; state.guide = true; persist(); go('sample'); break;
     case 'close-dialog': closeDialog(); break;
@@ -311,7 +372,7 @@ function handleAction(action) {
     case 'save-exit': {
       mutateAttempt('save'); const saved = persist(); go(isSample() ? 'welcome' : 'sessions'); notify(saved ? 'Prepared position saved in this prototype tab. No personal content was saved.' : 'Storage is unavailable. This prepared state will last only while the page stays open.'); break;
     }
-    case 'evidence': state.checkpoint = 'run'; state.caseIndex = 2; render(); document.querySelector('.evidence-line')?.scrollIntoView({ block: 'nearest' }); notify('Test-run checkpoint, related transcript, and matching result selected.'); break;
+    case 'evidence': state.checkpoint = 'run'; state.caseIndex = 2; render(); document.querySelector('.line-marker')?.classList.add('locate-marker'); document.querySelector('.evidence-line')?.scrollIntoView({ block: 'nearest' }); notify('Test-run checkpoint, related transcript, and matching result selected.'); break;
     case 'disagree': showDialog('Disagree with this feedback', `<p>The original evidence stays visible. A disputed finding won’t drive suggested practice.</p><label for="correction">What would you change? <span class="muted">Optional · not saved</span></label><textarea id="correction" placeholder="The transcript missed an explanation…"></textarea><div class="actions">${button('Cancel', 'close-dialog', 'secondary')}${button('Mark example disputed', 'confirm-dispute', 'primary')}</div><p class="small muted">No real dispute is submitted and no human response is promised.</p>`); break;
     case 'confirm-dispute': closeDialog(); mutateAttempt('dispute'); render(); notify('Example finding marked disputed. Original evidence remains available.'); break;
     case 'recover-review': state.reviewState = ''; go(`review${sourceQuery()}`); break;
@@ -404,12 +465,13 @@ document.addEventListener('input', (event) => {
 });
 document.addEventListener('change', (event) => {
   const input = event.target;
+  if (input.name === 'theme') { state[input.name] = input.value; persist(); render(); }
   if (input.name === 'input') { state.input = input.value; render(); }
   if (input.name === 'goal') state.goal = input.value;
   if (['audio', 'audio-pref'].includes(input.name)) state.audio = input.checked;
   if (input.name === 'consent') { state.consent = input.checked; document.querySelector('#consent-error').hidden = input.checked; input.removeAttribute('aria-invalid'); }
   if (input.name === 'voice-pref') state.input = input.checked ? 'voice' : 'text';
-  if (input.name === 'reduce') { state.reduce = input.checked; document.documentElement.dataset.reduce = String(state.reduce); notify(state.reduce ? 'Reduced motion enabled.' : 'Operating-system motion preference is used.'); }
+  if (input.name === 'reduce') { state.reduce = input.checked; document.documentElement.dataset.reduce = String(state.reduce); persist(); notify(state.reduce ? 'Reduced motion enabled.' : 'Operating-system motion preference is used.'); }
   if (input.id === 'checkpoint') { state.checkpoint = input.value; render(); notify('Saved checkpoint changed. Code and results now match the selected checkpoint.'); }
   if (input.name === 'familiar') document.querySelector('#familiar-note').textContent = input.value === 'yes' ? 'Familiarity noted for this preview. This won’t be described as unseen work.' : 'Prior familiarity and any guidance will be noted in the product.';
 });
@@ -433,3 +495,5 @@ document.addEventListener('submit', (event) => {
 });
 window.addEventListener('hashchange', () => render(true));
 render();
+
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'system') render(); });

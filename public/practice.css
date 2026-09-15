@@ -1,25 +1,3 @@
-:root {
-  --canvas: oklch(0.205 0 0);
-  --surface: oklch(0.235 0 0);
-  --raised: oklch(0.26 0 0);
-  --input: oklch(0.21 0 0);
-  --hover: oklch(0.30 0 0);
-  --divider: oklch(0.32 0 0);
-  --control-border: oklch(0.51 0 0);
-  --text: oklch(0.945 0 0);
-  --muted: oklch(0.74 0 0);
-  --accent: oklch(0.94 0 0);
-  --accent-ink: oklch(0.20 0 0);
-  --accent-surface: oklch(0.30 0.025 300);
-  --focus: oklch(0.84 0.09 300);
-  --feature-fill: oklch(0.245 0 0);
-  --feature-mark: oklch(0.56 0.06 300);
-  --node-purple: oklch(0.83 0.09 300);
-  --node-yellow: oklch(0.92 0.12 95);
-  --node-green: oklch(0.86 0.13 155);
-  --level-blue: oklch(0.82 0.11 225);
-  --radius-pane: 6px;
-}
 .brand-mark { color: var(--text); }
 .avatar { width: 36px; height: 36px; color: var(--node-purple); background: var(--raised); }
 .page-title h1 { font-size: 1.8rem; }
@@ -29,60 +7,57 @@
 .focus-work { border-color: var(--divider); }
 .home-history .activity-line, .session-row { background: var(--surface); border: 1px solid var(--divider); border-radius: 6px; padding: 1rem; margin-block: 0.5rem; }
 .session-table { border: 0; }
-.road-graph { padding-block: 1.5rem; }
-.graph-stages { display: flex; justify-content: space-between; padding-inline: 2rem; }
-.stage-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
-.stage-label > span { width: 14px; height: 14px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
-.stage-1 { color: var(--level-blue); }
-.stage-2 { color: oklch(0.72 0.15 260); }
-.road-grid { width: 1040px; height: 410px; position: relative; display: grid; grid-template-columns: repeat(3,240px); grid-template-rows: repeat(3,130px); gap: 10px 160px; align-items: center; }
-.road-grid > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.road-grid > svg path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 6 5; }
-.road-node { position: relative; display: flex; flex-direction: column; gap: 0.45rem; padding: 0.85rem 1rem; border: 1px solid transparent; border-radius: 6px; color: oklch(0.24 0.03 300); background: var(--node-purple); min-width: 0; text-decoration: none !important; }
-.road-grid > .road-node { grid-column: calc(var(--column) + 1); grid-row: calc(var(--row) + 1); }
-.road-node.started { background: var(--node-yellow); color: oklch(0.28 0.035 85); }
-.road-node.complete { background: var(--node-green); color: oklch(0.25 0.035 155); }
-.road-node-title { display: flex; justify-content: space-between; align-items: center; gap: 0.65rem; font-size: 0.875rem; font-weight: 600; }
-.road-node-title svg { width: 15px; height: 15px; flex-shrink: 0; }
-.road-node-detail { font-size: 0.75rem; }
-.road-progress { display: flex; align-items: center; gap: 0.55rem; font-size: 0.72rem; }
-.progress-track { display: block; height: 4px; flex: 1; min-width: 24px; background: oklch(0.25 0.02 300 / 0.22); border-radius: 3px; overflow: hidden; }
-.progress-track > span { display: block; height: 100%; width: var(--progress); background: linear-gradient(90deg, oklch(0.6 0.24 305), oklch(0.72 0.19 45)); }
-.graph-controls { display: flex; justify-content: flex-end; }
-.road-key { display: flex; gap: 1.5rem; flex-wrap: wrap; padding-block: 1rem; font-size: 0.75rem; color: var(--muted); }
-.road-key > span { display: flex; align-items: center; gap: 0.5rem; }
-.road-key i { width: 10px; height: 10px; border-radius: 3px; }
+/* Geometry and materials from docs/revised_design/Roadmap.dc.html. */
+.roadmap-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.road-graph { background: linear-gradient(180deg,var(--plane-lit),var(--plane)); border-radius: var(--radius-pane); box-shadow: var(--ring),var(--light-top),var(--shadow-contact); overflow: hidden; }
+.graph-stages { display: grid; grid-template-columns: repeat(3,1fr); padding: 14px 24px; box-shadow: inset 0 -1px 0 var(--divider); }
+.stage-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.stage-label i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.stage-1 { justify-content: center; }
+.stage-1 i { background: var(--level-blue); }
+.stage-2 { justify-content: flex-end; }
+.stage-2 i { background: var(--accent); }
+.road-graph .map-scroll { padding: 16px 24px; overflow: auto; }
+.road-grid { position: relative; width: 960px; margin: 0 auto; display: grid; grid-template-columns: repeat(3,240px); grid-template-rows: repeat(2,1fr); gap: 18px 120px; }
+.road-grid > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.road-node { --node-fill: var(--node-purple); position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 0; border-radius: var(--radius-card); background: linear-gradient(180deg,var(--raised-lit),var(--raised)); box-shadow: var(--ring),var(--light-top),var(--shadow-contact); color: var(--ink); min-width: 0; text-decoration: none !important; }
+.road-node.started { --node-fill: var(--node-yellow); }
+.road-node.complete { --node-fill: var(--node-green); }
+.road-grid > .road-node { grid-column: var(--column); grid-row: var(--row); }
+.road-node[aria-current="true"] { box-shadow: inset 0 0 0 1.5px var(--accent),var(--light-top),var(--shadow-contact),0 8px 18px -10px var(--accent); }
+.road-grid > #topic-sequences { grid-row: 1 / span 2; align-self: center; }
+.road-node-title { display: flex; align-items: center; gap: 10px; font-size: var(--text-body); font-weight: 600; }
+.road-node-title i { width: 8px; height: 8px; border-radius: 2px; background: var(--node-fill); flex-shrink: 0; }
+.road-node-title svg { width: 14px; height: 14px; color: var(--ink-3); margin-left: auto; }
+.road-node-detail { color: var(--ink-2); font-size: 12px; line-height: 1.4; }
+.road-progress { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font: 11px/1.4 var(--font-mono); }
+.progress-track { flex: 1; height: 3px; border-radius: 2px; background: var(--recess); box-shadow: var(--shadow-recess); overflow: hidden; }
+.progress-track > span { display: block; height: 100%; width: var(--progress); background: var(--node-fill); }
+.graph-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px; box-shadow: inset 0 1px 0 var(--divider); color: var(--ink-2); font-size: 12px; }
+.graph-controls > div { display: flex; gap: 4px; }
+.graph-controls .button { min-height: 28px; padding: 4px; box-shadow: var(--ring); }
+.graph-controls .button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.road-key { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: var(--ink-2); font-size: 12px; }
+.road-key > span { display: inline-flex; align-items: center; gap: 7px; }
+.road-key i { width: 8px; height: 8px; border-radius: 2px; }
 .road-key .available { background: var(--node-purple); }
 .road-key .started { background: var(--node-yellow); }
 .road-key .complete { background: var(--node-green); }
-.road-group { margin-block: 2rem 3rem; }
-.road-group h2 { margin-bottom: 1.5rem; }
-.stage-label i { flex: 1; height: 1px; background: var(--divider); margin-left: 1rem; }
-.road-list .road-node { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(9rem,0.3fr); align-items: center; gap: 1.5rem; color: var(--text); background: var(--surface); border-color: var(--divider); margin-block: 0.6rem; min-height: 60px; }
-.road-list .road-node-detail, .road-list .road-progress { color: var(--muted); }
-.road-list .progress-track { background: var(--raised); }
-.road-list .road-node-title svg { display: none; }
-.road-list .road-node::after { content: '›'; position: absolute; right: 1rem; color: var(--muted); }
-.road-list .road-node { padding-right: 3rem; }
-.road-breadcrumb { display: flex; align-items: center; gap: 1rem; margin-block: 2rem 1.25rem; }
-.road-breadcrumb h2 { font-size: 1rem; margin: 0; }
-.road-breadcrumb > span { font-size: 0.85rem; color: var(--muted); }
-.skill-graph { display: grid; grid-template-columns: 220px 1fr; gap: 100px; align-items: center; min-width: 980px; min-height: 410px; }
-.skill-branches, .skill-branches ul { list-style: none; margin: 0; padding: 0; }
-.skill-branches { display: grid; gap: 5rem; }
-.skill-branches > li { display: grid; grid-template-columns: 230px 240px; align-items: center; gap: 100px; position: relative; }
-.skill-label { display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem; }
-.skill-label span { color: var(--muted); font-size: 0.75rem; }
-.skill-graph .skill-origin::after, .skill-graph .skill-branches > li::before, .skill-graph .skill-label::after { content: ''; position: absolute; width: 100px; border-top: 1px dashed var(--muted); }
-.skill-graph .skill-origin::after { left: 100%; top: 50%; }
-.skill-graph .skill-branches > li::before { left: -100px; top: 50%; }
-.skill-graph .skill-label::after { left: 230px; top: 50%; }
-.skill-graph .skill-branches { position: relative; }
-.skill-graph .skill-branches::before { content: ''; position: absolute; top: 25%; bottom: 25%; left: -50px; border-left: 1px dashed var(--muted); }
-.skill-list .skill-origin { display: none; }
-.skill-list .skill-branches { gap: 2rem; }
-.skill-list .skill-branches > li { display: block; }
-.skill-list .skill-label { padding-block: 0.5rem; }
+.road-list { border-radius: var(--radius-pane); background: var(--plane); box-shadow: var(--ring); overflow: hidden; }
+.road-list .road-node { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) 140px; align-items: center; gap: 16px; padding: 14px 20px; border-radius: 0; background: transparent; box-shadow: inset 0 -1px 0 var(--divider); }
+.road-list .road-node[aria-current="true"] { background: var(--accent-soft); }
+.selected-topic { margin-top: 16px; border-radius: var(--radius-pane); background: var(--plane); box-shadow: var(--ring); padding: 18px 22px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); gap: 24px; align-items: start; }
+.selected-topic .eyebrow { margin: 0 0 8px; color: var(--accent); }
+.selected-topic h2 { margin: 0; font: 600 1.375rem/1.15 var(--font-display); letter-spacing: -.015em; }
+.selected-leaves { display: grid; gap: 8px; }
+.subtopic-card { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 14px; border-radius: var(--radius-card); background: linear-gradient(180deg,var(--raised-lit),var(--raised)); box-shadow: var(--ring),var(--light-top),var(--shadow-contact); text-decoration: none !important; }
+.subtopic-card strong { font-size: var(--text-body); font-weight: 600; }
+.subtopic-count { font: 11px var(--font-mono); color: var(--ink-2); white-space: nowrap; }
+.subtopic-card small { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); }
+@media (max-width: 48rem) {
+  .road-list .road-node { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .selected-topic { grid-template-columns: minmax(0,1fr); }
+}
 #problem-drawer { width: min(68rem, calc(100vw - 4rem)); padding: 0; }
 .practice-drawer-head { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; padding: 2rem; background: var(--raised); border-bottom: 1px solid var(--divider); }
 .practice-drawer-head h2 { margin-bottom: 1rem; }
@@ -142,11 +117,6 @@
 .profile-review p { font-size: 0.85rem; }
 #profile-form { display: grid; gap: 1rem; }
 #profile-form label { display: grid; gap: 0.5rem; }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-reduce="true"]):not([data-input="keyboard"]) .road-node { transition: transform var(--motion-feedback) var(--ease-out), border-color var(--motion-feedback) var(--ease-out), filter var(--motion-feedback) var(--ease-out); }
-  :root:not([data-reduce="true"]):not([data-input="keyboard"]) .road-node:hover { transform: translateY(-2px); filter: brightness(1.06); border-color: var(--text); }
-  :root:not([data-reduce="true"]):not([data-input="keyboard"]) .road-node:active { transform: scale(0.96); }
-}
 @media (max-width: 64rem) {
   .workspace-main { height: auto; min-height: calc(100dvh - 72px); }
   .profile-overview, .profile-charts { grid-template-columns: 1fr 1fr; }
