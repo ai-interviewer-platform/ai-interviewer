@@ -12,7 +12,8 @@ function meter(status) {
 }
 export function roadmapScreen(state, route, ui) {
   const { link, button, icon } = ui;
-  const view = route.params.get('view') ?? (matchMedia('(max-width: 48rem)').matches ? 'list' : 'map');
+  const requestedView = route.params.get('view');
+  const view = ['map', 'list'].includes(requestedView) ? requestedView : (matchMedia('(max-width: 48rem)').matches ? 'list' : 'map');
   const selected = topics.find(topic => topic.id === (route.params.get('topic') ?? 'sets'));
   const topicNode = topic => {
     const status = practiceStatus(problemIds(topic), state);

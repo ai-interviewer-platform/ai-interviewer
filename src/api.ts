@@ -1,13 +1,14 @@
 import type { Pool, PoolClient } from "pg";
 import { authenticatedUserId } from "./auth";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
-import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled, grantDeepgramAccessToken } from "./deepgram";
+import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
+import { consumeRate, limits } from "./security";
 import type { Env } from "./env";
-import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
+import { badRequest, boolean, boundedRequest, checkOrigin, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
 
 const DISCLOSURE_VERSION = "pending-owner-data-policy";
 
-type AttemptRow = {
+export type AttemptRow = {
   id: string;
   user_id: string;
   problem_id: string;
@@ -85,6 +86,12 @@ async function addEvent(client: PoolClient, values: {
   occurrenceOffsetMs: number;
   payload: unknown;
 }): Promise<string> {
+  const locked = await client.query("SELECT status FROM attempts WHERE id = $1 FOR UPDATE", [values.attemptId]);
+  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new Error("Attempt is closed.");
+  const existingEvent = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
+  if (existingEvent.rows[0]) return existingEvent.rows[0].id;
+  const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [values.attemptId]);
+  if (Number(count.rows[0].count) >= limits.eventsPerAttempt) throw new Error("Attempt evidence limit reached.");
   const eventId = id();
   const inserted = await client.query<{ id: string }>(
     `INSERT INTO attempt_events (id, attempt_id, event_type, source_id, source_order, occurrence_offset_ms, payload)
@@ -160,7 +167,7 @@ async function catalog(pool: Pool): Promise<Response> {
   return json({ problems: result.rows });
 }
 
-async function listAttempts(pool: Pool, userId: string): Promise<Response> {
+async function listAttempts(pool: Pool, userId: string, page: number): Promise<Response> {
   const result = await pool.query(
     `SELECT a.id, a.mode, a.input_mode, a.status, a.draft_revision, a.source_attempt_id, a.source_checkpoint_id,
             a.practice_goal, a.familiarity, a.created_at, a.updated_at, p.id AS problem_id, p.title, p.topic,
@@ -169,10 +176,10 @@ async function listAttempts(pool: Pool, userId: string): Promise<Response> {
        JOIN problems p ON p.id = a.problem_id
        LEFT JOIN reviews r ON r.attempt_id = a.id
       WHERE a.user_id = $1
-      ORDER BY a.updated_at DESC`,
-    [userId],
+      ORDER BY a.updated_at DESC, a.id DESC LIMIT $2 OFFSET $3`,
+    [userId, limits.pageSize, page * limits.pageSize],
   );
-  return json({ attempts: result.rows });
+  return json({ attempts: result.rows, page, hasMore: result.rows.length === limits.pageSize });
 }
 
 async function createAttempt(pool: Pool, userId: string, body: Record<string, unknown>): Promise<Response> {
@@ -183,7 +190,9 @@ async function createAttempt(pool: Pool, userId: string, body: Record<string, un
   const consent = boolean(body.consent);
   const saveAudio = boolean(body.saveAudio);
   const familiarity = string(body.familiarity) ?? "unanswered";
-  const setupContext = typeof body.setupContext === "object" && body.setupContext !== null ? body.setupContext : {};
+  const setupContext = body.setupContext ?? {};
+  if (typeof setupContext !== "object" || setupContext === null || Array.isArray(setupContext)
+    || Object.entries(setupContext).some(([key, value]) => !["studiedTopics", "concern"].includes(key) || typeof value !== "string")) return badRequest("Invalid setup context.");
   if (!problemId || !isMode(mode) || !isInputMode(inputMode) || !practiceGoal || consent !== true || saveAudio === null || !isFamiliarity(familiarity)) {
     return badRequest("A problem, mode, input mode, practice goal, familiarity, and session-record consent are required.");
   }
@@ -203,16 +212,16 @@ async function createAttempt(pool: Pool, userId: string, body: Record<string, un
   return json({ attemptId }, { status: 201 });
 }
 
-async function attemptDetail(pool: Pool, attempt: AttemptRow): Promise<Response> {
+async function attemptDetail(pool: Pool, attempt: AttemptRow, page: number): Promise<Response> {
   const [problem, events, transcripts, checkpoints, runs, review] = await Promise.all([
     pool.query("SELECT id, title, topic, difficulty, prompt, starter_code, entry_point, test_contract FROM problems WHERE id = $1", [attempt.problem_id]),
-    pool.query("SELECT id, event_type, source_id, source_order, occurrence_offset_ms, server_received_at, payload, created_at FROM attempt_events WHERE attempt_id = $1 ORDER BY occurrence_offset_ms, source_id, source_order", [attempt.id]),
-    pool.query("SELECT id, event_id, speaker, text, end_offset_ms, created_at FROM transcript_segments WHERE attempt_id = $1 ORDER BY end_offset_ms, id", [attempt.id]),
-    pool.query("SELECT id, event_id, source_code, checkpoint_type, created_at FROM code_checkpoints WHERE attempt_id = $1 ORDER BY created_at", [attempt.id]),
-    pool.query("SELECT id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version, created_at FROM code_runs WHERE attempt_id = $1 ORDER BY created_at", [attempt.id]),
+    pool.query("SELECT id, event_type, source_id, source_order, occurrence_offset_ms, server_received_at, payload, created_at FROM attempt_events WHERE attempt_id = $1 ORDER BY occurrence_offset_ms, source_id, source_order, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
+    pool.query("SELECT id, event_id, speaker, text, end_offset_ms, created_at FROM transcript_segments WHERE attempt_id = $1 ORDER BY end_offset_ms, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
+    pool.query("SELECT id, event_id, source_code, checkpoint_type, created_at FROM code_checkpoints WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
+    pool.query("SELECT id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version, created_at FROM code_runs WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, status, failure_reason, evidence_manifest, created_at, updated_at FROM reviews WHERE attempt_id = $1", [attempt.id]),
   ]);
-  return json({ attempt, problem: problem.rows[0], events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null });
+  return json({ page, hasMore: [events, transcripts, checkpoints, runs].some(result => result.rows.length === limits.pageSize), attempt, problem: problem.rows[0], events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null });
 }
 
 async function appendCandidateMessage(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
@@ -232,7 +241,7 @@ async function appendCandidateMessage(pool: Pool, attempt: AttemptRow, body: Rec
   return json({ eventId }, { status: 201 });
 }
 
-async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+export async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const text = string(body.text);
   const role = string(body.role);
   const providerSessionId = string(body.providerSessionId);
@@ -252,7 +261,7 @@ async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Reco
       sourceId,
       sourceOrder,
       occurrenceOffsetMs,
-      payload: { inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
+      payload: { verified: true, inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
     });
     const existing = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
     if (!existing.rows[0]) {
@@ -260,21 +269,7 @@ async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Reco
         "INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)",
         [id(), attempt.id, eventId, speaker, text.trim(), occurrenceOffsetMs],
       );
-      if (role === "assistant") {
-        await client.query(
-          `UPDATE assistance_events
-              SET delivered = true, content = $1
-            WHERE id = (
-              SELECT assistance.id
-                FROM assistance_events assistance
-                JOIN attempt_events event ON event.id = assistance.event_id
-               WHERE assistance.attempt_id = $2 AND assistance.accepted = true AND assistance.delivered = false
-               ORDER BY event.occurrence_offset_ms DESC, assistance.created_at DESC
-               LIMIT 1
-            )`,
-          [text.trim(), attempt.id],
-        );
-      }
+
     }
     return eventId;
   });
@@ -353,7 +348,9 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
     return serverUnavailable("The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
   }
   if (!response.ok) return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
-  const result = parseRunnerResult(await response.json(), new Set(content.rows.map((item) => item.id)));
+  const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
+  if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
+  const result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
   if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
   const passed = result.testResults.filter((test) => test.outcome === "passed").length;
   const failed = result.testResults.filter((test) => test.outcome === "failed").length;
@@ -372,7 +369,7 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
   return json({ runId: run, checkpointId: checkpoint.checkpointId, status: result.status, testsPassed: passed, testsFailed: failed, testResults: result.testResults });
 }
 
-async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>, ctx: ExecutionContext): Promise<Response> {
+async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const sourceId = string(body.sourceId);
   const sourceOrder = body.sourceOrder;
   const occurrenceOffsetMs = body.occurrenceOffsetMs;
@@ -393,11 +390,12 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
     return { reviewId, completed: false };
   });
   if (!finished) return notFound();
-  // Queue delivery is intentionally retried on every finish request while the
-  // persisted review remains pending. This repairs the window where the
-  // transaction committed but the original asynchronous dispatch was lost.
-  const dispatch = "queued";
-  ctx.waitUntil(env.REVIEW_QUEUE.send({ reviewId: finished.reviewId }).catch(() => undefined));
+  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [finished.reviewId]);
+  const dispatch = claim.rows.length ? "queued" : "already dispatched";
+  if (claim.rows.length) {
+    try { await env.REVIEW_QUEUE.send({ reviewId: finished.reviewId }); }
+    catch { await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [finished.reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
+  }
   return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
 }
 
@@ -417,11 +415,10 @@ async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<stri
   if (!original) return forbidden();
   const attemptId = id();
   await withTransaction(pool, async (client) => {
-    const context = await client.query("SELECT speaker, text, end_offset_ms FROM transcript_segments WHERE attempt_id = $1 AND end_offset_ms <= $2 ORDER BY end_offset_ms, id", [original.id, original.occurrence_offset_ms]);
     await client.query(
       `INSERT INTO attempts (id, user_id, problem_id, mode, input_mode, status, source_attempt_id, source_checkpoint_id, draft_source, setup_context, familiarity, consent_at, disclosure_version, practice_goal, save_audio)
        VALUES ($1, $2, $3, 'coach', 'text', 'active', $4, $5, $6, $7::jsonb, 'unanswered', now(), $8, $9, false)`,
-      [attemptId, userId, original.problem_id, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, earlierConversation: context.rows }), DISCLOSURE_VERSION, practiceGoal],
+      [attemptId, userId, original.problem_id, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, sourceAttemptId: original.id, throughOffsetMs: original.occurrence_offset_ms }), DISCLOSURE_VERSION, practiceGoal],
     );
     await addEvent(client, { attemptId, eventType: "retry_started", sourceId: `server:retry:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { sourceAttemptId: original.id, sourceCheckpointId: checkpointId } });
   });
@@ -468,9 +465,11 @@ async function relatedProblems(pool: Pool, userId: string, attempt: AttemptRow):
   return json({ relatedProblems: result.rows });
 }
 
-export async function handleApi(request: Request, env: Env, ctx: ExecutionContext, pool: Pool): Promise<Response> {
+export async function handleApi(request: Request, env: Env, _ctx: ExecutionContext, pool: Pool): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
+  const page = Number(url.searchParams.get("page") ?? 0);
+  if (!Number.isSafeInteger(page) || page < 0 || !Number.isSafeInteger(page * limits.pageSize)) return badRequest("Invalid page.");
   if (path === "/api/health" && request.method === "GET") return json({ status: "ok" });
   if (path === "/api/personal-availability" && request.method === "GET") return json({
     collectionEnabled: personalCollectionEnabled(env),
@@ -479,21 +478,24 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
     thinkingModel: DEEPGRAM_THINKING_MODEL,
   });
   if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
+  const originError = checkOrigin(request, env.BETTER_AUTH_URL);
+  if (originError) return originError;
   if (path === "/api/catalog" && request.method === "GET") return catalog(pool);
   const userId = await authenticatedUserId(request, env, pool);
   if (!userId) return unauthorized();
+  if (!(await consumeRate(pool, `api:${userId}`, 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
   if (path === "/api/me" && request.method === "GET") return json({ userId });
-  if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId);
+  if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId, page);
   if (path === "/api/attempts" && request.method === "POST") {
     const body = await requestBody(request);
     return body ? createAttempt(pool, userId, body) : badRequest("Expected a JSON request body.");
   }
-  const attemptMatch = /^\/api\/attempts\/([^/]+)(?:\/(draft|run|finish|retry|review|related|messages|help|voice-token|voice-transcript))?(?:\/findings\/([^/]+)\/corrections)?$/.exec(path);
+  const attemptMatch = /^\/api\/attempts\/([^/]+)(?:\/(draft|run|finish|retry|review|related|messages|help|voice))?(?:\/findings\/([^/]+)\/corrections)?$/.exec(path);
   if (!attemptMatch) return notFound();
   const attempt = await ownedAttempt(pool, decodeURIComponent(attemptMatch[1]), userId);
   if (!attempt) return forbidden();
   const action = attemptMatch[2];
-  if (!action && request.method === "GET") return attemptDetail(pool, attempt);
+  if (!action && request.method === "GET") return attemptDetail(pool, attempt, page);
   if (action === "draft" && request.method === "PATCH") {
     const body = await requestBody(request);
     return body ? saveDraft(pool, attempt, body) : badRequest("Expected a JSON request body.");
@@ -506,13 +508,14 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
     const body = await requestBody(request);
     return body ? appendCandidateMessage(pool, attempt, body) : badRequest("Expected a JSON request body.");
   }
-  if (action === "voice-token" && request.method === "POST") {
+  if (action === "voice" && request.method === "GET") {
+    if (request.headers.get("origin") !== new URL(env.BETTER_AUTH_URL).origin) return forbidden();
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return badRequest("WebSocket required.");
     if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice input.");
-    return grantDeepgramAccessToken(env);
-  }
-  if (action === "voice-transcript" && request.method === "POST") {
-    const body = await requestBody(request);
-    return body ? appendVoiceTranscript(pool, attempt, body) : badRequest("Expected a JSON request body.");
+    const headers = new Headers(request.headers);
+    headers.set("x-attempt-id", attempt.id);
+    headers.set("x-user-id", userId);
+    return env.VOICE_SESSIONS.get(env.VOICE_SESSIONS.idFromName(attempt.id)).fetch(new Request(request, { headers }));
   }
   if (action === "help" && request.method === "POST") {
     const body = await requestBody(request);
@@ -520,7 +523,7 @@ export async function handleApi(request: Request, env: Env, ctx: ExecutionContex
   }
   if (action === "finish" && request.method === "POST") {
     const body = await requestBody(request);
-    return body ? finishAttempt(pool, env, attempt, body, ctx) : badRequest("Expected a JSON request body.");
+    return body ? finishAttempt(pool, env, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "retry" && request.method === "POST") {
     const body = await requestBody(request);

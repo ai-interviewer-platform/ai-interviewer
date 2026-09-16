@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import type { Env } from "./env";
 import * as schema from "./db/generated-auth";
+import { consumeRate } from "./security";
 
 type AuthInstance = ReturnType<typeof betterAuth>;
 
@@ -16,6 +17,11 @@ function authOptions(pool: Pool, env: Env): BetterAuthOptions {
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [env.BETTER_AUTH_URL],
+    advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
+    rateLimit: {
+      enabled: true,
+      customStorage: { consume: (key, rule) => consumeRate(pool, `auth:${key}`, rule.window, rule.max) },
+    },
     emailAndPassword: { enabled: true },
     user: {
       modelName: "users",

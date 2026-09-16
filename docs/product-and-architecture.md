@@ -49,7 +49,7 @@ Browser (`public/`)
   └─ personal adapter → `/api/*`
                          ├─ Better Auth
                          ├─ PostgreSQL through an invocation-scoped pool
-                         ├─ short-lived Deepgram Voice Agent token
+                         ├─ authenticated voice relay → Deepgram Voice Agent
                          │    └─ Nova-3 listen → GPT-5.6 Terra think → Flux speak
                          ├─ optional isolated Python runner binding
                          └─ review queue → evidence-validation boundary
@@ -72,7 +72,7 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `public/practice.css` | Roadmap, practice, and profile layout |
 | `src/worker.ts` | Static/API boundary, fail-closed collection gate, and queue entry |
 | `src/api.ts` | Attempt, evidence, run, review, correction, and retry operations |
-| `src/deepgram.ts` | Server-only Deepgram token exchange and voice availability |
+| `src/deepgram.ts` | Server-owned Deepgram settings and voice availability |
 | `src/browser/voice-agent.js` | Deepgram microphone, live conversation, playback, and transcript flow |
 | `src/auth.ts` | Better Auth runtime configuration |
 | `src/db/generated-auth.ts` | CLI-generated Better Auth Drizzle schema |
@@ -115,7 +115,7 @@ request validation, and boundaries that relational keys cannot express alone.
 - Voice processing and retained audio are separate decisions. The app can stream
   a consented voice attempt to Deepgram while keeping retained audio off.
 - Permanent Deepgram credentials stay in the Worker. An authenticated, active
-  voice attempt can receive only a short-lived bearer token.
+  voice attempt connects through a metered Durable Object relay; no provider token reaches the browser.
 - Retention, export, deletion, and provider-processing behavior must be approved
   before collecting real personal sessions.
 
@@ -124,13 +124,13 @@ request validation, and boundaries that relational keys cannot express alone.
 Unauthenticated operational routes expose health and collection availability.
 Better Auth owns `/api/auth/*`. The personal API provides catalog access plus
 owned attempt listing, creation, detail, draft updates, messages, requested help,
-Deepgram voice tokens and transcript receipts, runs, completion, review,
+a same-origin voice WebSocket, runs, completion, review,
 corrections, retry, and related-problem lookup.
 
 Every owned-attempt route verifies the authenticated user before returning or
 changing data. Finishing an attempt freezes an evidence manifest and creates a
 pending review before queue dispatch; a repeated finish can repair lost dispatch
-without creating a second review.
+without creating a second review. Dispatch claims are serialized and expire after 60 seconds while the review remains pending; terminal reviews cannot be redispatched.
 
 ## Delivery status
 
@@ -142,8 +142,59 @@ without creating a second review.
 | Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
 | Runner | Validated API result shape and optional binding | Proven isolation, resource policy, harness integrity, and deployed transport |
 | Review | Durable pending record, frozen evidence manifest, queue recovery path | Selected provider, structured output validation, and evidence-reference quality proof |
-| Voice/audio | Deepgram browser SDK, authenticated temporary-token exchange, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
+| Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
 
 Passing local checks proves the checked behavior only. It does not prove hosted
 PostgreSQL, third-party provider behavior, runner isolation, or product demand.
+
+## Security controls and limits
+
+The owner authorized conservative defaults on 2026-09-16. These limits are
+application policy, not provider guarantees; see `src/security.ts`.
+
+| Boundary | Enforced policy |
+| --- | --- |
+| Voice connection | 15 minutes, one active connection per account |
+| Account allocation | 60 reserved minutes per UTC day |
+| Project allocation | 600 reserved minutes per UTC day across all accounts |
+| Reservation accounting | Charge the complete 15-minute allocation before connecting; no refund on disconnect or provider failure |
+| HTTP input and runner result | 256 KiB, read incrementally even without Content-Length |
+| Saved input text | 64 KiB per string; setup permits only studiedTopics and concern strings |
+| API requests | 120 per authenticated account per 60-second fixed window |
+| Auth requests | Better Auth's shipped route-specific limits, explicitly enabled with atomic PostgreSQL storage and Cloudflare client IP |
+| History and evidence | 50 rows per collection per page, explicit Load more controls |
+| Attempt evidence | 10,000 events; completion and writes share the attempt row lock |
+| Voice control messages | 1,200 per connection; only KeepAlive and InjectUserMessage permitted |
+| Voice persistence backlog | 50 pending transcript writes; disconnect rather than accumulate unbounded memory |
+| Audio input | 16 kHz, 16-bit mono throughput plus two seconds of capture jitter |
+
+Voice sessions end on disconnect, deadline, invalid client messages or persistence
+failure. The database serializes allocation before any provider connection;
+a durable alarm and a live timer close both sockets. Provider settings are built
+from server-owned problem data. Only messages received from the provider socket
+can create verified voice events. Browser transcript/token endpoints are removed.
+A verified transcript means verified transport provenance, not factual correctness.
+No transcript automatically marks requested help as delivered. Historical voice
+events lacking `payload.verified: true` remain unverified; do not use them as
+provider evidence in a future review implementation.
+
+Unsafe API methods require an exact Origin match; custom JSON writes require
+application/json. Static assets carry CSP, anti-framing, no-sniff and privacy
+headers. Inline styles remain allowed for existing layout tokens; inline scripts
+are forbidden. Blob scripts support the installed microphone AudioWorklet.
+
+Expired rate buckets and prior-day inactive voice reservations are pruned. Retry
+context stores source references and a cutoff instead of duplicating an unbounded
+transcript. Evidence itself retains the existing collection-policy gate.
+
+Before production collection: apply the security migration, deploy Worker/assets
+and Durable Object binding, verify the actual hosted origin/TLS/database permissions,
+and exercise a credentialed voice session, including microphone, barge-in, expiry
+and disconnection. Local tests use a simulated provider and do not establish
+provider availability or processing/retention policy. Owner approval of retention,
+export, deletion and processor handling is still required by the existing gate.
+
+Implementation references: [Deepgram voice protocol](https://developers.deepgram.com/docs/build-a-voice-agent),
+[Cloudflare WebSockets](https://developers.cloudflare.com/durable-objects/best-practices/websockets/),
+[Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/).

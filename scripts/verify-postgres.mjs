@@ -26,6 +26,7 @@ try {
   const migrations = await client.query("SELECT filename FROM app_schema_migrations ORDER BY filename");
   assert.deepEqual(migrations.rows.map((row) => row.filename), [
     "migrations/0002_application.sql",
+    "migrations/0003_security.sql",
     "migrations/auth/0000_colorful_vindicator.sql",
   ]);
 

@@ -34,7 +34,7 @@ function collectionUnavailableMarkup() {
 function dashboardMarkup(state) {
   const attempts = state.attempts.map((attempt) => `<li class="activity-line"><span class="activity-symbol">↳</span><span><strong>${escapeHtml(attempt.title)}</strong><small>${escapeHtml(attempt.mode)} · ${escapeHtml(attempt.status)}${attempt.review_status ? ` · review ${escapeHtml(attempt.review_status)}` : ""}</small></span><button class="button quiet small" type="button" data-open-attempt="${escapeHtml(attempt.id)}">Open</button></li>`).join("");
   const problems = state.catalog.map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.difficulty)}</span><button class="button secondary small" type="button" data-start-problem="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("");
-  return `<main id="main" class="page-main"><header class="app-header"><a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a><nav aria-label="Primary"><button class="button nav-link current" type="button" data-personal-page="home">Home</button><button class="button nav-link" type="button" data-personal-page="catalog">Roadmap</button><button class="button nav-link" type="button" data-personal-page="sessions">Sessions</button></nav><div class="header-end"><a class="button quiet" href="#sample">Guided sample</a><button class="button quiet" type="button" data-sign-out>Sign out</button></div></header><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div><ol class="drawer-problems">${problems}</ol></section></main>`;
+  return `<main id="main" class="page-main"><header class="app-header"><a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a><nav aria-label="Primary"><button class="button nav-link current" type="button" data-personal-page="home">Home</button><button class="button nav-link" type="button" data-personal-page="catalog">Roadmap</button><button class="button nav-link" type="button" data-personal-page="sessions">Sessions</button></nav><div class="header-end"><a class="button quiet" href="#sample">Guided sample</a><button class="button quiet" type="button" data-sign-out>Sign out</button></div></header><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>${state.historyMore ? `<button class="button quiet" data-more-attempts>Load more sessions</button>` : ""}` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div><ol class="drawer-problems">${problems}</ol></section></main>`;
 }
 
 function setupMarkup(state, problem) {
@@ -53,7 +53,7 @@ function workspaceMarkup(state) {
   const disabled = detail.attempt.status === "completed" ? "disabled" : "";
   const isVoice = detail.attempt.input_mode === "voice";
   const voiceControl = isVoice ? `<span id="voice-status" class="small muted" role="status">Voice ready</span><button class="button primary small" type="button" data-voice-toggle ${disabled}>Start voice</button>` : "";
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><a class="button quiet small" href="#welcome">← Sessions</a><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p>${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><ul class="test-list">${runs}</ul>${review}</section></div></div></main>`;
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><a class="button quiet small" href="#welcome">← Sessions</a><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p>${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><ul class="test-list">${runs}</ul>${review}</section></div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
 }
 
 function reviewMarkup(state) {
@@ -93,30 +93,15 @@ export function mountPersonal(root) {
     messages.insertAdjacentHTML("beforeend", `<div class="message"><div class="speaker">${escapeHtml(speaker)}<time>${escapeHtml(occurrenceOffsetMs)} ms</time></div><p>${escapeHtml(text)}</p></div>`);
     messages.scrollTop = messages.scrollHeight;
   };
-  const getVoiceToken = async () => {
-    const attemptId = state.attempt?.attempt.id;
-    if (!attemptId) throw new Error("Open a voice attempt before connecting.");
-    const response = await fetch(`/api/attempts/${encodeURIComponent(attemptId)}/voice-token`, { method: "POST", credentials: "same-origin" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || typeof payload.accessToken !== "string") throw new Error(payload.error || "Deepgram voice could not start.");
-    return payload.accessToken;
-  };
   const startVoice = async () => {
     if (!state.attempt || state.attempt.attempt.input_mode !== "voice") throw new Error("This attempt uses text input.");
     if (voiceSession?.active) { stopVoice(); return; }
     voiceSession = createDeepgramVoiceSession({
       attempt: state.attempt.attempt,
-      problem: state.attempt.problem,
-      getToken: getVoiceToken,
       onStatus: setVoiceStatus,
       onError: (error) => showError(error.message),
-      onTranscript: async ({ role, text, providerSessionId }) => {
-        const metadata = sourceMetadata(state, `deepgram-${role}`);
-        await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/voice-transcript`, {
-          method: "POST",
-          body: { role, text, providerSessionId, ...metadata },
-        });
-        appendTranscript({ role, text, occurrenceOffsetMs: metadata.occurrenceOffsetMs });
+      onTranscript: async ({ role, text }) => {
+        appendTranscript({ role, text, occurrenceOffsetMs: Date.now() - Date.parse(state.attempt.attempt.created_at) });
       },
     });
     await voiceSession.start();
@@ -144,7 +129,7 @@ export function mountPersonal(root) {
     const [me, catalog, attempts] = await Promise.all([api("/api/me"), api("/api/catalog"), api("/api/attempts")]);
     state.user = me;
     state.catalog = catalog.problems;
-    state.attempts = attempts.attempts;
+    state.attempts = attempts.attempts; state.historyPage = attempts.page; state.historyMore = attempts.hasMore;
   };
   const openAttempt = async (attemptId) => {
     stopVoice();
@@ -177,6 +162,15 @@ export function mountPersonal(root) {
       else if (control.dataset.personalPage === "workspace") { state.page = "workspace"; render(); }
       else if (control.dataset.personalPage === "review") { state.page = "review"; render(); }
       else if (control.dataset.startProblem) { state.attempt = null; state.selectedProblemId = control.dataset.startProblem; render(); }
+      else if (control.hasAttribute("data-more-attempts")) {
+        const page = await api(`/api/attempts?page=${state.historyPage + 1}`);
+        state.attempts.push(...page.attempts); state.historyPage = page.page; state.historyMore = page.hasMore; render();
+      }
+      else if (control.hasAttribute("data-more-evidence")) {
+        const page = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}?page=${state.attempt.page + 1}`);
+        for (const key of ["events", "transcripts", "checkpoints", "runs"]) state.attempt[key].push(...page[key]);
+        state.attempt.page = page.page; state.attempt.hasMore = page.hasMore; render();
+      }
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
       else if (control.hasAttribute("data-open-review")) { state.page = "review"; render(); }
       else if (control.hasAttribute("data-open-related")) { state.related = (await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/related`)).relatedProblems; state.page = "related"; render(); }

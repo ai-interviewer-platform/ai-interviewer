@@ -4,7 +4,8 @@ import { databaseForInvocation } from "./database";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import type { Env } from "./env";
-import { json, serverUnavailable } from "./http";
+import { boundedRequest, checkOrigin, json, serverUnavailable } from "./http";
+export { VoiceSession } from "./voice-session";
 
 function isExpectedServiceError(error: unknown): boolean {
   return error instanceof Error && /connect|database|ECONNREFUSED|timeout/i.test(error.message);
@@ -28,14 +29,18 @@ export default {
       });
     }
     if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
+    const originError = checkOrigin(request, env.BETTER_AUTH_URL);
+    if (originError) return originError;
+    const bounded = await boundedRequest(request);
+    if (bounded instanceof Response) return bounded;
 
     let pool: ReturnType<typeof databaseForInvocation> | undefined;
     try {
       pool = databaseForInvocation(env);
       if (url.pathname.startsWith("/api/auth/")) {
-        return await authFor(env, pool).handler(request);
+        return await authFor(env, pool).handler(bounded);
       }
-      return await handleApi(request, env, ctx, pool);
+      return await handleApi(bounded, env, ctx, pool);
     } catch (error) {
       if (isExpectedServiceError(error)) return serverUnavailable("The data service is unavailable. Nothing was recorded.");
       return json({ error: "The request could not be completed. Nothing new was published." }, { status: 500 });

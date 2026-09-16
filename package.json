@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
-    "@cloudflare/workers-types": "5.20260908.1",
+    "@cloudflare/workers-types": "5.20260916.1",
     "@types/node": "24.3.1",
     "@types/pg": "8.15.5",
     "drizzle-kit": "0.31.10",
@@ -36,6 +36,11 @@
     "oxlint": "1.18.0",
     "playwright": "1.63.0",
     "typescript": "5.9.2",
-    "wrangler": "4.130.0"
+    "wrangler": "4.133.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

@@ -8,6 +8,8 @@
     "directory": "./public",
     "not_found_handling": "single-page-application"
   },
+  "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceSession"] }],
   "queues": {
     "producers": [
       {

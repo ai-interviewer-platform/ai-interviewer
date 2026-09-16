@@ -52,8 +52,8 @@ deployed Worker, store it as a secret:
 npx wrangler secret put DEEPGRAM_API_KEY
 ```
 
-The browser receives only a short-lived token from the authenticated attempt
-API. Deepgram Voice Agent uses Nova-3 for listening, Flux Kit for speech, and
+The browser connects to the authenticated, same-origin voice relay. Provider
+credentials and agent settings remain on the server. Deepgram Voice Agent uses Nova-3 for listening, Flux Kit for speech, and
 its managed OpenAI `gpt-5.6-terra` model for thinking. Raw audio is streamed for
 the live session and is not retained by this application.
 
@@ -72,6 +72,7 @@ Run the static and contract checks:
 npm test
 npm run lint
 npm run check
+node test/security-integration.mjs # requires DATABASE_URL for disposable local PostgreSQL
 npx wrangler deploy --dry-run
 ```
 
@@ -81,10 +82,20 @@ With `npm run dev` running, point the browser checks at that same preview:
 $env:APP_URL = 'http://127.0.0.1:8787'
 npm run test:browser
 npm run test:discovery
+node test/browser/security-check.mjs
 ```
 
 The browser checks require Microsoft Edge through Playwright. Generated browser
 artifacts are written beneath ignored `output/`.
+
+## Security deployment
+
+Apply `migrations/0003_security.sql` through `npm run migrate:postgres` before
+deploying the Worker. Wrangler creates the `VOICE_SESSIONS` Durable Object binding.
+Deploy both Worker and assets so the CSP in `public/_headers` takes effect.
+The production origin in `BETTER_AUTH_URL` must exactly match the browser origin.
+See [security controls and limits](docs/product-and-architecture.md#security-controls-and-limits)
+for allocation behavior and production verification requirements.
 
 ## Documentation authority
 

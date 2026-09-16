@@ -12,6 +12,7 @@ const authFiles = (await readdir(authDirectory)).filter((file) => file.endsWith(
 const migrationPaths = [
   ...authFiles.map((file) => resolve(authDirectory, file)),
   resolve(root, "migrations", "0002_application.sql"),
+  resolve(root, "migrations", "0003_security.sql"),
 ];
 
 const pool = new pg.Pool({ connectionString });

@@ -27,6 +27,7 @@ export interface Env {
   BETTER_AUTH_SECRET: string;
   PERSONAL_DATA_COLLECTION_APPROVED?: string;
   DEEPGRAM_API_KEY?: string;
+  VOICE_SESSIONS: DurableObjectNamespace;
   REVIEW_PROVIDER_API_KEY?: string;
   REVIEW_PROVIDER_MODEL?: string;
 }
