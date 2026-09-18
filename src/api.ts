@@ -343,14 +343,20 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ attemptId: attempt.id, checkpointId: checkpoint.checkpointId, sourceCode: attempt.draft_source, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
+      signal: AbortSignal.timeout(95_000),
     }));
   } catch {
     return serverUnavailable("The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
   }
   if (!response.ok) return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
-  const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
-  if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
-  const result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
+  let result: RunnerResult | null;
+  try {
+    const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
+    if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
+    result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
+  } catch {
+    return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
+  }
   if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
   const passed = result.testResults.filter((test) => test.outcome === "passed").length;
   const failed = result.testResults.filter((test) => test.outcome === "failed").length;

@@ -36,8 +36,10 @@ fail closed when collection is unavailable.
 - Session history, responsive workspace panes, keyboard access, and explicit
   reduced-motion behavior.
 
-Retained audio, isolated Python execution, and model-generated reviews are not
-complete merely because their interfaces or bindings exist. The Deepgram voice
+Retained audio, hosted isolated Python execution, and model-generated reviews are
+not complete merely because their interfaces or bindings exist. Local Python
+execution has a dedicated Docker runner behind the existing optional service
+binding; see [Python runner](python-runner.md) for setup, limits and verification. The Deepgram voice
 transport is implemented, but live provider behavior still requires a configured
 account and hosted verification as recorded below.
 
@@ -107,8 +109,8 @@ request validation, and boundaries that relational keys cannot express alone.
 - Browser assets contain no hidden tests, reference solutions, or permanent
   provider credentials.
 - Candidate code must run in an isolated environment without application secrets
-  or public network access. The optional runner binding is not proof of that
-  isolation.
+  or public network access. The local runner uses restricted per-test Docker
+  containers; an optional binding alone is not proof of production isolation.
 - Review output remains failed rather than publishing fabricated fallback
   findings when provider configuration or evidence-reference validation is
   missing.
@@ -140,7 +142,7 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Authentication | Better Auth configuration and generated PostgreSQL schema | Hosted environment and end-to-end deployment verification |
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
 | Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
-| Runner | Validated API result shape and optional binding | Proven isolation, resource policy, harness integrity, and deployed transport |
+| Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
 | Review | Durable pending record, frozen evidence manifest, queue recovery path | Selected provider, structured output validation, and evidence-reference quality proof |
 | Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
