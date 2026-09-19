@@ -45,6 +45,19 @@ npm run db:local:verify
 npm run db:local:verify-auth
 ```
 
+To enable isolated Python runs locally, start Docker's Linux engine, then run:
+
+```sh
+npm run runner:build
+npm run runner:dev  # leave running in terminal 1
+npm run dev:runner  # terminal 2, instead of npm run dev
+```
+
+The runner executes each visible test in a restricted disposable container.
+See [Python runner](docs/python-runner.md) for prerequisites, contracts, limits,
+API verification and troubleshooting. `npm run test:runner` exercises real
+containers; `npm run test:runner:api` also verifies local PostgreSQL persistence.
+
 To enable live voice locally, add `DEEPGRAM_API_KEY` to `.dev.vars`. For a
 deployed Worker, store it as a secret:
 

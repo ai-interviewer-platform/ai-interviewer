@@ -17,7 +17,13 @@
     "test": "node --test test/*.test.mjs",
     "test:browser": "node test/browser/app-check.mjs",
     "test:discovery": "node test/browser/discovery-check.mjs",
-    "lint": "oxlint src scripts test public --ignore-pattern public/voice-agent.js --deny-warnings"
+    "lint": "oxlint src scripts test public --ignore-pattern public/voice-agent.js --deny-warnings",
+    "runner:build": "node scripts/python-runner/build.mjs",
+    "runner:dev": "node scripts/python-runner/dev.mjs",
+    "dev:runner": "npm run build:voice && wrangler dev --env runner",
+    "test:runner": "node --test test/runner/*.test.mjs",
+    "test:runner:api": "node test/runner/api-integration.mjs",
+    "runner:smoke": "node test/runner/http-smoke.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.3",

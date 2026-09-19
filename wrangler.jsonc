@@ -22,5 +22,15 @@
         "queue": "ai-interviewer-review"
       }
     ]
+  },
+  "env": {
+    "runner": {
+      "services": [{ "binding": "PYTHON_RUNNER", "service": "ai-interviewer-python-runner" }],
+      "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
+      "queues": {
+        "producers": [{ "binding": "REVIEW_QUEUE", "queue": "ai-interviewer-review" }],
+        "consumers": [{ "queue": "ai-interviewer-review" }]
+      }
+    }
   }
 }
