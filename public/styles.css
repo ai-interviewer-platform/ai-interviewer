@@ -47,7 +47,6 @@ code { overflow-wrap: anywhere; }
 .prototype-bar .button { min-height: 32px; padding-block: 0.25rem; font-size: 0.75rem; }
 .app-header { min-height: 72px; padding: 0.8rem 2rem; display: flex; align-items: center; gap: 3rem; border-bottom: 1px solid var(--divider); }
 .wordmark { display: flex; gap: 0.75rem; align-items: center; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap; }
-.brand-mark { font-family: Consolas, monospace; font-size: 1.5rem; color: var(--accent); }
 .app-header nav { display: flex; gap: 0.5rem; }
 .nav-link { color: var(--muted); }
 .nav-link.current { color: var(--text); background: var(--raised); }
@@ -230,7 +229,6 @@ summary { cursor: pointer; min-height: 32px; }
 .next-focus p { color: var(--text); }
 .next-focus .small { color: var(--muted); margin: 0.7rem 0 0; }
 .finding-head > .button { margin-top: 0.75rem; }
-.workspace-footnote { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; color: var(--muted); font-size: 0.6875rem; padding: 0.5rem 1rem; }
 .workspace-alert { margin: 0 0.75rem 0.5rem; }
 .mobile-switch { display: none; }
 .completion { text-align: center; padding-block: 3rem; max-width: 52rem; margin: auto; }

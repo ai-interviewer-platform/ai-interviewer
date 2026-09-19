@@ -1,0 +1,43 @@
+name: Share development environment
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publish:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore encrypted bundle
+        env:
+          ENV_BUNDLE_GPG_BASE64: ${{ secrets.ENV_BUNDLE_GPG_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$ENV_BUNDLE_GPG_BASE64" ]]; then
+            echo '::error::Set ENV_BUNDLE_GPG_BASE64 using docs/sharing-development-env.md first.'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$ENV_BUNDLE_GPG_BASE64" | base64 --decode > "$RUNNER_TEMP/coursay-env.tar.gpg"
+          test -s "$RUNNER_TEMP/coursay-env.tar.gpg"
+
+      - name: Publish encrypted environment files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coursay-development-env
+          path: ${{ runner.temp }}/coursay-env.tar.gpg
+          if-no-files-found: error
+
+      - name: Explain retrieval
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'NOTICE'
+          Download **coursay-development-env** from this run's artifacts.
+          It contains an encrypted archive of `.env` and `.dev.vars`.
+          Obtain the passphrase separately from the maintainer, then follow
+          `docs/sharing-development-env.md` to decrypt into a staging folder.
+          Expiration follows this repository's artifact-retention settings.
+          NOTICE

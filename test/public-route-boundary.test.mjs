@@ -41,12 +41,12 @@ test("sample routes use labeled fixtures and the personal route stays fail-close
         await page.goto(`${baseUrl}/#${path}`);
         const body = await page.locator("body").innerText();
         assert.equal(await page.locator('.prototype-bar').count(), 0);
-        assert.match(body, /Prototype only|Demo · fictional sessions/);
+        assert.match(body, /© 2026 Coursay/);
         assert.doesNotMatch(body, /Records are not being collected\./);
       }
       await page.goto(`${baseUrl}/#sample`);
       await page.getByRole("button", { name: "Run sample tests", exact: true }).waitFor();
-      assert.match(await page.locator("body").innerText(), /Fictional sample/);
+      assert.match(await page.locator("body").innerText(), /Guided sample · not scored/);
       await page.goto(`${baseUrl}/#personal`);
       await page.getByRole("heading", { name: "Records are not being collected." }).waitFor();
       assert.doesNotMatch(await page.locator("body").innerText(), /Design prototype|Simulated result|Run prepared tests|Fictional saved attempt/);

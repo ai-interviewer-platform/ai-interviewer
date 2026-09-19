@@ -1,9 +1,11 @@
+import { brandWordmark } from './brand.js';
 import { exercises, scenes, parseRoute, fixtureResult, initialAttempt, updateAttempt } from './model.js';
 
 import { homeScreen, roadmapScreen, getPracticeLeaf, problemDrawer } from './discovery.js';
 import { positionRoadmapConnections } from './roadmap.js';
 import { profileScreen } from './profile.js';
 import { mountPersonal } from './personal-adapter.js';
+import { pageFooter, legalScreen } from './legal.js';
 
 const app = document.querySelector('#app');
 const drawer = document.querySelector('#problem-drawer');
@@ -103,17 +105,19 @@ function chrome(content, workspace = false) {
     return link(label, path, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
   };
   return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
-    <a class="wordmark" href="#welcome"><span class="brand-mark" aria-hidden="true">[·]</span>Interview trainer</a>
+    ${brandWordmark()}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
     <nav class="nav-account" aria-label="Account">${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
   </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
-  ${workspace || ['welcome', 'profile'].includes(route.page) ? '' : `<footer class="page-footer"><span>Demo · fictional sessions</span>${button('Explore screens', 'scenes', 'quiet small')}</footer>`}</div></div>`;
+  ${pageFooter()}</div></div>`;
 }
 
 function syncNavbar() {
   document.documentElement.dataset.scrolled = String(window.scrollY > 0);
 }
 function measureNavbar() {
+  const footer = document.querySelector('.page-footer');
+  if (footer) document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`);
   const header = document.querySelector('.floating-nav .app-header');
   if (!header) return;
   const style = getComputedStyle(header);
@@ -207,8 +211,7 @@ function workspace() {
   <div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="60" aria-valuenow="${state.layout}" data-splitter="columns"></div>
   <div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>${icon('code')}${review ? 'Checkpoint code' : 'Code'}</span><div class="actions">${review ? `<label class="sr-only" for="checkpoint">Saved checkpoint</label><select id="checkpoint"><option value="run" ${state.checkpoint === 'run' ? 'selected' : ''}>04:26 · Test run</option><option value="start" ${state.checkpoint === 'start' ? 'selected' : ''}>00:00 · Starter code</option></select>` : '<span class="small muted">Python</span>'}${button('Layout', 'layout', 'quiet small', 'settings')}</div></div><div class="editor-subbar"><span class="mono">${exercise.function}.py</span><span>${review ? 'Read-only evidence' : 'Prepared code · read-only preview'}</span></div>
   <div class="code-scroll" tabindex="0" aria-label="${review ? 'Recorded' : 'Prepared'} Python code">${codeBlock(code, review && state.checkpoint === 'run' && condition !== 'clear' ? (attempt.problem === 'runs' || attempt.problem === 'alert' ? 5 : 6) : 0)}</div><div class="editor-footer"><span>${review ? state.checkpoint === 'run' ? `Checkpoint: test run · revision ${fixed ? 2 : 1}` : 'Checkpoint: starter · no run yet' : attempt.fixed ? 'Prepared repair · revision 2' : 'Prepared draft · revision 1'}</span><span>UTF-8 · Python</span></div></section>
-  <section class="test-pane pane"><div class="panel-top"><span>${icon('check')}Tests & results</span>${!review ? button(sample ? 'Run sample tests' : 'Run prepared tests', 'run', 'primary small', 'play') : badge('Simulated result')}</div><div id="test-body" class="test-body">${testContent(review, condition, fixed)}</div></section></div></div>
-  <div class="workspace-footnote"><span>${sample ? 'Fictional sample. Excluded from personal activity.' : 'Prototype only. No code execution, AI evaluation, or microphone access.'}</span><span>${attempt.assisted ? 'Guidance used · recorded in preview' : 'Help is available when you ask.'}</span></div>`;
+  <section class="test-pane pane"><div class="panel-top"><span>${icon('check')}Tests & results</span>${!review ? button(sample ? 'Run sample tests' : 'Run prepared tests', 'run', 'primary small', 'play') : badge('Simulated result')}</div><div id="test-body" class="test-body">${testContent(review, condition, fixed)}</div></section></div></div>`;
 }
 
 function tabs(group, names, selected) {
@@ -261,7 +264,7 @@ function related() {
   return `<a class="back-link" href="#complete">${icon('back')}Back to retry</a><div class="related-page"><p class="eyebrow">An optional next step</p><h1>Same decision.<br>A different problem.</h1><p class="intro">Practice stopping at the first qualifying event in a new setting.</p><section class="related-card"><div>${badge('Author-linked exercise')}<h2>First threshold alert</h2><p>Find the earliest reading above a threshold, rather than the earliest repeated tag.</p><div class="detail-note"><strong>Why it’s related</strong><p>Both tasks ask you to stop at the first match. This is an authored connection, not a claim that the exercises have equal difficulty.</p></div></div>${icon('code')}</section><fieldset class="familiar"><legend>Have you seen this problem before?</legend><label><input type="radio" name="familiar" value="no" checked>Not that I remember</label><label><input type="radio" name="familiar" value="yes">Yes, it’s familiar</label></fieldset><div class="actions">${link('Set up this practice', 'setup?problem=alert', 'primary', 'arrow')}${link('Finish for now', 'sessions', 'quiet')}</div><p id="familiar-note" class="small muted">Prior familiarity and any guidance will be noted in the product.</p></div>`;
 }
 function preferences() {
-  return `<div class="page-title"><div><p class="eyebrow">Preferences</p><h1>Recording preferences</h1></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a><a href="#system">Design & motion preview</a></nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><div class="actions">${button('Export example record', 'export', 'secondary')}${button('Delete demo sessions', 'delete', 'danger')}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2 id="appearance">Motion and appearance</h2><label class="setting-row"><span><strong>Theme</strong></span><select name="theme" aria-label="Theme">${['dark', 'light', 'system'].map(value => `<option value="${value}" ${state.theme === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
+  return `<div class="page-title"><div><p class="eyebrow">Preferences</p><h1>Recording preferences</h1></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a><a href="#system">Design & motion preview</a></nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><div class="actions">${button('Export example record', 'export', 'secondary')}${button('Delete demo sessions', 'delete', 'danger')}${button('Explore screens', 'scenes', 'quiet')}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2 id="appearance">Motion and appearance</h2><label class="setting-row"><span><strong>Theme</strong></span><select name="theme" aria-label="Theme">${['dark', 'light', 'system'].map(value => `<option value="${value}" ${state.theme === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
 }
 function system() {
   return `<div class="page-title"><div><p class="eyebrow">Prototype foundation</p><h1>Graphite. Chalk. Annotation.</h1><p>A lit desk. Teal for action, amber for evidence, lilac for the coach.</p></div>${link('Explore the workspace', 'interview', 'secondary', 'arrow')}</div><section class="system-materials"><article class="plane"><h2>Working plane</h2><p>A top light and contact shadow bring the work forward.</p><div class="recess">Recess · code and evidence stay still</div></article><article class="plane-quiet"><h2>Quiet plane</h2><p>Conversation and supporting context.</p><div class="annotation">Annotation · a location, never a verdict</div></article><article class="float"><h2>Floating surface</h2><p>Dialogs and drawers carry the ambient shadow.</p>${button('Inspect floating surface', 'motion-dialog', 'secondary')}</article></section><section class="system-section"><div><h2>Color with a purpose</h2><p>Accent means action or selection. Error and success belong to specific results, never a person.</p></div><div class="swatches">${[['Canvas', 'canvas'], ['Surface', 'surface'], ['Raised', 'raised'], ['Accent', 'accent'], ['Success', 'success'], ['Error', 'error']].map(([label, token]) => `<div><span style="background:var(--${token})"></span><small>${label}</small></div>`).join('')}</div></section><section class="system-section"><div><h2>Readable at work</h2><p>Gabarito headings, Geist interface text, and Geist Mono code, with local platform fallbacks.</p></div><div><h2 class="type-specimen">Look closer. Try again.</h2><p>A review connects what you said with what your code did.</p><code class="type-code">return first_match</code><p class="small muted">Supporting text · revision 1 · 04:26</p></div></section><section class="system-section"><div><h2>Small, deliberate feedback</h2><p>Try pointer press and keyboard focus. Motion is removed for keyboard input and reduced-motion preferences.</p></div><div class="actions">${button('Primary action', 'specimen', 'primary')}${button('Secondary action', 'specimen', 'secondary')}${button('Open disclosure', 'motion-dialog', 'quiet')}</div></section><section class="system-section"><div><h2>Evidence, not verdicts</h2><p>State and uncertainty have words. A color is never the only explanation.</p></div><div class="actions">${badge('Review ready', 'accent')}${badge('Draft saved')}${badge('Finding disputed')}${badge('Runner unavailable', 'error')}</div></section><section class="system-section"><div><h2>Motion tokens</h2><p>No looping decoration, delayed results, or animated typing.</p></div><dl class="token-list"><div><dt>Feedback</dt><dd>200 ms · state feedback</dd></div><div><dt>Disclosure</dt><dd>350 ms entrance · 450 ms pane · 120 ms exit</dd></div><div><dt>Ease</dt><dd>Enter: cubic-bezier(.16, 1, .3, 1)</dd></div><div><dt>Pressed surface</dt><dd>1px travel · 150 ms · pointer only</dd></div></dl></section>`;
@@ -277,8 +280,11 @@ function render(navigation = false) {
   if (oldMap) mapScroll = oldMap.scrollLeft;
   route = parseRoute(location.hash);
   if (route.page === 'personal') {
-    app.innerHTML = '<div id="personal-app" aria-live="polite"></div>';
-    document.title = 'Interview trainer';
+    if (drawer.open) drawer.close();
+    navbarObserver.disconnect();
+    roadmapObserver.disconnect();
+    app.innerHTML = `<div class="app-shell"><div class="app-content"><div id="personal-app" aria-live="polite"></div>${pageFooter()}</div></div>`;
+    document.title = 'Coursay';
     mountPersonal(app.querySelector('#personal-app'));
     return;
   }
@@ -286,7 +292,7 @@ function render(navigation = false) {
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
   if (route.page === 'review' && !isSample()) { state.reviewOpened = true; persist(); }
-  const screens = { profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system };
+  const screens = { profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
   navbarObserver.disconnect();
@@ -297,10 +303,11 @@ function render(navigation = false) {
   const graph = document.querySelector('.road-grid');
   if (graph) { positionRoadmapConnections(); roadmapObserver.observe(graph); }
   navbarObserver.observe(document.querySelector('.floating-nav'));
+  navbarObserver.observe(document.querySelector('.page-footer'));
   measureNavbar();
   const sessionFilter = route.params.get('filter');
   if (route.page === 'sessions' && sessionFilter && sessionFilter !== 'All') document.querySelectorAll('.session-row').forEach(row => { row.hidden = row.querySelector('.badge')?.textContent !== sessionFilter; });
-  document.title = `${document.querySelector('h1')?.textContent ?? 'Welcome'} · Interview trainer prototype`;
+  document.title = `${document.querySelector('h1')?.textContent ?? 'Welcome'} · Coursay`;
   document.documentElement.dataset.reduce = String(state.reduce);
   document.documentElement.dataset.theme = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   document.querySelector('.map-scroll')?.scrollTo({ left: mapScroll });

@@ -79,6 +79,10 @@ npx auth@latest generate --adapter drizzle --dialect postgresql --config ./auth.
 
 ## Verification
 
+To share `.env` and `.dev.vars` with teammates, use the encrypted
+[development-environment handoff](docs/sharing-development-env.md) and its manual
+GitHub Actions workflow.
+
 Run the static and contract checks:
 
 ```powershell
