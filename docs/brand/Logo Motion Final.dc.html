@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="design-system.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Syne:wght@700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:var(--ground)}a{color:inherit;text-decoration:none}a:hover{color:inherit}*{scrollbar-width:none}
+@keyframes cs-fill{0%{r:2.5;fill:var(--m-plane);stroke-opacity:1}5%{r:5.8;fill:var(--m-accent);stroke-opacity:0}8%{r:5}50%{r:5;fill:var(--m-accent);stroke-opacity:0}58%{r:2.5;fill:var(--m-plane);stroke-opacity:1}100%{r:2.5;fill:var(--m-plane);stroke-opacity:1}}
+@keyframes cs-fill-s{0%{r:0;fill:var(--m-accent)}5%{r:7.2}8%{r:6.5}50%{r:6.5}58%{r:0}100%{r:0}}
+@keyframes cs-spoke{0%{stroke:var(--m-ink)}8%{stroke:var(--m-accent)}50%{stroke:var(--m-accent)}58%{stroke:var(--m-ink)}100%{stroke:var(--m-ink)}}
+@keyframes cs-kick{0%{r:3.5}3%{r:4.4}8%{r:3.5}100%{r:3.5}}
+@keyframes cs-fade{0%,76%{opacity:1}88%,100%{opacity:0}}
+@keyframes cs-draw0{0%{stroke-dashoffset:1}14%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw1{0%,4%{stroke-dashoffset:1}18%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw2{0%,8%{stroke-dashoffset:1}22%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw3{0%,12%{stroke-dashoffset:1}26%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw4{0%,16%{stroke-dashoffset:1}30%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw5{0%,20%{stroke-dashoffset:1}34%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-pop0{0%,12%{r:0}18%{r:3.2}22%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop1{0%,16%{r:0}22%{r:3.2}26%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop2{0%,20%{r:0}26%{r:3.2}30%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop3{0%,24%{r:0}30%{r:3.2}34%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop4{0%,28%{r:0}34%{r:3.2}38%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop5{0%,32%{r:0}38%{r:3.2}42%{r:2.5}100%{r:2.5}}
+@keyframes cs-popteal{0%,44%{r:0}52%{r:6.2}58%{r:5}100%{r:5}}
+@keyframes cs-popteal-s{0%,44%{r:0}52%{r:7.8}58%{r:6.5}100%{r:6.5}}
+@keyframes cs-pophub{0%{r:0}6%{r:4.3}10%{r:3.5}100%{r:3.5}}
+@keyframes cs-pophub-s{0%{r:0}6%{r:4.9}10%{r:4}100%{r:4}}
+@keyframes cs-eq0{0%,100%{cx:24px;cy:8px}50%{cx:24px;cy:13px}}
+@keyframes cs-eq1{0%,100%{cx:38px;cy:16px}50%{cx:32.4px;cy:19.2px}}
+@keyframes cs-eq2{0%,100%{cx:38px;cy:32px}50%{cx:33.6px;cy:29.5px}}
+@keyframes cs-eq3{0%,100%{cx:24px;cy:40px}50%{cx:24px;cy:35px}}
+@keyframes cs-eq4{0%,100%{cx:10px;cy:32px}50%{cx:14.4px;cy:29.5px}}
+@keyframes cs-eq5{0%,100%{cx:10px;cy:16px}50%{cx:14.4px;cy:18.5px}}
+@keyframes cs-eqspoke{0%,100%{stroke-dashoffset:0}50%{stroke-dashoffset:.31}}
+@keyframes cs-eqspoke1{0%,100%{stroke-dashoffset:0}50%{stroke-dashoffset:.4}}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" data-screen-label="Coursay logo motion — final" style="width:1400px;box-sizing:border-box;padding:72px 80px 64px;background:var(--ground);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:48px">
+  <header style="display:flex;justify-content:space-between;align-items:baseline;gap:24px;box-shadow:inset 0 -1px 0 var(--divider);padding-bottom:20px">
+    <div style="display:flex;align-items:baseline;gap:16px"><span style="font-family:'Syne',var(--font-ui);font-weight:700;font-size:22px;letter-spacing:-0.04em">coursay</span><span style="color:var(--ink-3)">Logo motion · v1</span></div>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">three loops · launch, loading, voice</span>
+  </header>
+
+  <div style="display:flex;flex-direction:column;gap:28px">
+
+    <div style="display:grid;grid-template-columns:300px 260px minmax(0,1fr);gap:24px;align-items:stretch">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">01 · Launch</p>
+        <p style="margin:0;font-weight:600;font-size:18px">Draw-in</p>
+        <p style="margin:0;color:var(--ink-2);text-wrap:pretty">Hub first, spokes draw outward clockwise from the top, open nodes pop on as each spoke lands, teal node arrives last. Holds, fades, plots again. Play once on splash and hand off to the loading loop if the wait continues.</p>
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3);line-height:1.8">3.2s · ease-out<br>spokes 0→34% · nodes 12→42% · teal 44→58%<br>hold to 76% · fade 76→88%</p>
+      </div>
+      <div style="display:grid;place-items:center;height:260px;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">{{ drawL }}</div>
+      <div style="display:flex;flex-direction:column;gap:16px;padding:24px;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring)">
+        <div style="display:flex;align-items:flex-end;gap:24px">{{ draw48 }}{{ draw32 }}{{ draw16 }}</div>
+        <div style="display:flex;gap:4px;align-items:flex-end;margin-top:auto">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px 8px 0 0;background:var(--raised);box-shadow:var(--ring);font-size:12px">{{ drawTab }}<span>coursay</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-3)"><span style="width:12px;height:12px;border-radius:3px;background:var(--divider)"></span><span>Docs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:300px 260px minmax(0,1fr);gap:24px;align-items:stretch">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">02 · Loading</p>
+        <p style="margin:0;font-weight:600;font-size:18px">Roadmap fill</p>
+        <p style="margin:0;color:var(--ink-2);text-wrap:pretty">The current node stays lit. The five open nodes inflate to teal one after another, clockwise from where you are, each spoke tinting with its node. Once the ring is full it empties in the same order. Below 32px the open nodes are absent, so teal nodes grow from nothing.</p>
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3);line-height:1.8">3.6s · ease-in-out · stagger 10%<br>inflate 2.5→5.8→5 over 8% · hold 42%<br>deflate over 8% · hub kick at 0%</p>
+      </div>
+      <div style="display:grid;place-items:center;height:260px;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">{{ fillL }}</div>
+      <div style="display:flex;flex-direction:column;gap:16px;padding:24px;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring)">
+        <div style="display:flex;align-items:flex-end;gap:24px">{{ fill48 }}{{ fill32 }}{{ fill16 }}</div>
+        <div style="display:flex;gap:4px;align-items:flex-end;margin-top:auto">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px 8px 0 0;background:var(--raised);box-shadow:var(--ring);font-size:12px">{{ fillTab }}<span>coursay — Loading…</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-3)"><span style="width:12px;height:12px;border-radius:3px;background:var(--divider)"></span><span>Docs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:300px 260px minmax(0,1fr);gap:24px;align-items:stretch">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">03 · Voice</p>
+        <p style="margin:0;font-weight:600;font-size:18px">Equalizer</p>
+        <p style="margin:0;color:var(--ink-2);text-wrap:pretty">The spokes are level meters. Each node slides toward the hub and back on its own phase, its spoke shortening with it. The teal node swings furthest. Use whenever the mic is open or the coach is speaking; it can also be driven from live audio levels instead of fixed phases.</p>
+        <p style="margin:0;font-family:var(--font-mono);font-size:12px;color:var(--ink-3);line-height:1.8">1.6s · ease-in-out · sinusoidal<br>travel 31% of spoke (teal 40%)<br>phases 0 · −35 · −70 · −15 · −55 · −90%</p>
+      </div>
+      <div style="display:grid;place-items:center;height:260px;border-radius:var(--radius-pane);background:linear-gradient(180deg,var(--plane-lit),var(--plane));box-shadow:var(--ring),var(--light-top),var(--shadow-contact)">{{ eqL }}</div>
+      <div style="display:flex;flex-direction:column;gap:16px;padding:24px;border-radius:var(--radius-pane);background:var(--plane);box-shadow:var(--ring)">
+        <div style="display:flex;align-items:flex-end;gap:24px">{{ eq48 }}{{ eq32 }}{{ eq16 }}</div>
+        <div style="display:flex;gap:4px;align-items:flex-end;margin-top:auto">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px 8px 0 0;background:var(--raised);box-shadow:var(--ring);font-size:12px">{{ eqTab }}<span>coursay — Practicing</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-3)"><span style="width:12px;height:12px;border-radius:3px;background:var(--divider)"></span><span>Docs</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;box-shadow:inset 0 1px 0 var(--divider);padding-top:24px">
+    <p style="margin:0;color:var(--ink-2);text-wrap:pretty"><span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);display:block;margin-bottom:6px">Sequence</span>Draw-in once on launch → Roadmap fill while data loads → static mark. Equalizer replaces the static mark only while audio is active, and returns to it within one cycle.</p>
+    <p style="margin:0;color:var(--ink-2);text-wrap:pretty"><span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);display:block;margin-bottom:6px">Geometry</span>All three animate the brand-sheet mark unchanged: 48 grid, hub 3.5, nodes 2.5, current node 5, strokes 2 (3.2 at 32 and below, open nodes dropped). Only radius, position and colour move; nothing is redrawn.</p>
+    <p style="margin:0;color:var(--ink-2);text-wrap:pretty"><span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);display:block;margin-bottom:6px">Favicon</span>Browsers don’t play animated SVG favicons. Ship the 16px frames via a small script that draws the mark to a canvas and swaps the icon at ~12fps; stop on blur and restore the static icon.</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;speed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Motion&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;Motion&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const speed = this.props.speed ?? 1, theme = this.props.theme ?? 'dark';
+    const h = React.createElement;
+    const N = [[24,8],[38,16],[38,32],[24,40],[10,32],[10,16]];
+    const vars = {'--m-ink':'var(--ink)','--m-plane':'var(--plane)','--m-accent':'var(--accent)'};
+    const svg = (size, sw, kids) => h('svg', {width:size, height:size, viewBox:'0 0 48 48', fill:'none', stroke:'var(--m-ink)', strokeWidth:sw, strokeLinecap:'round', style:{...vars, display:'block', overflow:'visible'}}, ...kids);
+    const spoke = (i, style, props) => h('path', {key:'s'+i, d:`M24 24 ${N[i][0]} ${N[i][1]}`, style, ...(props||{})});
+    const node = (i, r, fill, style) => h('circle', {key:'n'+i, cx:N[i][0], cy:N[i][1], r, fill, stroke:fill==='var(--m-accent)'?'none':undefined, style});
+    const hub = (r, style) => h('circle', {key:'hub', cx:24, cy:24, r, fill:'var(--m-ink)', stroke:'none', style});
+    const anim = (name, T, ease, delay) => ({animation:`${name} ${T/speed}s ${ease} ${(delay||0)/speed}s infinite`});
+
+    const mark = (variant, size) => {
+      const small = size <= 32, sw = small ? 3.2 : 2, rN = 2.5, rHub = small ? 4 : 3.5, rCur = small ? 6.5 : 5, S = small ? '-s' : '';
+      if (variant === 'draw') {
+        const T = 3.2, kids = [];
+        for (let i = 0; i < 6; i++) kids.push(spoke(i, {strokeDasharray:1, ...anim('cs-draw'+i, T, 'ease-out')}, {pathLength:1}));
+        kids.push(hub(rHub, anim('cs-pophub'+S, T, 'ease-out')));
+        if (!small) for (let i = 0; i < 6; i++) if (i !== 1) kids.push(node(i, rN, 'var(--m-plane)', anim('cs-pop'+i, T, 'ease-out')));
+        kids.push(node(1, rCur, 'var(--m-accent)', anim('cs-popteal'+S, T, 'ease-out')));
+        return svg(size, sw, [h('g', {key:'g', style:anim('cs-fade', T, 'ease-in-out')}, ...kids)]);
+      }
+      if (variant === 'fill') {
+        const T = 3.6, order = [2,3,4,5,0], kids = [];
+        for (let i = 0; i < 6; i++) { const k = order.indexOf(i); kids.push(spoke(i, k >= 0 ? anim('cs-spoke', T, 'ease-in-out', k*0.1*T - T) : null)); }
+        kids.push(hub(rHub, anim('cs-kick', T, 'ease-out', -T)));
+        order.forEach((i, k) => kids.push(node(i, small ? 0 : rN, small ? 'var(--m-accent)' : 'var(--m-plane)', anim('cs-fill'+S, T, 'ease-in-out', k*0.1*T - T))));
+        kids.push(node(1, rCur, 'var(--m-accent)'));
+        return svg(size, sw, kids);
+      }
+      if (variant === 'eq') {
+        const T = 1.6, ph = [0, -.35, -.7, -.15, -.55, -.9], kids = [];
+        for (let i = 0; i < 6; i++) kids.push(spoke(i, {strokeDasharray:1, ...anim(i === 1 ? 'cs-eqspoke1' : 'cs-eqspoke', T, 'ease-in-out', ph[i]*T)}, {pathLength:1}));
+        kids.push(hub(rHub));
+        for (let i = 0; i < 6; i++) { if (i === 1 || !small) kids.push(node(i, i === 1 ? rCur : rN, i === 1 ? 'var(--m-accent)' : 'var(--m-plane)', anim('cs-eq'+i, T, 'ease-in-out', ph[i]*T))); }
+        return svg(size, sw, kids);
+      }
+    };
+    const out = { theme };
+    for (const v of ['draw','fill','eq']) { out[v+'L'] = mark(v, 160); out[v+'48'] = mark(v, 48); out[v+'32'] = mark(v, 32); out[v+'16'] = mark(v, 16); out[v+'Tab'] = mark(v, 16); }
+    return out;
+  }
+}
+</script>
+</body>
+</html>

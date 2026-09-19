@@ -40,7 +40,7 @@ const documents = {
 };
 
 export function pageFooter() {
-  return `<footer class="page-footer"><div class="footer-brand">${brandWordmark()}<span>© 2026 Coursay</span></div><nav class="footer-links" aria-label="Legal"><a href="#terms">Terms of service</a><a href="#privacy">Privacy</a><a href="#cookies">Cookies & storage</a></nav></footer>`;
+  return `<footer class="page-footer"><div class="footer-brand">${brandWordmark(28)}<span>© 2026 Coursay</span></div><nav class="footer-links" aria-label="Legal"><a href="#terms">Terms of service</a><a href="#privacy">Privacy</a><a href="#cookies">Cookies & storage</a></nav></footer>`;
 }
 
 export function legalScreen(page) {

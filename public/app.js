@@ -1,4 +1,4 @@
-import { brandWordmark } from './brand.js';
+import { brandWordmark, startBrandMotion } from './brand.js';
 import { exercises, scenes, parseRoute, fixtureResult, initialAttempt, updateAttempt } from './model.js';
 
 import { homeScreen, roadmapScreen, getPracticeLeaf, problemDrawer } from './discovery.js';
@@ -279,6 +279,8 @@ function render(navigation = false) {
   const oldMap = document.querySelector('.map-scroll');
   if (oldMap) mapScroll = oldMap.scrollLeft;
   route = parseRoute(location.hash);
+  document.documentElement.dataset.reduce = String(state.reduce);
+  document.documentElement.dataset.theme = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   if (route.page === 'personal') {
     if (drawer.open) drawer.close();
     navbarObserver.disconnect();
@@ -308,8 +310,6 @@ function render(navigation = false) {
   const sessionFilter = route.params.get('filter');
   if (route.page === 'sessions' && sessionFilter && sessionFilter !== 'All') document.querySelectorAll('.session-row').forEach(row => { row.hidden = row.querySelector('.badge')?.textContent !== sessionFilter; });
   document.title = `${document.querySelector('h1')?.textContent ?? 'Welcome'} · Coursay`;
-  document.documentElement.dataset.reduce = String(state.reduce);
-  document.documentElement.dataset.theme = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   document.querySelector('.map-scroll')?.scrollTo({ left: mapScroll });
   syncProblemDrawer();
   if (navigation && !drawer.open) {
@@ -502,5 +502,6 @@ document.addEventListener('submit', (event) => {
 });
 window.addEventListener('hashchange', () => render(true));
 render();
+startBrandMotion();
 
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'system') render(); });

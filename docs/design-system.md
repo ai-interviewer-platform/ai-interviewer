@@ -91,6 +91,21 @@ Decelerate in, accelerate out. Duration scales with size. Motion never editorial
 
 Moments that earn motion: staggered entrance of sibling panes and list rows; press/settle on small controls; the state track (Attempt → Review → Retry) moving its raised pill; the evidence marker entering from the left when a citation is located; the drawer entering from its spatial origin; the voice indicator’s breathe (period and amplitude change with state, the label stays).
 
+### Coursay logo motion
+
+`docs/brand/Logo Motion Final.dc.html` supplies the geometry and timing used by
+`public/brand.js` and `public/brand-motion.css`. The shared wordmark draws in once
+on launch (3.2 seconds), fills its nodes while personal API requests or voice
+connections are pending (3.6 seconds), and uses the equalizer while the live
+voice session listens, thinks with an open microphone, or speaks (1.6 seconds).
+It returns to the static mark immediately when idle. The fictional voice preview
+does not indicate a live microphone. These state signals do not delay content.
+
+Marks at 32px and below use the supplied thicker strokes and omit open nodes.
+The favicon uses the same small-mark geometry and CSS frames at the reference's
+approximately 12 fps; blur or a hidden tab restores the static SVG. OS and in-app
+reduced motion, keyboard input, and forced colors disable all logo animation.
+
 ## Screens
 
 Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, and Profile use the floating top navbar. The primary group contains Home, Roadmap, and Sessions; the account group contains Preferences, Design system, and the profile avatar.

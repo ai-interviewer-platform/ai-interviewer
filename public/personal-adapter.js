@@ -1,18 +1,23 @@
-import { brandWordmark } from './brand.js';
+import { brandWordmark, beginBrandLoading, setBrandVoice } from './brand.js';
 import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
 
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    headers: options.body ? { "content-type": "application/json" } : undefined,
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || "The request could not be completed.");
-  return payload;
+  const finishLoading = beginBrandLoading();
+  try {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      headers: options.body ? { "content-type": "application/json" } : undefined,
+      ...options,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "The request could not be completed.");
+    return payload;
+  } finally {
+    finishLoading();
+  }
 }
 
 function sourceMetadata(state, name) {
@@ -75,6 +80,7 @@ export function mountPersonal(root) {
   let voiceSession = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
   const setVoiceStatus = (status) => {
+    setBrandVoice(status);
     const labels = { connecting: "Connecting…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking", reconnecting: "Reconnecting…", stopped: "Voice ready" };
     const statusNode = root.querySelector("#voice-status");
     if (statusNode) { statusNode.textContent = labels[status] ?? status; statusNode.dataset.voiceState = status; }

@@ -172,10 +172,6 @@ dialog, #problem-drawer { background: var(--raised); border: 0; box-shadow: var(
 
 .wordmark { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .brand-symbol { display: inline-flex; width: 36px; height: 36px; flex: 0 0 36px; }
-.brand-symbol img { display: block; width: 100%; height: 100%; }
-.brand-symbol .brand-light { display: none; }
-[data-theme="light"] .brand-symbol .brand-dark { display: none; }
-[data-theme="light"] .brand-symbol .brand-light { display: block; }
 .brand-name { font-family: 'Syne', var(--font-ui); font-size: 24px; font-weight: 700; line-height: 1; letter-spacing: -.04em; color: var(--ink); }
 .footer-brand .wordmark { width: fit-content; }
 .footer-brand .brand-symbol { width: 28px; height: 28px; flex-basis: 28px; }

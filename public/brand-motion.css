@@ -1,0 +1,57 @@
+/* Timings and geometry follow docs/brand/Logo Motion Final.dc.html. */
+.coursay-mark { --brand-ink: var(--ink); --brand-plane: var(--plane); --brand-accent: var(--accent); display: block; overflow: visible; stroke: var(--brand-ink); stroke-width: 2; stroke-linecap: round; fill: none; }
+.coursay-mark .brand-hub { r: 3.5; fill: var(--brand-ink); stroke: none; }
+.coursay-mark .brand-node { r: 2.5; fill: var(--brand-plane); }
+.coursay-mark .brand-current { r: 5; fill: var(--brand-accent); stroke: none; }
+.coursay-mark.brand-small { stroke-width: 3.2; }
+.coursay-mark.brand-small .brand-hub { r: 4; }
+.coursay-mark.brand-small .brand-node { r: 0; fill: var(--brand-accent); stroke: none; }
+.coursay-mark.brand-small .brand-current { r: 6.5; }
+.brand-symbol .coursay-mark { width: 100%; height: 100%; }
+.brand-favicon-source { position: fixed; left: -100px; top: 0; pointer-events: none; }
+[data-brand-motion="launch"] .coursay-mark > g { animation: cs-fade 3.2s ease-in-out; }
+[data-brand-motion="launch"] .brand-spoke { stroke-dasharray: 1; animation: var(--draw) 3.2s ease-out; }
+[data-brand-motion="launch"] .brand-node { animation: var(--pop) 3.2s ease-out; }
+[data-brand-motion="launch"] .brand-small .brand-node { animation: none; }
+[data-brand-motion="launch"] .brand-hub { animation: cs-pophub 3.2s ease-out; }
+[data-brand-motion="launch"] .brand-small .brand-hub { animation-name: cs-pophub-s; }
+[data-brand-motion="launch"] .brand-current { animation: cs-popteal 3.2s ease-out; }
+[data-brand-motion="launch"] .brand-small .brand-current { animation-name: cs-popteal-s; }
+[data-brand-motion="loading"] .brand-node { animation: cs-fill 3.6s ease-in-out var(--fill-delay) infinite; }
+[data-brand-motion="loading"] .brand-small .brand-node { animation-name: cs-fill-s; }
+[data-brand-motion="loading"] .brand-spoke:not(.brand-current-spoke) { animation: cs-spoke 3.6s ease-in-out var(--fill-delay) infinite; }
+[data-brand-motion="loading"] .brand-hub { animation: cs-kick 3.6s ease-out infinite; }
+[data-brand-motion="voice"] .brand-spoke { stroke-dasharray: 1; animation: cs-eqspoke 1.6s ease-in-out var(--voice-delay) infinite; }
+[data-brand-motion="voice"] .brand-current-spoke { animation-name: cs-eqspoke1; }
+[data-brand-motion="voice"] .brand-node, [data-brand-motion="voice"] .brand-current { animation: var(--equalizer) 1.6s ease-in-out var(--voice-delay) infinite; }
+[data-reduce="true"] .coursay-mark *, [data-input="keyboard"] .coursay-mark * { animation: none !important; }
+@media (prefers-reduced-motion: reduce), (forced-colors: active) { .coursay-mark * { animation: none !important; } }
+@keyframes cs-fill{0%{r:2.5;fill:var(--brand-plane);stroke-opacity:1}5%{r:5.8;fill:var(--brand-accent);stroke-opacity:0}8%{r:5}50%{r:5;fill:var(--brand-accent);stroke-opacity:0}58%{r:2.5;fill:var(--brand-plane);stroke-opacity:1}100%{r:2.5;fill:var(--brand-plane);stroke-opacity:1}}
+@keyframes cs-fill-s{0%{r:0;fill:var(--brand-accent)}5%{r:7.2}8%{r:6.5}50%{r:6.5}58%{r:0}100%{r:0}}
+@keyframes cs-spoke{0%{stroke:var(--brand-ink)}8%{stroke:var(--brand-accent)}50%{stroke:var(--brand-accent)}58%{stroke:var(--brand-ink)}100%{stroke:var(--brand-ink)}}
+@keyframes cs-kick{0%{r:3.5}3%{r:4.4}8%{r:3.5}100%{r:3.5}}
+@keyframes cs-fade{0%,76%{opacity:1}88%,100%{opacity:0}}
+@keyframes cs-draw0{0%{stroke-dashoffset:1}14%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw1{0%,4%{stroke-dashoffset:1}18%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw2{0%,8%{stroke-dashoffset:1}22%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw3{0%,12%{stroke-dashoffset:1}26%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw4{0%,16%{stroke-dashoffset:1}30%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-draw5{0%,20%{stroke-dashoffset:1}34%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
+@keyframes cs-pop0{0%,12%{r:0}18%{r:3.2}22%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop1{0%,16%{r:0}22%{r:3.2}26%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop2{0%,20%{r:0}26%{r:3.2}30%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop3{0%,24%{r:0}30%{r:3.2}34%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop4{0%,28%{r:0}34%{r:3.2}38%{r:2.5}100%{r:2.5}}
+@keyframes cs-pop5{0%,32%{r:0}38%{r:3.2}42%{r:2.5}100%{r:2.5}}
+@keyframes cs-popteal{0%,44%{r:0}52%{r:6.2}58%{r:5}100%{r:5}}
+@keyframes cs-popteal-s{0%,44%{r:0}52%{r:7.8}58%{r:6.5}100%{r:6.5}}
+@keyframes cs-pophub{0%{r:0}6%{r:4.3}10%{r:3.5}100%{r:3.5}}
+@keyframes cs-pophub-s{0%{r:0}6%{r:4.9}10%{r:4}100%{r:4}}
+@keyframes cs-eq0{0%,100%{cx:24px;cy:8px}50%{cx:24px;cy:13px}}
+@keyframes cs-eq1{0%,100%{cx:38px;cy:16px}50%{cx:32.4px;cy:19.2px}}
+@keyframes cs-eq2{0%,100%{cx:38px;cy:32px}50%{cx:33.6px;cy:29.5px}}
+@keyframes cs-eq3{0%,100%{cx:24px;cy:40px}50%{cx:24px;cy:35px}}
+@keyframes cs-eq4{0%,100%{cx:10px;cy:32px}50%{cx:14.4px;cy:29.5px}}
+@keyframes cs-eq5{0%,100%{cx:10px;cy:16px}50%{cx:14.4px;cy:18.5px}}
+@keyframes cs-eqspoke{0%,100%{stroke-dashoffset:0}50%{stroke-dashoffset:.31}}
+@keyframes cs-eqspoke1{0%,100%{stroke-dashoffset:0}50%{stroke-dashoffset:.4}}
