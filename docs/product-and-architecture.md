@@ -36,8 +36,9 @@ fail closed when collection is unavailable.
 - Session history, responsive workspace panes, keyboard access, and explicit
   reduced-motion behavior.
 
-Retained audio, hosted isolated Python execution, and model-generated reviews are
-not complete merely because their interfaces or bindings exist. Local Python
+Retained audio and hosted isolated Python execution remain incomplete.
+Evidence-backed review processing is implemented; live model quality and hosted
+provider behavior still require verification. Local Python
 execution has a dedicated Docker runner behind the existing optional service
 binding; see [Python runner](python-runner.md) for setup, limits and verification. The Deepgram voice
 transport is implemented, but live provider behavior still requires a configured
@@ -134,6 +135,53 @@ changing data. Finishing an attempt freezes an evidence manifest and creates a
 pending review before queue dispatch; a repeated finish can repair lost dispatch
 without creating a second review. Dispatch claims are serialized and expire after 60 seconds while the review remains pending; terminal reviews cannot be redispatched.
 
+## Evidence-backed reviews
+
+`src/reviews.ts` processes only pending reviews of completed attempts. It verifies
+that the existing manifest names that same attempt and its stored final submission
+checkpoint. Completion triggers freeze the underlying evidence; the manifest is
+not reinterpreted as a timestamp cutoff or expanded to another attempt's history.
+
+The processor loads same-attempt events, transcript segments, code checkpoints,
+visible code-run results, assistance records, and the final submission. Unverified
+historical voice evidence and non-visible runs are excluded. Help requested is
+kept distinct from help delivered. Retry ancestors are not followed. Model context
+contains the problem prompt and practice/input modes; account identity, setup
+answers, free-form personal goals, raw audio, hidden tests, reference solutions,
+and raw event payloads are not sent. Candidate text/code/output can contain
+user-entered private information; this is not a content-redaction service.
+
+The fixed OpenAI Responses transport uses server-only `REVIEW_PROVIDER_API_KEY`
+and `REVIEW_PROVIDER_MODEL`, strict structured output, no tools, and `store: false`.
+It sends an explicit allowed event-ID list. Model findings use the existing
+observation, interpretation, limitations, suggested action, criterion, and evidence
+status fields. Every finding needs unique citations from precisely that supplied
+set. Unknown fields/IDs, duplicate observations, oversized output, and unsupported
+shapes fail the entire review. IDs, citation locators, timestamps, retry checkpoints,
+and assistance context are generated or derived by the backend, never accepted
+as model-generated evidence. Membership validation does not establish the factual
+correctness of arbitrary prose; model-quality evaluation remains necessary.
+
+Review success is the existing `ready` status, including a valid empty findings
+array. A review row lock serializes processing; all findings, evidence references,
+and the status update commit together. Duplicate or terminal delivery is a no-op.
+The original attempt is never edited by review processing. Transient provider,
+network, lock, or database errors roll back to `pending` and propagate to queue
+retry. Permanent configuration/output/evidence failures become `failed` with a
+non-sensitive reason and no fabricated fallback. The queue honors the existing
+personal-collection gate. Terminal review reset is not exposed by this change.
+
+Processing bounds are 200 eligible events, a 192 KiB evidence/context payload,
+a 64 KiB provider envelope, a 45-second provider deadline, and at most eight
+findings with eight citations each. Oversized evidence fails explicitly rather
+than silently truncating the reviewed record. Holding a row lock during inference
+is an intentional small-scale tradeoff; database connection capacity and feedback
+quality must be assessed before increasing traffic.
+
+See [backend review processing](review-processing.md) for provider configuration,
+field limits, frontend API/status behavior, queue recovery, and frontend-free
+mocked and PostgreSQL verification commands.
+
 ## Delivery status
 
 | Area | Current repository evidence | Still required before claiming production readiness |
@@ -143,7 +191,7 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
 | Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
 | Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
-| Review | Durable pending record, frozen evidence manifest, queue recovery path | Selected provider, structured output validation, and evidence-reference quality proof |
+| Review | OpenAI Responses structured findings, frozen evidence validation, atomic publication, idempotent queue handling, mocked-provider and PostgreSQL tests | Credentialed hosted verification and human evaluation of finding quality |
 | Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
 

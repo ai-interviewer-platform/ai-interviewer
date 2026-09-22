@@ -544,12 +544,4 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   return notFound();
 }
 
-export async function processReview(reviewId: string, env: Env, pool: Pool): Promise<void> {
-  if (!env.REVIEW_PROVIDER_API_KEY || !env.REVIEW_PROVIDER_MODEL) {
-    await pool.query("UPDATE reviews SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", ["Review provider is not configured; no findings were generated.", reviewId]);
-    return;
-  }
-  // A configured model must be proven to support the recorded-evidence contract
-  // before this worker publishes findings. Never create prepared fallback feedback.
-  await pool.query("UPDATE reviews SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", ["The configured review transport has not passed evidence-reference validation; no findings were published.", reviewId]);
-}
+export { processReview } from "./reviews";

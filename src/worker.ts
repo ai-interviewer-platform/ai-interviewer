@@ -62,7 +62,7 @@ export default {
           await processReview(body.reviewId, env, pool);
           message.ack();
         } catch {
-          // A transient database failure is retried by Cloudflare Queues. The
+          // Transient provider/database failures are retried by Cloudflare Queues. The
           // review record itself keeps the frozen evidence set and remains the
           // recovery source if dispatch was lost after an attempt completed.
           message.retry();
