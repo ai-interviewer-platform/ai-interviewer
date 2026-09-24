@@ -1,9 +1,9 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 const base=process.env.APP_URL;
 if(!base) throw new Error('Set APP_URL to the running preview.');
-const browser=await chromium.launch({channel:'msedge'});
+const browser=await launchBrowser();
 const context=await browser.newContext({viewport:{width:1440,height:900}});
 const page=await context.newPage();
 try {
@@ -18,7 +18,7 @@ try {
   }
   await page.screenshot({path:'output/playwright/compact-roadmap.png',fullPage:true});
   await page.getByRole('link',{name:/Seen-value tracking/}).click();
-  await page.locator('#problem-drawer').evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished)));
+  await page.locator('#problem-drawer').evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished.catch(() => {}))));
   await page.locator('#drawer-title').click();
   assert.equal(await page.locator('#problem-drawer').evaluate(el=>el.open),true,'Inside click stays open');
   const drawer=await page.locator('#problem-drawer').boundingBox();
@@ -28,12 +28,13 @@ try {
   assert.equal(await page.locator('#problem-drawer').evaluate(el=>el.open),false);
   assert.equal(await page.evaluate(()=>document.activeElement.id),'leaf-seen');
   await page.getByRole('link',{name:/Seen-value tracking/}).click();
+  await page.waitForFunction(()=>document.querySelector('#problem-drawer').open);
   await page.keyboard.press('Escape');
   await page.waitForURL(/return=seen/);
   for(const width of [1440,1024,768,320]) {
     await page.setViewportSize({width,height:900});
     await page.goto(`${base}/#sessions`);
-    await page.evaluate(async()=>Promise.all(document.getAnimations().map(a=>a.finished)));
+    await page.evaluate(async()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(() => {}))));
     const buttons=await page.locator('.session-row .session-action').evaluateAll(nodes=>nodes.map(el=>{
       const css=getComputedStyle(el); const rect=el.getBoundingClientRect(); const text=el.querySelector('span').getBoundingClientRect();
       return {font:css.fontFamily,size:css.fontSize,weight:css.fontWeight,height:rect.height,width:rect.width,nowrap:css.whiteSpace,fits:el.scrollWidth<=el.clientWidth&&text.right<=rect.right};
@@ -47,7 +48,7 @@ try {
   await page.setViewportSize({width:1440,height:900});
   for(const route of ['sessions','roadmap?topic=sets']) {
     await page.goto(`${base}/#${route}`);
-    await page.evaluate(async()=>Promise.all(document.getAnimations().map(a=>a.finished)));
+    await page.evaluate(async()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(() => {}))));
     const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     assert.deepEqual(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.failureSummary)})),[]);
   }

@@ -27,8 +27,14 @@ try {
   assert.deepEqual(migrations.rows.map((row) => row.filename), [
     "migrations/0002_application.sql",
     "migrations/0003_security.sql",
+    "migrations/0004_seed_newlines.sql",
+    "migrations/0005_problem_bank.sql",
     "migrations/auth/0000_colorful_vindicator.sql",
   ]);
+  const starters = await client.query("SELECT count(*)::int AS broken FROM problems WHERE position(E'\\n' IN starter_code) = 0");
+  assert.equal(starters.rows[0].broken, 0, "Every starter code has real line breaks");
+  const untested = await client.query("SELECT count(*)::int AS missing FROM problems p WHERE is_active AND NOT is_sample AND NOT EXISTS (SELECT 1 FROM test_cases t WHERE t.problem_id = p.id AND t.visibility = 'visible')");
+  assert.equal(untested.rows[0].missing, 0, "Every active problem has visible tests");
 
   const authColumns = await client.query(
     "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'auth_sessions'",

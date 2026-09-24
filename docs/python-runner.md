@@ -101,9 +101,12 @@ Only `POST /run`, `Content-Type: application/json` is supported internally:
 }
 ```
 
-This version supports exactly the authored contract above: one positional list,
-a top-level named callable, synchronous execution, JSON-serializable return,
-and exact JSON equality (object key order is irrelevant, array order matters,
+Two argument contracts are accepted. `"arguments": "values: list"` (above)
+requires exactly one list argument. `"arguments": "positional JSON arguments"`,
+used by the [problem bank](problem-bank.md), passes each element of
+`inputData.args` (0–16 JSON values) as one positional argument. Both call a
+top-level named callable, execute synchronously, require a JSON-serializable return,
+and use exact JSON equality (object key order is irrelevant, array order matters,
 booleans are distinct from numbers). Python integers beyond JavaScript's safe
 integer range cannot be represented losslessly through this existing JSON API.
 No expressions, dotted entry points, dunder entry points, keyword arguments,

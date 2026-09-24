@@ -20,6 +20,8 @@ retention, deletion, disclosure, and processor policy.
 | `test/` | Model, migration, route-boundary, browser, accessibility, and responsive checks |
 | `docs/product-and-architecture.md` | Product contract, runtime boundaries, and current delivery status |
 | `docs/design-system.md` | Authoritative visual and motion rules |
+| `docs/launch-readiness.md` | Latest audit, launch blockers, hosting plan, and deployment runbook |
+| `docs/problem-bank.md` | Public problem sources, licenses, and verification |
 
 `public/` is the only frontend source. The earlier copied `prototype/` frontend
 was removed; browser checks now exercise the deployed assets directly.
@@ -102,8 +104,25 @@ npm run test:discovery
 node test/browser/security-check.mjs
 ```
 
-The browser checks require Microsoft Edge through Playwright. Generated browser
-artifacts are written beneath ignored `output/`.
+With `npm run runner:dev`, `npm run dev:runner`, local PostgreSQL, and collection
+approved in `.dev.vars`, `node test/browser/personal-flow-check.mjs` exercises the
+real signed-in journey: sign-up, catalog filters, a text message, failing and
+passing runs, help, finish, review settlement, and sign-out.
+
+Browser checks prefer Microsoft Edge and fall back to Playwright's Chromium. Set
+`PLAYWRIGHT_CHANNEL` (for example `msedge`) or `PLAYWRIGHT_EXECUTABLE_PATH` to
+choose explicitly. Generated browser artifacts are written beneath ignored `output/`.
+
+## Problem bank
+
+`migrations/0005_problem_bank.sql` adds 472 verified problems from MBPP-sanitized
+(CC BY 4.0) and HumanEval (MIT). See [problem bank](docs/problem-bank.md) for
+attribution, selection rules, and regeneration.
+
+## Going live
+
+[Launch readiness](docs/launch-readiness.md) records the latest end-to-end audit,
+open launch blockers, recommended hosting, and the deployment runbook.
 
 ## Security deployment
 

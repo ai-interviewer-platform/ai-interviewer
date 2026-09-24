@@ -1,17 +1,17 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 import { topics, topicTrees } from '../../public/model.js';
 
 const base = process.env.APP_URL;
 if (!base) throw new Error('Set APP_URL to the running local preview.');
-const browser = await chromium.launch({ channel: 'msedge' });
+const browser = await launchBrowser();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 try {
   for (const route of ['welcome', 'roadmap?topic=sets', 'review', 'roadmap?topic=flow&leaf=early-return']) {
     await page.goto(`${base}/#${route}`);
-    await page.evaluate(async () => Promise.all(document.getAnimations().map((animation) => animation.finished)));
+    await page.evaluate(async () => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))));
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     assert.deepEqual(result.violations.map((item) => ({ id: item.id, nodes: item.nodes.map((node) => node.failureSummary) })), [], route);
   }
@@ -56,7 +56,7 @@ try {
   await page.getByRole('link', { name: /Seen-value tracking/ }).click();
   const animations = await page.locator('#problem-drawer').evaluate((el) => el.getAnimations().map((animation) => animation.effect.getKeyframes()));
   assert.ok(animations.flat().some((frame) => String(frame.transform).includes('-100%')), 'Drawer has a left-origin slide');
-  await page.locator('#problem-drawer').evaluate(async (el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+  await page.locator('#problem-drawer').evaluate(async (el) => Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {}))));
   await page.screenshot({ path: 'output/playwright/drawer.png', fullPage: true });
   await page.keyboard.press('Escape');
   await page.waitForURL(/return=seen/);

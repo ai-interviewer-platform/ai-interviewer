@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser/launch.mjs";
 
 const publicRoot = resolve(import.meta.dirname, "../public");
 const contentType = { ".css": "text/css", ".js": "text/javascript", ".html": "text/html" };
@@ -34,7 +34,7 @@ async function withPublicServer(run) {
 
 test("sample routes use labeled fixtures and the personal route stays fail-closed", async () => {
   await withPublicServer(async (baseUrl) => {
-    const browser = await chromium.launch({ channel: "msedge", headless: true });
+    const browser = await launchBrowser({ headless: true });
     try {
       const page = await browser.newPage();
       for (const path of ["interview", "review", "retry", "related"]) {

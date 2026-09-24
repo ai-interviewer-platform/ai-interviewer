@@ -213,15 +213,17 @@ async function createAttempt(pool: Pool, userId: string, body: Record<string, un
 }
 
 async function attemptDetail(pool: Pool, attempt: AttemptRow, page: number): Promise<Response> {
-  const [problem, events, transcripts, checkpoints, runs, review] = await Promise.all([
+  const [problem, visibleTests, events, transcripts, checkpoints, runs, review] = await Promise.all([
     pool.query("SELECT id, title, topic, difficulty, prompt, starter_code, entry_point, test_contract FROM problems WHERE id = $1", [attempt.problem_id]),
+    // Visible tests are shown to the candidate; hidden tests never leave the server.
+    pool.query("SELECT id, input_data, expected_output FROM test_cases WHERE problem_id = $1 AND visibility = 'visible' ORDER BY id", [attempt.problem_id]),
     pool.query("SELECT id, event_type, source_id, source_order, occurrence_offset_ms, server_received_at, payload, created_at FROM attempt_events WHERE attempt_id = $1 ORDER BY occurrence_offset_ms, source_id, source_order, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, event_id, speaker, text, end_offset_ms, created_at FROM transcript_segments WHERE attempt_id = $1 ORDER BY end_offset_ms, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, event_id, source_code, checkpoint_type, created_at FROM code_checkpoints WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version, created_at FROM code_runs WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, status, failure_reason, evidence_manifest, created_at, updated_at FROM reviews WHERE attempt_id = $1", [attempt.id]),
   ]);
-  return json({ page, hasMore: [events, transcripts, checkpoints, runs].some(result => result.rows.length === limits.pageSize), attempt, problem: problem.rows[0], events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null });
+  return json({ page, hasMore: [events, transcripts, checkpoints, runs].some(result => result.rows.length === limits.pageSize), attempt, problem: problem.rows[0], visibleTests: visibleTests.rows, events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null });
 }
 
 async function appendCandidateMessage(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
