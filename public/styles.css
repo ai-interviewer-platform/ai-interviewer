@@ -286,7 +286,8 @@ dialog > .actions { margin-top: 1.5rem; }
   .session-header { flex-wrap: wrap; }
   .session-header > .actions { gap: 0.4rem; }
   .workspace-main { height: auto; min-height: calc(100dvh - 108px); }
-  .mobile-switch { display: flex; align-self: flex-start; margin: 0.5rem 0.75rem; }
+  .mobile-switch { display: flex; align-self: flex-start; margin: 0.5rem 0.75rem; max-width: calc(100% - 1.5rem); }
+  .mobile-switch .button { min-width: 0; flex: 1 1 auto; }
   .workspace { display: block; min-height: 36rem; flex: auto; }
   .workspace .splitter { display: none; }
   .workspace .left-column { display: block; }
@@ -358,3 +359,9 @@ dialog > .actions { margin-top: 1.5rem; }
   .token-list > div { flex-wrap: wrap; }
   .dialog-footer { flex-wrap: wrap; }
 }
+.test-cases { display: grid; gap: 0.5rem; margin: 0.75rem 0; padding: 0; list-style: none; }
+.test-case { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--divider); border-radius: 8px; overflow-wrap: anywhere; }
+.test-case.failed { border-color: var(--error); background: var(--error-soft); }
+.test-case pre, .test-body details pre { margin: 0; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.8rem; max-height: 12rem; overflow: auto; }
+.catalog-filters { flex-wrap: wrap; align-items: center; margin-bottom: 0.75rem; }
+.problem-prompt { white-space: pre-line; }

@@ -476,7 +476,7 @@ document.addEventListener('change', (event) => {
   if (input.name === 'input') { state.input = input.value; render(); }
   if (input.name === 'goal') state.goal = input.value;
   if (['audio', 'audio-pref'].includes(input.name)) state.audio = input.checked;
-  if (input.name === 'consent') { state.consent = input.checked; document.querySelector('#consent-error').hidden = input.checked; input.removeAttribute('aria-invalid'); }
+  if (input.name === 'consent') { state.consent = input.checked; const consentError = document.querySelector('#consent-error'); if (consentError) consentError.hidden = input.checked; input.removeAttribute('aria-invalid'); }
   if (input.name === 'voice-pref') state.input = input.checked ? 'voice' : 'text';
   if (input.name === 'reduce') { state.reduce = input.checked; document.documentElement.dataset.reduce = String(state.reduce); persist(); notify(state.reduce ? 'Reduced motion enabled.' : 'Operating-system motion preference is used.'); }
   if (input.id === 'checkpoint') { state.checkpoint = input.value; render(); notify('Saved checkpoint changed. Code and results now match the selected checkpoint.'); }

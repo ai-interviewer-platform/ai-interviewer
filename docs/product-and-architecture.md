@@ -147,6 +147,10 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
 
+The 2026-09-24 end-to-end audit, remaining launch blockers, and hosting runbook
+are recorded in [launch readiness](launch-readiness.md). The catalog now includes
+the verified public [problem bank](problem-bank.md).
+
 Passing local checks proves the checked behavior only. It does not prove hosted
 PostgreSQL, third-party provider behavior, runner isolation, or product demand.
 

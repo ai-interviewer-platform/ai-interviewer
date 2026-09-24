@@ -9,10 +9,11 @@ if (!connectionString) throw new Error("Set DATABASE_URL to the target PostgreSQ
 const root = resolve(import.meta.dirname, "..");
 const authDirectory = resolve(root, "migrations", "auth");
 const authFiles = (await readdir(authDirectory)).filter((file) => file.endsWith(".sql")).sort();
+// Auth first (application tables reference users), then numbered files in order.
+const applicationFiles = (await readdir(resolve(root, "migrations"))).filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
 const migrationPaths = [
   ...authFiles.map((file) => resolve(authDirectory, file)),
-  resolve(root, "migrations", "0002_application.sql"),
-  resolve(root, "migrations", "0003_security.sql"),
+  ...applicationFiles.map((file) => resolve(root, "migrations", file)),
 ];
 
 const pool = new pg.Pool({ connectionString });
