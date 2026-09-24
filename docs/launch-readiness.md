@@ -16,6 +16,13 @@ runner, an interviewer for text mode, and a review generator. The polished UI
 is also a fictional prototype; the real app lives at `#personal`, and nothing
 links to it.
 
+![Current architecture: verified pieces in green, setup needed in amber, missing in production in red](diagrams/1-current-architecture.svg)
+
+![User journey touchpoints and their status after the audit](diagrams/3-user-journey-status.svg)
+
+Editable sources are the `.excalidraw` files in [`diagrams/`](diagrams/); open
+one at excalidraw.com, edit it, and export SVG with the same name.
+
 ## What was run
 
 | Suite | Result |
@@ -82,6 +89,8 @@ PostgreSQL is a sound, inexpensive fit, and the code already targets Hyperdrive
 (`src/database.ts`). A D1 migration is not worthwhile: the schema depends on
 plpgsql triggers, `FOR UPDATE`, and `pg_advisory_xact_lock`. The transaction-level
 advisory lock is compatible with Hyperdrive's transaction pooling.
+
+![Recommended launch stack: Workers Paid, Hyperdrive with caching disabled, Neon Free, Cloudflare Containers runner](diagrams/2-recommended-launch-stack.svg)
 
 | Piece | Recommendation | Monthly cost |
 | --- | --- | --- |
