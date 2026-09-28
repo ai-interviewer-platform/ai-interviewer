@@ -92,9 +92,10 @@ try {
   console.log(`Passed: finish freezes evidence; review ${review.review.status}${review.review.failure_reason ? ` (${review.review.failure_reason})` : ''}`);
 
   await page.getByRole('button', { name: '← Sessions' }).click();
-  await page.getByRole('heading', { name: /Start with the work/ }).waitFor();
-  assert.match(await page.locator('.home-history').innerText(), /Sum odd positions[\s\S]*completed/);
+  await page.getByRole('heading', { name: 'Your sessions', exact: true }).waitFor();
+  assert.match(await page.locator('main').innerText(), /Sum odd positions[\s\S]*completed/);
   // A multi-argument problem from the public bank uses the positional contract.
+  await page.goto(`${base}/#personal?page=catalog`);
   await page.getByLabel('Topic').selectOption('Bit manipulation');
   while (!(await page.locator('[data-start-problem="mbpp-6-v1"]').count())) await page.locator('[data-more-problems]').click();
   await page.locator('[data-start-problem="mbpp-6-v1"]').click();
@@ -108,6 +109,7 @@ try {
   await page.getByRole('button', { name: '← Sessions' }).click();
   console.log('Passed: public-bank problem with several arguments');
 
+  await page.locator('.account-menu summary').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('button', { name: 'Create account' }).waitFor();
   console.log('Passed: sign out');
@@ -119,12 +121,15 @@ try {
   await page.locator('#personal-auth-form button[type="submit"]').click();
   await page.getByRole('heading', { name: /Start with the work/ }).waitFor();
   await page.goto(`${base}/#welcome`);
-  await page.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'My sessions' }).waitFor();
+  await page.locator('.account-menu summary').click();
+  await page.getByRole('link', { name: 'My sessions', exact: true }).waitFor();
   await page.getByRole('link', { name: 'My sessions' }).click();
   const exported = await api('/api/me/export');
   assert.equal(exported.user.email, email);
   assert.equal(exported.attempts.length, 2);
   assert.doesNotMatch(JSON.stringify(exported), /reference_solution|expected_output/);
+  await page.locator('.account-menu summary').click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByText('Delete account', { exact: true }).click();
   await axe('account deletion');
   await page.getByLabel('Current password').fill('not-the-password');

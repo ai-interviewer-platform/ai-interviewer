@@ -54,6 +54,7 @@ export const topicTrees = {
 };
 
 export const scenes = [
+  ['Example profile', 'demo-profile', 'Fictional identity, practice activity, and profile editing'],
   ['Your practice', 'welcome', 'Personal home, current focus, and activity'],
   ['New practice home', 'welcome?state=empty', 'Honest first-use state without invented progress'],
   ['Learning map', 'roadmap', 'Connected topics and practice selection'],

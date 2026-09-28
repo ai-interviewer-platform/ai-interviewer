@@ -1,3 +1,4 @@
+import { accountMenu } from './account-menu.js';
 import { brandWordmark, beginBrandLoading, setBrandVoice } from './brand.js';
 import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
 
@@ -57,7 +58,7 @@ function dashboardMarkup(state) {
   const topics = [...new Set(state.catalog.map((problem) => problem.topic))].sort();
   const filters = `<div class="actions catalog-filters"><label>Topic <select data-catalog-filter="topic"><option value="">All topics</option>${topics.map((topic) => option(topic, filter.topic)).join("")}</select></label><label>Difficulty <select data-catalog-filter="difficulty"><option value="">Any difficulty</option>${["Easy", "Medium", "Hard"].map((level) => option(level, filter.difficulty)).join("")}</select></label><span class="small muted" role="status">${matching.length} of ${state.catalog.length} problems</span></div>`;
   const problems = matching.slice(0, filter.limit).map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.difficulty)}</span><button class="button secondary small" type="button" data-start-problem="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("");
-  return `<main id="main" class="page-main"><header class="app-header">${brandWordmark()}<nav aria-label="Primary"><button class="button nav-link current" type="button" data-personal-page="home">Home</button><button class="button nav-link" type="button" data-personal-page="catalog">Roadmap</button><button class="button nav-link" type="button" data-personal-page="sessions">Sessions</button></nav><div class="header-end"><a class="button quiet" href="#sample">Guided sample</a><button class="button quiet" type="button" data-sign-out>Sign out</button></div></header><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>${state.historyMore ? `<button class="button quiet" data-more-attempts>Load more sessions</button>` : ""}` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div>${filters}<ol class="drawer-problems">${problems}</ol>${matching.length > filter.limit ? `<button class="button quiet" type="button" data-more-problems>Show more problems</button>` : ""}</section><section class="setup-form" aria-labelledby="account-heading"><h2 id="account-heading">Your account</h2><p class="small muted">Download everything recorded for this account, or delete the account and all of its records.</p><div class="actions"><a class="button secondary" href="/api/me/export" download>Download my data</a></div><details><summary>Delete account</summary><form id="delete-account-form"><p>This permanently deletes your account, sessions, code, transcripts, test runs, and reviews. It cannot be undone.</p><label for="delete-password">Current password</label><input id="delete-password" name="password" type="password" autocomplete="current-password" required><label class="check-row"><input type="checkbox" name="confirm" required><span>I understand that this cannot be undone.</span></label><button class="button danger" type="submit">Delete account permanently</button></form></details></section></main>`;
+  return `<main id="main" class="page-main"><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>${state.historyMore ? `<button class="button quiet" data-more-attempts>Load more sessions</button>` : ""}` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div>${filters}<ol class="drawer-problems">${problems}</ol>${matching.length > filter.limit ? `<button class="button quiet" type="button" data-more-problems>Show more problems</button>` : ""}</section></main>`;
 }
 
 function setupMarkup(state, problem) {
@@ -120,9 +121,21 @@ function relatedMarkup(state) {
   return `<main id="main" class="page-main"><button class="back-link" type="button" data-personal-page="review">← Back to review</button><section class="related-page"><p class="eyebrow">Optional next step</p><h1>Related practice</h1>${related.length ? `<ol class="drawer-problems">${related.map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.relationship_reason)}</span><span class="small muted">${problem.attempted_before ? "Attempted before" : "New to your record"}</span><button class="button primary small" type="button" data-start-related="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("")}</ol>` : `<p class="empty-inline">There is no authored related problem for this attempt.</p>`}</section></main>`;
 }
 
+function personalHeader(state) {
+  const nav = [['home', 'Home'], ['catalog', 'Roadmap'], ['sessions', 'Sessions']].map(([page, label]) => `<a class="button nav-link ${state.page === page ? 'current' : ''}" href="#personal?page=${page}" ${state.page === page ? 'aria-current="page"' : ''}>${label}</a>`).join('');
+  return `<header class="app-header">${brandWordmark().replace('#welcome', '#personal?page=home')}<nav aria-label="Primary">${nav}</nav><nav class="header-end" aria-label="Account"><a class="button quiet" href="#sample">Guided sample</a>${accountMenu(state.user, { personal: true })}</nav></header>`;
+}
+function accountMarkup(state) {
+  if (state.page === 'profile') return `<main id="main" class="page-main"><section class="setup-form"><h1>Your profile</h1><dl><dt>Display name</dt><dd>${escapeHtml(state.user.name)}</dd><dt>Email</dt><dd>${escapeHtml(state.user.email)}</dd></dl><a class="button secondary" href="#personal?page=settings">Account settings</a></section></main>`;
+  return `<main id="main" class="page-main"><h1>Account settings</h1><section class="setup-form" aria-labelledby="account-heading"><h2 id="account-heading">Your account</h2><p class="small muted">Download everything recorded for this account, or delete the account and all of its records.</p><div class="actions"><a class="button secondary" href="/api/me/export" download>Download my data</a></div><details><summary>Delete account</summary><form id="delete-account-form"><p>This permanently deletes your account, sessions, code, transcripts, test runs, and reviews. It cannot be undone.</p><label for="delete-password">Current password</label><input id="delete-password" name="password" type="password" autocomplete="current-password" required><label class="check-row"><input type="checkbox" name="confirm" required><span>I understand that this cannot be undone.</span></label><button class="button danger" type="submit">Delete account permanently</button></form></details></section></main>`;
+}
+
 export function mountPersonal(root) {
   const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", sourceOrder: 0, lastOffsetMs: 0, selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
-  let authMode = "sign-in";
+  const requestedPage = new URLSearchParams(location.hash.split('?')[1] ?? '').get('page');
+  if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
+  let disposed = false;
+  let authMode = new URLSearchParams(location.hash.split("?")[1] ?? "").get("auth") === "sign-up" ? "sign-up" : "sign-in";
   let voiceSession = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
   const setVoiceStatus = (status) => {
@@ -160,17 +173,31 @@ export function mountPersonal(root) {
     await voiceSession.start();
   };
   const render = () => {
+    if (disposed) return;
     if (!state.attempt || state.page !== "workspace" || state.selectedProblemId) stopVoice();
+    const footer = root.closest('.app-content')?.querySelector('.page-footer');
+    if (footer) { footer.hidden = Boolean(state.user && (state.selectedProblemId || ['workspace', 'review', 'related'].includes(state.page))); document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`); }
     if (!state.collectionEnabled) { root.innerHTML = collectionUnavailableMarkup(); return; }
-    if (!state.user) { root.innerHTML = authMarkup(state); return; }
-    if (state.page === "review") { root.innerHTML = reviewMarkup(state); return; }
-    if (state.page === "related") { root.innerHTML = relatedMarkup(state); return; }
-    if (state.selectedProblemId) {
-      const problem = state.catalog.find((item) => item.id === state.selectedProblemId);
-      root.innerHTML = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
+    if (state.resetToken || !state.user) {
+      root.innerHTML = authMarkup(state);
+      if (!state.resetToken && authMode === 'sign-up') root.querySelector('[data-auth-view="sign-up"]')?.click();
       return;
     }
-    root.innerHTML = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
+    let content;
+    if (['profile', 'settings'].includes(state.page)) content = accountMarkup(state);
+    else if (state.page === "review") content = reviewMarkup(state);
+    else if (state.page === "related") content = relatedMarkup(state);
+    else if (state.selectedProblemId) {
+      const problem = state.catalog.find((item) => item.id === state.selectedProblemId);
+      content = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
+    } else content = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
+    root.innerHTML = personalHeader(state) + content;
+    if (state.page === 'sessions' || state.page === 'catalog') {
+      root.querySelector('.focus-work')?.remove();
+      root.querySelector(state.page === 'sessions' ? '.home-route' : '.home-history')?.remove();
+      const heading = root.querySelector('.section-heading h2');
+      if (heading) { const title = document.createElement('h1'); title.textContent = state.page === 'sessions' ? 'Your sessions' : 'Practice roadmap'; heading.replaceWith(title); }
+    }
   };
   const reload = async () => {
     const availability = await api("/api/personal-availability");
@@ -180,8 +207,10 @@ export function mountPersonal(root) {
     state.thinkingModel = availability.thinkingModel || THINKING_MODEL;
     state.emailEnabled = availability.emailEnabled === true;
     if (!state.collectionEnabled) return;
+    const session = await api("/api/auth/get-session");
+    if (!session?.user) { state.user = null; return; }
     const [me, catalog, attempts] = await Promise.all([api("/api/me"), api("/api/catalog"), api("/api/attempts")]);
-    state.user = me;
+    state.user = { ...session.user, userId: me.userId };
     state.catalog = catalog.problems;
     state.attempts = attempts.attempts; state.historyPage = attempts.page; state.historyMore = attempts.hasMore;
   };
@@ -189,6 +218,7 @@ export function mountPersonal(root) {
     stopVoice();
     if (state.attempt?.attempt.id !== attemptId) state.lastOffsetMs = 0;
     state.attempt = await api(`/api/attempts/${encodeURIComponent(attemptId)}`);
+    if (disposed) return;
     state.review = state.attempt.review ? await api(`/api/attempts/${encodeURIComponent(attemptId)}/review`).catch(() => null) : null;
     state.related = [];
     state.page = "workspace";
@@ -202,7 +232,29 @@ export function mountPersonal(root) {
     state.attempt.attempt.draft_source = source;
     state.attempt.attempt.draft_revision = result.draftRevision;
   };
+  const navigate = async (page) => {
+    if (state.attempt && state.attempt.attempt.status !== 'completed') await saveDraft();
+    await reload();
+    if (disposed) return;
+    state.page = page; state.attempt = null; state.selectedProblemId = null;
+    history.pushState(null, '', `#personal?page=${page}`);
+    render();
+    root.querySelector('h1')?.scrollIntoView({ block: 'start' });
+  };
   root.addEventListener("click", async (event) => {
+    const anchor = event.target.closest('a');
+    if (anchor && state.user && !anchor.hasAttribute("download")) {
+      event.preventDefault();
+      try {
+        const href = anchor.getAttribute('href');
+        if (href?.startsWith('#personal?page=')) await navigate(new URLSearchParams(href.split('?')[1]).get('page'));
+        else {
+          if (state.attempt && state.attempt.attempt.status !== 'completed') await saveDraft();
+          if (!disposed) location.href = anchor.href;
+        }
+      } catch (error) { showError(error.message); }
+      return;
+    }
     const control = event.target.closest("button");
     if (!control) return;
     try {
@@ -216,12 +268,10 @@ export function mountPersonal(root) {
         root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
         // Better Auth's default minimum password length.
         root.querySelector("#auth-password").minLength = authMode === "sign-up" ? 8 : 0;
+        root.querySelector("#auth-name").required = authMode === "sign-up";
+        root.querySelector("#personal-auth-form button[type=submit]").textContent = authMode === "sign-up" ? "Create account" : "Sign in";
         root.querySelectorAll("[data-auth-view]").forEach((button) => { const selected = button.dataset.authView === authMode; button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected)); });
-      } else if (control.dataset.personalPage === "catalog") { state.page = "home"; state.attempt = null; state.selectedProblemId = null; render(); root.querySelector(".home-route")?.scrollIntoView({ block: "start" }); }
-      else if (control.dataset.personalPage === "home" || control.dataset.personalPage === "sessions") {
-        if (state.page === "workspace" && state.attempt && state.attempt.attempt.status !== "completed") await saveDraft();
-        await reload(); state.page = "home"; state.attempt = null; state.selectedProblemId = null; render();
-      }
+      } else if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(control.dataset.personalPage)) await navigate(control.dataset.personalPage);
       else if (control.dataset.personalPage === "workspace") { state.page = "workspace"; render(); }
       else if (control.dataset.personalPage === "review") { state.page = "review"; render(); }
       else if (control.dataset.startProblem) { state.attempt = null; state.selectedProblemId = control.dataset.startProblem; render(); }
@@ -241,8 +291,8 @@ export function mountPersonal(root) {
       else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
       else if (control.dataset.retryCheckpoint) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/retry`, { method: "POST", body: { checkpointId: control.dataset.retryCheckpoint, practiceGoal: "Focused retry" } }); await openAttempt(result.attemptId); }
-      else if (control.hasAttribute("data-sign-out")) { await api("/api/auth/sign-out", { method: "POST", body: {} }); state.user = null; state.attempt = null; render(); }
-      else if (control.hasAttribute("data-save-draft")) { await saveDraft(); await reload(); state.attempt = null; render(); }
+      else if (control.hasAttribute("data-sign-out")) { if (state.attempt && state.attempt.attempt.status !== "completed") await saveDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
+      else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
       else if (control.hasAttribute("data-run")) {
         control.disabled = true; control.textContent = "Running…";
         try {
@@ -283,6 +333,7 @@ export function mountPersonal(root) {
         const result = await api(authMode === "sign-up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email", { method: "POST", body: authMode === "sign-up" ? { email, password, name } : { email, password } });
         // With email verification on, sign-up returns no session token.
         if (authMode === "sign-up" && !result.token) { authMode = "sign-in"; root.innerHTML = authMarkup(state, "Check your email for a confirmation link, then sign in."); return; }
+        authMode = "sign-in";
         await reload(); render();
       } else if (form.id === "personal-forgot-form") {
         await api("/api/auth/request-password-reset", { method: "POST", body: { email: new FormData(form).get("email") } });
@@ -290,7 +341,8 @@ export function mountPersonal(root) {
         root.innerHTML = authMarkup(state, "If an account uses that email, a reset link is on its way. It works for one hour.");
       } else if (form.id === "personal-reset-form") {
         await api("/api/auth/reset-password", { method: "POST", body: { newPassword: new FormData(form).get("password"), token: state.resetToken } });
-        state.resetToken = null;
+        if (disposed) return;
+        state.resetToken = null; state.user = null; authMode = "sign-in"; state.authView = "sign-in";
         history.replaceState(null, "", "#personal");
         root.innerHTML = authMarkup(state, "Your password was changed. Sign in with the new password.");
       } else if (form.id === "personal-setup-form") {
@@ -314,7 +366,7 @@ export function mountPersonal(root) {
         }
       } else if (form.id === "delete-account-form") {
         await api("/api/me", { method: "DELETE", body: { password: new FormData(form).get("password") } });
-        state.user = null; state.attempts = []; state.attempt = null;
+        state.user = null; state.attempts = []; state.attempt = null; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; authMode = "sign-in";
         root.innerHTML = authMarkup(state, "Your account and all of its records were deleted.");
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
@@ -324,12 +376,6 @@ export function mountPersonal(root) {
       }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
-  const stopOnNavigation = () => {
-    if (!location.hash.startsWith("#personal")) {
-      stopVoice();
-      window.removeEventListener("hashchange", stopOnNavigation);
-    }
-  };
-  window.addEventListener("hashchange", stopOnNavigation);
-  (async () => { try { await reload(); render(); } catch (error) { state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); } })();
+  (async () => { try { await reload(); render(); } catch (error) { if (disposed) return; state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); if (!state.resetToken && authMode === "sign-up") root.querySelector('[data-auth-view="sign-up"]')?.click(); } })();
+  return () => { disposed = true; stopVoice(); };
 }

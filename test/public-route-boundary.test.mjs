@@ -41,7 +41,7 @@ test("sample routes use labeled fixtures and the personal route stays fail-close
         await page.goto(`${baseUrl}/#${path}`);
         const body = await page.locator("body").innerText();
         assert.equal(await page.locator('.prototype-bar').count(), 0);
-        assert.match(body, /© 2026 Coursay/);
+        assert.equal(await page.locator(".page-footer").count(), 0);
         assert.doesNotMatch(body, /Records are not being collected\./);
       }
       await page.goto(`${baseUrl}/#sample`);

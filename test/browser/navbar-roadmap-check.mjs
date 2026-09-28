@@ -58,7 +58,7 @@ try {
   await page.keyboard.press('Escape');
   for (const width of [768,320]) {
     await page.setViewportSize({width,height:900});
-    for (const route of ['welcome','profile','roadmap?topic=flow','roadmap?view=map&topic=sets','sample']) {
+    for (const route of ['welcome','demo-profile','roadmap?topic=flow','roadmap?view=map&topic=sets','sample']) {
       await page.goto(`${base}/#${route}`);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`${route} ${width}`);
       const h=await header.boundingBox();

@@ -176,3 +176,21 @@ dialog, #problem-drawer { background: var(--raised); border: 0; box-shadow: var(
 .footer-brand .wordmark { width: fit-content; }
 .footer-brand .brand-symbol { width: 28px; height: 28px; flex-basis: 28px; }
 .footer-brand .brand-name { font-size: 20px; }
+
+.account-menu { position: relative; }
+.account-menu > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; padding: 4px; border-radius: var(--radius-control); }
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.account-menu-panel { position: absolute; z-index: 100; right: 0; top: calc(100% + 8px); width: max-content; min-width: 200px; max-width: calc(100vw - 32px); padding: 8px; border: 1px solid var(--divider); border-radius: var(--radius-pane); background: var(--surface); box-shadow: var(--shadow-float); }
+.account-menu-panel > :is(a,button) { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.account-menu-panel > :is(a,button):hover { background: var(--hover); }
+.account-menu-identity { display: grid; gap: 4px; margin: 0 0 4px; padding: 8px 12px 12px; border-bottom: 1px solid var(--divider); overflow-wrap: anywhere; }
+.account-menu-identity small { color: var(--muted); }
+
+/* Personal sessions have no demo pane switcher, so keep every work area reachable. */
+@media (max-width: 64rem) {
+  .personal-workspace .workspace .right-column { display: grid; grid-template-rows: minmax(22rem, auto) minmax(15rem, auto); }
+  .personal-workspace .workspace .conversation-pane { display: flex; }
+  .personal-workspace .workspace .problem-pane { min-height: auto; }
+  .personal-workspace .workspace .conversation-body { min-height: 25rem; }
+}

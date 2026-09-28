@@ -7,7 +7,7 @@ const browser=await launchBrowser();
 const context=await browser.newContext({viewport:{width:1440,height:900}});
 const page=await context.newPage();
 try {
- for(const route of ['welcome','profile']) {
+ for(const route of ['welcome','demo-profile']) {
   await page.goto(`${base}/#${route}`);
   await page.locator('.v2-screen').waitFor();
   await page.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().map(a=>a.finished.catch(() => {})));});
@@ -32,7 +32,7 @@ try {
  }
  await page.getByRole('link',{name:'You found the match. What happened next?',exact:true}).click();
  assert.equal(new URL(page.url()).hash,'#review');
- await page.goto(`${base}/#profile`);
+ await page.goto(`${base}/#demo-profile`);
  assert.equal(await page.locator('.v2-profile-26').count(),26*7);
  await page.getByRole('button',{name:'Edit profile'}).click();
  await page.getByLabel('Display name').fill('Morgan');

@@ -6,6 +6,7 @@ import { positionRoadmapConnections } from './roadmap.js';
 import { profileScreen } from './profile.js';
 import { mountPersonal } from './personal-adapter.js';
 import { pageFooter, legalScreen } from './legal.js';
+import { accountMenu, bindAccountMenus } from './account-menu.js';
 
 const app = document.querySelector('#app');
 const drawer = document.querySelector('#problem-drawer');
@@ -101,35 +102,49 @@ function currentExercise() { return exercises[activeAttempt().problem]; }
 
 function chrome(content, workspace = false) {
   const navItem = (label, path) => {
-    const current = route.page === path || (path === 'sessions' && workspace);
-    return link(label, path, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
+    const destination = path === 'sessions' || (accountUser && ['welcome', 'roadmap'].includes(path)) ? `personal?page=${{ welcome: 'home', roadmap: 'catalog', sessions: 'sessions' }[path]}` : path;
+    const current = destination === path && route.page === path;
+    return link(label, destination, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
   };
   return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
-    ${brandWordmark()}
+    ${brandWordmark().replace('href="#welcome"', accountUser ? 'href="#personal?page=home"' : 'href="#welcome"')}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
-    <nav class="nav-account" aria-label="Account"><a class="button primary small" href="#personal" data-account-link><span>${accountLabel}</span></a>${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
+    <nav class="nav-account" aria-label="Account">${accountMenu(accountUser)}</nav>
   </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
-  ${pageFooter()}</div></div>`;
+  ${['sample', 'interview', 'review', 'retry', 'complete', 'related'].includes(route.page) ? '' : pageFooter()}</div></div>`;
 }
 
 // The prototype screens are fictional; this link is the way into the real app.
 // It is checked on load and after leaving #personal, where sign-in state changes.
-let accountLabel = 'Sign in';
+let accountUser = null;
 let leftPersonal = false;
+let unmountPersonal;
 function refreshAccountLabel() {
   fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).catch(() => null).then(session => {
-    accountLabel = session?.user ? 'My sessions' : 'Sign in';
-    document.querySelectorAll('[data-account-link] span').forEach(node => { node.textContent = accountLabel; });
+    accountUser = session?.user ?? null;
+    if (parseRoute(location.hash).page !== 'personal') render();
   });
 }
 refreshAccountLabel();
+bindAccountMenus();
+document.addEventListener('click', async (event) => {
+  const control = event.target.closest('[data-public-sign-out]');
+  if (!control) return;
+  control.disabled = true;
+  try {
+    const response = await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' });
+    if (!response.ok) throw new Error('Sign out failed. Please try again.');
+    accountUser = null;
+    go('personal');
+  } catch (error) { notify(error.message); control.disabled = false; }
+});
 
 function syncNavbar() {
   document.documentElement.dataset.scrolled = String(window.scrollY > 0);
 }
 function measureNavbar() {
   const footer = document.querySelector('.page-footer');
-  if (footer) document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`);
+  document.documentElement.style.setProperty('--footer-height', `${footer?.getBoundingClientRect().height ?? 0}px`);
   const header = document.querySelector('.floating-nav .app-header');
   if (!header) return;
   const style = getComputedStyle(header);
@@ -291,6 +306,16 @@ function render(navigation = false) {
   const oldMap = document.querySelector('.map-scroll');
   if (oldMap) mapScroll = oldMap.scrollLeft;
   route = parseRoute(location.hash);
+  if (route.page === 'welcome' && accountUser) {
+    location.replace('#personal?page=home');
+    return;
+  }
+  if (route.page === 'profile' || route.page === 'settings' || route.page === 'signin' || route.page === 'sign-in') {
+    location.replace(`#personal${route.page === 'profile' || route.page === 'settings' ? `?page=${route.page}` : ''}`);
+    return;
+  }
+  unmountPersonal?.();
+  unmountPersonal = undefined;
   document.documentElement.dataset.reduce = String(state.reduce);
   document.documentElement.dataset.theme = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   if (route.page === 'personal') {
@@ -299,7 +324,8 @@ function render(navigation = false) {
     roadmapObserver.disconnect();
     app.innerHTML = `<div class="app-shell"><div class="app-content"><div id="personal-app" aria-live="polite"></div>${pageFooter()}</div></div>`;
     document.title = 'Coursay';
-    mountPersonal(app.querySelector('#personal-app'));
+    unmountPersonal = mountPersonal(app.querySelector('#personal-app'));
+    measureNavbar();
     leftPersonal = true;
     return;
   }
@@ -308,7 +334,7 @@ function render(navigation = false) {
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
   if (route.page === 'review' && !isSample()) { state.reviewOpened = true; persist(); }
-  const screens = { profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
+  const screens = { 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
   navbarObserver.disconnect();
@@ -319,7 +345,8 @@ function render(navigation = false) {
   const graph = document.querySelector('.road-grid');
   if (graph) { positionRoadmapConnections(); roadmapObserver.observe(graph); }
   navbarObserver.observe(document.querySelector('.floating-nav'));
-  navbarObserver.observe(document.querySelector('.page-footer'));
+  const footer = document.querySelector('.page-footer');
+  if (footer) navbarObserver.observe(footer);
   measureNavbar();
   const sessionFilter = route.params.get('filter');
   if (route.page === 'sessions' && sessionFilter && sessionFilter !== 'All') document.querySelectorAll('.session-row').forEach(row => { row.hidden = row.querySelector('.badge')?.textContent !== sessionFilter; });

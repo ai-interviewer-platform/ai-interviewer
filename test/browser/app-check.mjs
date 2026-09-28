@@ -125,7 +125,7 @@ try {
   assert.equal(download.suggestedFilename(), 'interview-trainer-example.json');
   await page.getByRole('button', { name: 'Delete demo sessions', exact: true }).click();
   await page.getByRole('dialog', { name: 'Delete demo sessions?' }).getByRole('button', { name: 'Delete demo sessions', exact: true }).click();
-  await page.getByRole('link', { name: 'Sessions', exact: true }).click();
+  await page.goto(`${base}/#sessions`);
   await page.getByRole('heading', { name: 'Your first session starts here' }).waitFor();
   console.log('Passed: pointer press, immediate keyboard feedback, export, and recoverable demo deletion');
 

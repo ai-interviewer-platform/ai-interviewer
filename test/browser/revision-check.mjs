@@ -16,7 +16,7 @@ try {
   await page.getByLabel('Theme', {exact:true}).selectOption('light');
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
-  for (const route of ['welcome','roadmap','sessions','setup','sample','review?source=sample','preferences','profile','system']) {
+  for (const route of ['welcome','roadmap','sessions','setup','sample','review?source=sample','preferences','demo-profile','system']) {
     await page.goto(`${base}/#${route}`);
     await page.evaluate(async () => Promise.all(document.getAnimations().filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
     const result = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
@@ -36,7 +36,7 @@ try {
   assert.equal(await page.evaluate(()=>document.getAnimations().length),0);
   for (const width of [768,320]) {
     await page.setViewportSize({width,height:900});
-    for (const route of ['welcome','profile','preferences','sessions']) {
+    for (const route of ['welcome','demo-profile','preferences','sessions']) {
       await page.goto(`${base}/#${route}`);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false,`${route} top navigation at ${width}`);
     }
