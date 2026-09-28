@@ -1,7 +1,8 @@
 // Owner decision 2026-09-28: Workers AI through the AI binding (no provider key).
-// K2.7 Code reviews code-interview evidence with JSON schema output; K2.6 with
-// reasoning off answers live text turns in about a second. Both need Workers Paid.
-export const REVIEW_MODEL = "@cf/moonshotai/kimi-k2.7-code";
+// K2.6 with reasoning off serves both jobs. Reviews must finish inside the review
+// provider timeout (45 s, under the 60 s idle-transaction limit that holds the review
+// lock); K2.7 Code (always reasoning) took 36-53 s and timed out. Needs Workers Paid.
+export const REVIEW_MODEL = "@cf/moonshotai/kimi-k2.6";
 export const INTERVIEWER_MODEL = "@cf/moonshotai/kimi-k2.6";
 
 export type ModelMessage = { role: "system" | "user" | "assistant"; content: string };

@@ -1,0 +1,78 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_interviewer_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_interviewer_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_interviewer_ci
+      BETTER_AUTH_URL: http://127.0.0.1:8787
+      PERSONAL_DATA_COLLECTION_APPROVED: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install browser used by route boundary checks
+        run: npx playwright install --with-deps msedge
+      - run: npm run check
+      - run: npm run lint
+      - run: npm test
+      - name: Apply and verify PostgreSQL migrations
+        run: |
+          npm run migrate:postgres
+          npm run db:verify:target
+      - name: PostgreSQL review and security integration
+        run: |
+          node test/review-integration.mjs
+          node test/security-integration.mjs
+          node test/mvp-backend-integration.mjs
+      - name: Real isolated Python runner
+        run: |
+          npm run runner:build
+          npm run test:runner
+          npm run test:runner:api
+      - name: Live Better Auth and API integration
+        env:
+          BETTER_AUTH_SECRET: fictional-ci-secret-with-at-least-thirty-two-characters
+        run: |
+          printf '%s\n' \
+            "DATABASE_URL=$DATABASE_URL" \
+            "BETTER_AUTH_URL=$BETTER_AUTH_URL" \
+            "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
+            "PERSONAL_DATA_COLLECTION_APPROVED=true" > .dev.vars
+          npm run dev > /tmp/ai-interviewer-wrangler.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$BETTER_AUTH_URL/api/health" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent "$BETTER_AUTH_URL/api/health" > /dev/null
+          npm run db:local:verify-auth
+          node test/backend-api-integration.mjs

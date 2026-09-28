@@ -1,10 +1,25 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import pg from "pg";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("Set DATABASE_URL to the target PostgreSQL connection string.");
 
 const client = new pg.Client({ connectionString });
+const root = resolve(import.meta.dirname, "..");
+
+async function expectedMigrations() {
+  const authDirectory = resolve(root, "migrations", "auth");
+  const applicationDirectory = resolve(root, "migrations");
+  const auth = (await readdir(authDirectory)).filter(file => file.endsWith(".sql")).sort().map(file => resolve(authDirectory, file));
+  const application = (await readdir(applicationDirectory)).filter(file => /^\d+_.+\.sql$/.test(file)).sort().map(file => resolve(applicationDirectory, file));
+  return Promise.all([...auth, ...application].map(async path => ({
+    filename: path.slice(root.length + 1).replaceAll("\\", "/"),
+    checksum: createHash("sha256").update(await readFile(path, "utf8")).digest("hex"),
+  })));
+}
 
 async function expectDatabaseRejection(name, statement, parameters, message) {
   await client.query(`SAVEPOINT ${name}`);
@@ -23,15 +38,11 @@ async function expectDatabaseRejection(name, statement, parameters, message) {
 
 await client.connect();
 try {
-  const migrations = await client.query("SELECT filename FROM app_schema_migrations ORDER BY filename");
-  assert.deepEqual(migrations.rows.map((row) => row.filename), [
-    "migrations/0002_application.sql",
-    "migrations/0003_security.sql",
-    "migrations/0004_seed_newlines.sql",
-    "migrations/0005_problem_bank.sql",
-    "migrations/0007_account_deletion.sql",
-    "migrations/auth/0000_colorful_vindicator.sql",
-  ]);
+  // Compare by filename: a migration added on a parallel branch (0004_mvp_content_foundation)
+  // is applied after later-numbered files on databases that already had them.
+  const byFilename = (a, b) => a.filename.localeCompare(b.filename);
+  const migrations = await client.query("SELECT filename, checksum FROM app_schema_migrations");
+  assert.deepEqual(migrations.rows.sort(byFilename), (await expectedMigrations()).sort(byFilename));
   const starters = await client.query("SELECT count(*)::int AS broken FROM problems WHERE position(E'\\n' IN starter_code) = 0");
   assert.equal(starters.rows[0].broken, 0, "Every starter code has real line breaks");
   const untested = await client.query("SELECT count(*)::int AS missing FROM problems p WHERE is_active AND NOT is_sample AND NOT EXISTS (SELECT 1 FROM test_cases t WHERE t.problem_id = p.id AND t.visibility = 'visible')");
@@ -44,6 +55,28 @@ try {
   assert.equal(authColumnNames.has("ip_address"), true);
   assert.equal(authColumnNames.has("user_agent"), true);
   assert.equal(authColumnNames.has("userId"), false);
+
+  const requiredIndexes = new Set((await client.query(
+    "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()",
+  )).rows.map(row => row.indexname));
+  for (const index of ["auth_sessions_token_unique", "attempts_owner_history_idx", "attempt_events_timeline_idx", "code_runs_attempt_idx", "security_rate_limits_expiry", "voice_reservations_user"]) {
+    assert.equal(requiredIndexes.has(index), true, `Missing required index ${index}`);
+  }
+
+  const catalog = await client.query(
+    `SELECT p.id, p.entry_point, p.test_contract, count(tc.id)::int AS visible_tests
+       FROM problems p LEFT JOIN test_cases tc ON tc.problem_id = p.id AND tc.visibility = 'visible'
+      WHERE p.is_active = true AND p.is_sample = false
+      GROUP BY p.id ORDER BY p.id`,
+  );
+  assert.ok(catalog.rows.length >= 2);
+  for (const problem of catalog.rows) {
+    assert.match(problem.entry_point, /^[A-Za-z_][A-Za-z0-9_]{0,127}$/);
+    // The authored problems use "values: list"; the problem bank uses positional JSON arguments.
+    assert.ok(["values: list", "positional JSON arguments"].includes(problem.test_contract.arguments), `${problem.id} has an unsupported runner contract`);
+    assert.deepEqual({ ...problem.test_contract, arguments: undefined }, { arguments: undefined, return: "JSON-serializable return value", comparison: "exact JSON equality" });
+    assert.ok(problem.visible_tests >= 2 && problem.visible_tests <= 16, `${problem.id} must have 2–16 visible tests`);
+  }
 
   await client.query("BEGIN");
   await client.query(
@@ -111,7 +144,7 @@ try {
   );
   assert.deepEqual(remaining.rows[0], { users: 0, deleted: 0, kept: 1 });
   await client.query("ROLLBACK");
-  console.log("Verified generated auth columns, migration ledger, completed-evidence immutability, review ownership, retry lineage, and account deletion.");
+  console.log("Verified migration checksums, auth columns, required indexes, runner-compatible catalog, completed-evidence immutability, review ownership, retry lineage, and account deletion.");
 } catch (error) {
   await client.query("ROLLBACK").catch(() => undefined);
   throw error;

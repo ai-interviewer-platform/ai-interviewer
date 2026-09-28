@@ -4,7 +4,95 @@ This implements the existing `PYTHON_RUNNER` contract twice: a local Docker
 controller for development and a [hosted runner](#hosted-runner) on Cloudflare
 Containers for production. Product/security authority remains
 [product and architecture](product-and-architecture.md). It does not implement
-hidden tests, reviews, or frontend changes.
+hidden tests, reviews, or frontend changes. The local implementation and the
+production transport boundary are intentionally separate.
+
+## Production architecture boundary
+
+The application can reach an approved hosted runner in either of two ways:
+
+1. A Cloudflare service binding named `PYTHON_RUNNER` whose `fetch()` endpoint
+   implements `POST /run`.
+2. A fixed HTTPS `PYTHON_RUNNER_URL` plus the secret `PYTHON_RUNNER_TOKEN`.
+
+The service binding takes precedence. The HTTPS adapter rejects HTTP, embedded
+credentials, query strings, and fragments; disables redirects; sends only the
+bounded JSON request and a server-held bearer token; and never forwards the
+browser cookie, Origin, database URL, or application-provider credentials.
+Missing or invalid configuration fails closed with HTTP 503 and no invented test
+verdict. The request/response contract below is identical for local and hosted
+implementations.
+
+The selected production service must create an ephemeral isolated environment
+per test or stronger equivalent, enforce the limits below, deny unnecessary
+network access, expose no application/DB/provider secrets, authenticate every
+request, force cleanup after success/failure/timeout, and return the deterministic
+contract. The local Docker controller is useful reference behavior but is not an
+approved multi-tenant production sandbox. Provider selection and its independent
+isolation review remain external blockers in [MVP blockers](mvp-blockers.md).
+
+### Production-readiness decision
+
+The current Docker controller is **not safe to expose directly as a hosted
+multi-tenant endpoint**. Its container flags are strong local defense-in-depth,
+but candidate code shares the host kernel and the controller process holds Docker
+daemon authority. A controller escape or daemon compromise would cross the
+sandbox boundary. The implementation also assumes loopback-only ingress, one
+controller-wide execution slot, a locally managed image tag, and operator cleanup
+after a host crash. Those assumptions are unsuitable for an Internet-facing
+production service without an independent host/runtime security design.
+
+| Area | Current local behavior | Production requirement |
+| --- | --- | --- |
+| Isolation | Fresh Docker container per visible test; shared host kernel | Ephemeral sandbox per test with an independently reviewed isolation boundary |
+| CPU | One CPU quota and two CPU seconds per process | Enforced by the host even during overload/termination |
+| Memory/PIDs | 128 MiB including swap; 32 processes | Hard limits that cannot affect another tenant/control plane |
+| Timeout | Five-second test wall time; 60-second run schedule | Forced termination plus verified cleanup after timeout |
+| Output | 8 KiB per stdout, stderr, and return; 256 KiB transport | Equal or tighter enforcement before buffering/persistence |
+| Filesystem | Read-only root; 16 MiB noexec/nosuid `/tmp`; no host mounts | Disposable storage with no host/application files |
+| Network | Docker `--network none` | Deny egress and lateral access at the sandbox platform boundary |
+| Secrets | Candidate container receives no env or mounts | Runner host/gateway must have no app, DB, Deepgram, review, or auth secrets |
+| Cleanup | `docker rm --force`; controller becomes unhealthy if cleanup fails | Platform-enforced teardown with alerts and reconciliation after crashes |
+| Authentication | Timing-safe bearer check on loopback proxy | Private service identity or rotated bearer over fixed HTTPS; reject browser Origin |
+
+The smallest compatible production approach is an approved hosted sandbox plus a
+thin private gateway implementing the existing fixed `POST /run` JSON contract.
+Use `PYTHON_RUNNER_URL` and `PYTHON_RUNNER_TOKEN`; no application API change is
+needed. If the gateway is a Cloudflare Worker, bind it as `PYTHON_RUNNER` only
+after that Worker has been deployed, and keep actual Python execution in the
+approved sandbox service. A dedicated hardened single-purpose VM may implement
+the same contract for a small pilot only after independent review, with private
+ingress/TLS, firewall-denied egress, no application credentials, a patched host,
+and crash cleanup monitoring.
+
+Chosen on 2026-09-28: the Cloudflare Containers [hosted runner](#hosted-runner),
+a Worker bound as `PYTHON_RUNNER` that runs each request in a fresh container
+without network access. The HTTPS adapter remains available for an external
+sandbox; the service binding takes precedence.
+
+### Hosted deployment and verification
+
+For a Worker-hosted gateway, add a service binding named `PYTHON_RUNNER` to the
+production Worker environment. For an external gateway, configure the fixed
+HTTPS endpoint and secret token as described in
+[production deployment](production-deployment.md). Do not expose an endpoint
+that accepts browser credentials or arbitrary downstream URLs.
+
+After provisioning, verify all of the following against the hosted service with
+fictional inputs before enabling collection:
+
+- correct and incorrect visible tests, syntax errors, runtime exceptions, and
+  missing entry points;
+- infinite loops/timeouts, output overflow, memory/process/file limits, and
+  concurrent load rejection;
+- denied outbound network and absence of application, PostgreSQL, Deepgram,
+  review, and auth secrets;
+- cleanup after normal completion, forced termination, gateway failure, and
+  runner restart;
+- authentication rejection, request/response size bounds, stable version fields,
+  and no redirect following;
+- application persistence through `npm run test:runner:api` or an equivalent
+  hosted smoke using the deployed Worker.
 
 ## Start locally
 
@@ -254,13 +342,14 @@ persisted run's `stdout`, `stderr`, `execution_time_ms`, `runner_error`,
 `runner_version`, `harness_version` and `test_results`. The immediate `/run`
 response does not add these fields or change the frontend contract.
 
-HTTP 503 with `{error}` means the binding is missing, unreachable, returned a
+HTTP 503 with `{error}` means the runner configuration is missing, unreachable, returned a
 non-success response, exceeded the response limit, or returned an invalid result.
 No test verdict is stored in these cases. A checkpoint already created remains
 intact; without a configured binding no checkpoint is created. Existing 400
 metadata validation, 401 authentication, 403 ownership/origin, and 429 rate
 limits continue to apply. Use a fresh event ID for a new run and do not interpret
-infrastructure failures as candidate mistakes. No finish/review flow is required.
+infrastructure failures as candidate mistakes. Finish/review remains a separate
+operation and never manufactures a runner result.
 
 ## Verification without a frontend
 

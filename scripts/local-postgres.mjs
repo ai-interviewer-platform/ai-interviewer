@@ -1,26 +1,41 @@
 import { randomBytes } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import net from "node:net";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 import pg from "pg";
 
 const root = resolve(import.meta.dirname, "..");
-const stateRoot = resolve(root, ".local", "postgres-18");
+const defaultStateRoot = process.platform === "win32"
+  ? resolve(root, ".local", "postgres-18")
+  : resolve(process.env.XDG_STATE_HOME ?? resolve(homedir(), ".local", "state"), "ai-interviewer", "postgres");
+const stateRoot = resolve(process.env.LOCAL_POSTGRES_STATE_DIR ?? defaultStateRoot);
 const dataDirectory = resolve(stateRoot, "data");
 const credentialPath = resolve(stateRoot, "credentials.json");
 const logPath = resolve(stateRoot, "postgres.log");
 const devVarsPath = resolve(root, ".dev.vars");
+function discoverPostgresBin() {
+  if (process.env.POSTGRES_BIN) return process.env.POSTGRES_BIN;
+  if (process.platform === "win32") return "C:\\Program Files\\PostgreSQL\\18\\bin";
+  try {
+    return execFileSync("pg_config", ["--bindir"], { encoding: "utf8" }).trim();
+  } catch {
+    return "";
+  }
+}
+
+const postgresBin = discoverPostgresBin();
 const envPath = resolve(root, ".env");
 // Wrangler reads this from .env (not .dev.vars) to emulate the HYPERDRIVE binding locally.
 const hyperdriveLocalVariable = "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE";
-const postgresBin = process.env.POSTGRES_BIN ?? "C:\\Program Files\\PostgreSQL\\18\\bin";
 // The installed system cluster occupies 5432; setup verifies 5433 is free.
 const port = Number(process.env.LOCAL_POSTGRES_PORT ?? "5433");
 const appRole = "ai_interviewer_app";
 const databaseName = "ai_interviewer";
 
 function executable(name) {
+  if (!postgresBin) return name;
   return resolve(postgresBin, process.platform === "win32" ? `${name}.exe` : name);
 }
 
@@ -81,8 +96,19 @@ async function readCredentials() {
   return JSON.parse(await readFile(credentialPath, "utf8"));
 }
 
+async function writeClusterConfiguration() {
+  await writeFile(
+    resolve(dataDirectory, "postgresql.auto.conf"),
+    `listen_addresses = '127.0.0.1'\nport = ${port}\nssl = off\nunix_socket_directories = ''\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
 async function initializeCluster() {
-  if (await exists(resolve(dataDirectory, "PG_VERSION"))) return readCredentials();
+  if (await exists(resolve(dataDirectory, "PG_VERSION"))) {
+    await writeClusterConfiguration();
+    return readCredentials();
+  }
   if (await portAcceptsConnections()) {
     throw new Error(`Port ${port} is already in use. Set LOCAL_POSTGRES_PORT to an available, fixed port and retry.`);
   }
@@ -105,11 +131,7 @@ async function initializeCluster() {
   } finally {
     await unlink(initializationPasswordPath).catch(() => undefined);
   }
-  await writeFile(
-    resolve(dataDirectory, "postgresql.auto.conf"),
-    `listen_addresses = '127.0.0.1'\nport = ${port}\nssl = off\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  await writeClusterConfiguration();
   await writeFile(credentialPath, `${JSON.stringify(credentials)}\n`, { encoding: "utf8", mode: 0o600 });
   return credentials;
 }

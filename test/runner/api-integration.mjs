@@ -25,7 +25,7 @@ globalThis.Request = class extends NativeRequest {
 };
 try {
   await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
+  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
     await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
   }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "fictional-auth", setup(plugin) {

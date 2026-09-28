@@ -4,10 +4,25 @@ output/
 .wrangler/
 worker-configuration.d.ts
 .dev.vars
+.dev.vars.*
+!/.dev.vars.example
 .env
 .env.*
 !/.env.example
 
 .playwright-cli/
+
+# Local PostgreSQL credentials, storage, and exports (keep SQL migrations tracked).
+.pgpass
+.pg_service.conf
+/postgres-data/
+/pgdata/
+/backups/
+/dumps/
+*.dump
+*.sql.gz
+
+# Local runtime and package-manager logs.
+*.log
 .neon
 .claude/worktrees/

@@ -39,7 +39,7 @@ globalThis.fetch = async (url, init) => {
 globalThis.securityTestDatabase = () => ({ query: database.query.bind(database), connect: database.connect.bind(database), end: async () => {} });
 try {
   await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
+  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
     const sql = (await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`);
     await database.query(sql);
   }
@@ -57,7 +57,7 @@ try {
   assert.equal(decisions.filter(result => result.allowed).length, 3, "concurrent requests must share the atomic bucket");
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'Fixture', 'fixture@example.invalid')");
   await database.query("INSERT INTO attempts (id, user_id, problem_id, mode, input_mode, status, setup_context, consent_at, disclosure_version, practice_goal) VALUES ('attempt', 'owner', 'sum-odd-positions-v1', 'mock', 'voice', 'active', '{}', now(), 'test', 'Practice')");
-  const env = { DEEPGRAM_API_KEY: "fake-test-key", BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true" };
+  const env = { DEEPGRAM_API_KEY: "fake-test-key", BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true", REVIEW_PROVIDER_API_KEY: "fictional-review-key", REVIEW_PROVIDER_MODEL: "fixture-model" };
   const makeSession = () => new VoiceSession({ storage: { setAlarm: async deadline => assert.ok(deadline > Date.now()) }, waitUntil: task => background.push(task) }, env);
   const upgrade = () => new Request("https://app.example/api/attempts/attempt/voice", { headers: { "x-attempt-id": "attempt", "x-user-id": "owner" } });
   const session = makeSession();
@@ -69,7 +69,13 @@ try {
   firstProvider.message(JSON.stringify({ type: "Welcome", request_id: "provider-session" }));
   const settings = JSON.parse(firstProvider.sent[0]);
   assert.equal(settings.agent.think.provider.model, "gpt-5.6-terra");
-  assert.equal(settings.agent.think.functions, undefined);
+  assert.deepEqual(settings.agent.think.functions.map(item => item.name), ["get_coding_context"]);
+  firstProvider.message(JSON.stringify({ type: "FunctionCallRequest", functions: [{ id: "context-1", name: "get_coding_context", arguments: "{}", client_side: true, thought_signature: "fixture-signature" }] }));
+  for (let index = 0; index < 20 && !firstProvider.sent.some(item => typeof item === "string" && item.includes("FunctionCallResponse")); index++) await new Promise(resolve => setTimeout(resolve, 5));
+  const contextResponse = JSON.parse(firstProvider.sent.find(item => typeof item === "string" && item.includes("FunctionCallResponse")));
+  assert.equal(contextResponse.id, "context-1");
+  assert.equal(contextResponse.thought_signature, "fixture-signature");
+  assert.equal(JSON.parse(contextResponse.content).status, "available");
   firstProvider.message(JSON.stringify({ type: "ConversationText", role: "assistant", content: "Explain the loop." }));
   // Drain the provider write by closing, which registers its completion promise.
   await session.alarm();

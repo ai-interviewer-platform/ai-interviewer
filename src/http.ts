@@ -1,4 +1,5 @@
 import { limits } from "./security";
+import { configuredApplicationOrigin } from "./origin";
 
 export function json(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -81,7 +82,9 @@ export async function boundedRequest(request: Request): Promise<Request | Respon
 
 export function checkOrigin(request: Request, baseURL: string): Response | null {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return null;
-  if (request.headers.get("origin") !== new URL(baseURL).origin) {
+  const origin = configuredApplicationOrigin(baseURL);
+  if (!origin) return serverUnavailable("The application origin is not configured safely.");
+  if (request.headers.get("origin") !== origin) {
     return json({ error: "The request origin is not allowed." }, { status: 403 });
   }
   return null;

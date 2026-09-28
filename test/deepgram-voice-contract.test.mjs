@@ -6,7 +6,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("Deepgram is the browser voice pipeline with GPT-5.6 Terra thinking", async () => {
   const [source, packageJson] = await Promise.all([
-    Promise.all([read("../src/browser/voice-agent.js"), read("../src/deepgram.ts")]).then(parts => parts.join("\n")),
+    Promise.all([read("../src/browser/voice-agent.js"), read("../src/deepgram.ts"), read("../src/voice-session.ts")]).then(parts => parts.join("\n")),
     read("../package.json"),
   ]);
 
@@ -16,6 +16,8 @@ test("Deepgram is the browser voice pipeline with GPT-5.6 Terra thinking", async
   assert.match(source, /THINKING_MODEL = "gpt-5\.6-terra"/);
   assert.match(source, /type: "open_ai"/);
   assert.match(source, /model: "flux-kit-en"/);
+  assert.match(source, /get_coding_context/);
+  assert.match(source, /FunctionCallResponse/);
   assert.match(source, /UserStartedSpeaking/);
   assert.match(packageJson, /"@deepgram\/agents"/);
   assert.match(packageJson, /"build:voice"/);

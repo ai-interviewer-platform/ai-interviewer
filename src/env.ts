@@ -23,6 +23,8 @@ export interface Env {
   DATABASE_URL?: string;
   REVIEW_QUEUE: ReviewQueue;
   PYTHON_RUNNER?: PythonRunner;
+  PYTHON_RUNNER_URL?: string;
+  PYTHON_RUNNER_TOKEN?: string;
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   PERSONAL_DATA_COLLECTION_APPROVED?: string;
@@ -30,6 +32,9 @@ export interface Env {
   EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;
   VOICE_SESSIONS: DurableObjectNamespace;
+  REVIEW_PROVIDER_API_KEY?: string;
+  REVIEW_PROVIDER_MODEL?: string;
+  REVIEW_PROVIDER?: string;
   // Workers AI: evidence-linked reviews and text-mode interviewer replies.
   AI?: Ai;
 }
