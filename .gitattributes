@@ -1,0 +1,2 @@
+# Migrations are checksummed and seed text data: keep LF on every checkout.
+*.sql text eol=lf
