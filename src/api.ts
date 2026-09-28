@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { deleteAccount, exportAccount } from "./account";
 import { authenticatedUserId } from "./auth";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
@@ -493,6 +494,8 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   if (!userId) return unauthorized();
   if (!(await consumeRate(pool, `api:${userId}`, 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
   if (path === "/api/me" && request.method === "GET") return json({ userId });
+  if (path === "/api/me" && request.method === "DELETE") return deleteAccount(request, env, pool, userId);
+  if (path === "/api/me/export" && request.method === "GET") return exportAccount(pool, userId);
   if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId, page);
   if (path === "/api/attempts" && request.method === "POST") {
     const body = await requestBody(request);

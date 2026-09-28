@@ -14,7 +14,7 @@ await build({ entryPoints: ["src/http.ts", "src/security.ts", "src/api.ts"], out
   name: "test-auth",
   setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner";' }));
+    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
   },
 }] });
 const { boundedRequest, checkOrigin, requestBody } = await import(pathToFileURL(join(directory, "http.mjs")));

@@ -1,4 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { isAPIError } from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -84,4 +85,14 @@ export function authFor(env: Env, pool: Pool): AuthInstance {
 export async function authenticatedUserId(request: Request, env: Env, pool: Pool): Promise<string | null> {
   const session = await authFor(env, pool).api.getSession({ headers: request.headers });
   return session?.user.id ?? null;
+}
+
+export async function passwordMatches(request: Request, env: Env, pool: Pool, password: string): Promise<boolean> {
+  try {
+    await authFor(env, pool).api.verifyPassword({ body: { password }, headers: request.headers });
+    return true;
+  } catch (error) {
+    if (isAPIError(error)) return false;
+    throw error;
+  }
 }
