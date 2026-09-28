@@ -9,3 +9,4 @@ worker-configuration.d.ts
 !/.env.example
 
 .playwright-cli/
+.neon
