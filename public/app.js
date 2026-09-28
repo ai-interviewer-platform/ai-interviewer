@@ -113,12 +113,16 @@ function chrome(content, workspace = false) {
 }
 
 // The prototype screens are fictional; this link is the way into the real app.
+// It is checked on load and after leaving #personal, where sign-in state changes.
 let accountLabel = 'Sign in';
-fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).then(session => {
-  if (!session?.user) return;
-  accountLabel = 'My sessions';
-  document.querySelectorAll('[data-account-link] span').forEach(node => { node.textContent = accountLabel; });
-}).catch(() => {});
+let leftPersonal = false;
+function refreshAccountLabel() {
+  fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).catch(() => null).then(session => {
+    accountLabel = session?.user ? 'My sessions' : 'Sign in';
+    document.querySelectorAll('[data-account-link] span').forEach(node => { node.textContent = accountLabel; });
+  });
+}
+refreshAccountLabel();
 
 function syncNavbar() {
   document.documentElement.dataset.scrolled = String(window.scrollY > 0);
@@ -296,8 +300,10 @@ function render(navigation = false) {
     app.innerHTML = `<div class="app-shell"><div class="app-content"><div id="personal-app" aria-live="polite"></div>${pageFooter()}</div></div>`;
     document.title = 'Coursay';
     mountPersonal(app.querySelector('#personal-app'));
+    leftPersonal = true;
     return;
   }
+  if (leftPersonal) { leftPersonal = false; refreshAccountLabel(); }
   if (isSample()) { state.sampleRoute = location.hash.slice(1) || 'sample'; persist(); }
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
