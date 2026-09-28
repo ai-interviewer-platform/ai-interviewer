@@ -31,7 +31,7 @@ try {
   }
   await build({ entryPoints: ["src/api.ts", "src/review.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner";' }));
+    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
   } }] });
   const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { processReview } = await import(pathToFileURL(join(directory, "review.mjs")));
