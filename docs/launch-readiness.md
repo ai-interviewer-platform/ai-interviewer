@@ -56,7 +56,7 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | # | Blocker | Who | Cheapest fix |
 | --- | --- | --- | --- |
 | 1 | Database connection not deployed: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes) and bound through Hyperdrive `ai-interviewer-db` (caching disabled), but the deployed Worker predates the binding and still returns 503 on personal routes | You | Set `BETTER_AUTH_URL` and the secrets, then deploy (runbook steps 5–6) |
-| 2 | No hosted Python runner: without `PYTHON_RUNNER`, **Run visible tests** returns 503. The local controller runs one job at a time (~3 s per 3-test run) and must not be exposed | Code | Workers Paid + Cloudflare Containers/Sandbox running the existing `runner/` harness; about 1 container per run |
+| 2 | Hosted Python runner **implemented, pending deploy**: Worker `ai-interviewer-python-runner` runs each run in a fresh Cloudflare Container with the existing harness; the app binds `PYTHON_RUNNER` to it. Real-image isolation tests pass locally; Cloudflare egress and cold-start time are unverified until deployed | You | `npm run runner:hosted:deploy` before the app deploy (runbook step 6); see [hosted runner](python-runner.md#hosted-runner) |
 | 3 | Reviews never produce findings: `processReview` marks every review `failed`, so review, dispute, and retry-from-checkpoint are unreachable | Decision, then code | Pick an LLM, implement structured findings that cite `attempt_events` IDs |
 | 4 | Text mode has no interviewer: messages are stored, nobody replies | Decision, then code | Reuse the review LLM for text turns, or make voice the only interview mode at launch |
 | 5 | Real app is unreachable: only `/#personal` is real; the main screens show prepared data ("preview", "Prepared code · read-only") | Product decision | Minimum: add Sign in → `#personal` to the main nav; later wire the designed screens to the API |
@@ -133,7 +133,9 @@ valid for a minute. Create the config with caching disabled.
    npx wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 48
    npx wrangler secret put DEEPGRAM_API_KEY
    ```
-6. **Deploy and smoke-test**: `npm run build:voice && npx wrangler deploy`, then
+6. **Deploy and smoke-test**: `npm run runner:hosted:deploy` (Docker must be
+   running; the app's `PYTHON_RUNNER` binding needs this Worker), then
+   `npm run build:voice && npx wrangler deploy`, then
    `GET /api/health` and `GET /api/personal-availability`. Flip
    `PERSONAL_DATA_COLLECTION_APPROVED` to `"true"` only after blocker 6 is resolved.
 7. **Deepgram**: create a project key limited to Voice Agent usage and set a
