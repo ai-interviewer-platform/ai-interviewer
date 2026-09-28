@@ -60,13 +60,15 @@ jobs:
       - name: Live Better Auth and API integration
         env:
           BETTER_AUTH_SECRET: fictional-ci-secret-with-at-least-thirty-two-characters
+          CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: ${{ env.DATABASE_URL }}
         run: |
           printf '%s\n' \
             "DATABASE_URL=$DATABASE_URL" \
             "BETTER_AUTH_URL=$BETTER_AUTH_URL" \
             "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
             "PERSONAL_DATA_COLLECTION_APPROVED=true" > .dev.vars
-          npm run dev > /tmp/ai-interviewer-wrangler.log 2>&1 &
+          # --local disables the remote AI binding, which needs Cloudflare credentials.
+          npm run dev -- --local > /tmp/ai-interviewer-wrangler.log 2>&1 &
           worker_pid=$!
           trap 'kill "$worker_pid"' EXIT
           for attempt in $(seq 1 30); do
