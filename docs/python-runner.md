@@ -114,8 +114,11 @@ can affect only its own later tests. There is no cgroup memory cap per test;
 a process can exhaust the `basic` instance's 1 GiB and fail its own run as
 `runner_error`. Every run is one cold container start, adding seconds of
 latency. `max_instances` is 10; beyond that, runs return `runner_error`. Local
-tests use `docker run --network=none` to mirror `enableInternet = false`;
-Cloudflare's actual egress behavior is verified only after deployment.
+tests use `docker run --network=none` to mirror `enableInternet = false`.
+Deployed check (2026-09-28, `.local/runner-probe.mjs` through a remote service
+binding): a correct solution passed and a wrong one failed in about 2 s including
+the cold start; an infinite loop was killed by the CPU limit; a raw TCP connection
+to 1.1.1.1 and an HTTP request both timed out, so candidate code has no egress.
 
 Deploy the runner before the app, because the app binds to it by name.
 Wrangler builds `runner/hosted.Dockerfile` with Docker and pushes it:
