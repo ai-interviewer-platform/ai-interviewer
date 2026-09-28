@@ -13,8 +13,8 @@ runner isolation, and auth all pass against real PostgreSQL 16, Docker, and
 workerd. It is **not ready for live users** yet. Four core pieces are missing in
 production, not merely unconfigured: a database connection, a hosted Python
 runner, an interviewer for text mode, and a review generator. The polished UI
-is also a fictional prototype; the real app lives at `#personal`, and nothing
-links to it.
+is also a fictional prototype; the real app lives at `#personal`, reached through
+**Sign in** in the account nav.
 
 ## What was run
 
@@ -24,6 +24,8 @@ links to it.
 | `npm run check`, `npm run lint`, `wrangler deploy --dry-run` | Pass |
 | Migrations applied twice (idempotent) + `scripts/verify-postgres.mjs` | Pass |
 | `test/security-integration.mjs` (quotas, voice relay, dispatch, concurrency) | Pass |
+| `test/account-deletion-integration.mjs` (export scope, deletion of every row of one user only, immutability kept) — 2026-09-28 | Pass |
+| `test/email-auth-integration.mjs` (verification, reset, email off; Resend mocked) — 2026-09-28 | Pass |
 | `npm run test:runner` (17 real-container isolation tests) | Pass |
 | `npm run test:runner:api` (API → controller → Docker → PostgreSQL) | Pass |
 | `scripts/verify-better-auth-local.mjs` (sign-up, session, revocation) | Pass |
@@ -59,8 +61,8 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | 2 | No hosted Python runner: without `PYTHON_RUNNER`, **Run visible tests** returns 503. The local controller runs one job at a time (~3 s per 3-test run) and must not be exposed | Code | Workers Paid + Cloudflare Containers/Sandbox running the existing `runner/` harness; about 1 container per run |
 | 3 | Reviews never produce findings: `processReview` marks every review `failed`, so review, dispute, and retry-from-checkpoint are unreachable | Decision, then code | Pick an LLM, implement structured findings that cite `attempt_events` IDs |
 | 4 | Text mode has no interviewer: messages are stored, nobody replies | Decision, then code | Reuse the review LLM for text turns, or make voice the only interview mode at launch |
-| 5 | Real app is unreachable: only `/#personal` is real; the main screens show prepared data ("preview", "Prepared code · read-only") | Product decision | Minimum: add Sign in → `#personal` to the main nav; later wire the designed screens to the API |
-| 6 | `PERSONAL_DATA_COLLECTION_APPROVED=false` by design; disclosure version is `pending-owner-data-policy`; no real export or deletion; no password reset or email verification | You (policy), then code | Publish privacy terms, add account deletion, and add email via a provider before inviting strangers |
+| 5 | Real app reachable only through the nav: the account nav has **Sign in** (or **My sessions** when signed in) → `#personal`; the other main screens still show prepared data ("preview", "Prepared code · read-only") | Product decision | Done: the nav link. Later: wire the designed screens to the API |
+| 6 | Code done (2026-09-28): `DELETE /api/me` (password re-entry) deletes the user and every personal row through `migrations/0007_account_deletion.sql`; `GET /api/me/export` downloads the user's data as JSON; password reset and email verification through Resend turn on when `RESEND_API_KEY` and `EMAIL_FROM` are set. Still open: `PERSONAL_DATA_COLLECTION_APPROVED=false` and disclosure version `pending-owner-data-policy` by design | You (policy) | Publish the privacy and terms text (it still says export and delete are unavailable), verify a Resend sender domain, set `EMAIL_FROM` and `RESEND_API_KEY`, apply migration 0007, then approve collection |
 
 ## Should fix soon after
 
@@ -132,7 +134,11 @@ valid for a minute. Create the config with caching disabled.
    npx wrangler queues create ai-interviewer-review   # skip if it already exists
    npx wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 48
    npx wrangler secret put DEEPGRAM_API_KEY
+   npx wrangler secret put RESEND_API_KEY              # optional: password reset + email verification
    ```
+   Email also needs `EMAIL_FROM` (for example `Coursay <no-reply@your-domain>`) as a
+   dashboard variable, with that domain verified in Resend. With email on, new
+   accounts must confirm their address before they can sign in.
 6. **Deploy and smoke-test**: `npm run build:voice && npx wrangler deploy`, then
    `GET /api/health` and `GET /api/personal-availability`. Flip
    `PERSONAL_DATA_COLLECTION_APPROVED` to `"true"` only after blocker 6 is resolved.
