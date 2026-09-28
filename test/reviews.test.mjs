@@ -11,7 +11,7 @@ const directory = await mkdtemp(join(tmpdir(), "reviews-unit-"));
 after(() => rm(directory, { recursive: true, force: true }));
 await build({ entryPoints: ["src/reviews.ts", "src/review-provider.ts", "src/review-provider-factory.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "queue-runtime", setup(plugin) {
   plugin.onResolve({ filter: /^\.\/(database|auth|voice-session)$/ }, args => ({ path: args.path, namespace: "test" }));
-  plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "./database" ? "export const databaseForInvocation = () => globalThis.reviewTestDatabase;" : args.path === "./auth" ? "export const authenticatedUserId = async () => 'owner'; export const authFor = () => ({});" : "export class VoiceSession {}" }));
+  plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "./database" ? "export const databaseForInvocation = () => globalThis.reviewTestDatabase;" : args.path === "./auth" ? "export const authenticatedUserId = async () => 'owner'; export const passwordMatches = async () => false; export const authFor = () => ({});" : "export class VoiceSession {}" }));
 } }] });
 const { processReview } = await import(pathToFileURL(join(directory, "reviews.mjs")));
 const { validateFindings } = await import(pathToFileURL(join(directory, "review-provider.mjs")));
@@ -180,4 +180,39 @@ test("Worker acknowledges terminal/invalid messages and retries transient failur
     await worker.queue({ messages: [{ body: { reviewId: "review" }, ack: () => actions.push("ack"), retry: () => actions.push("retry") }, { body: {}, ack: () => actions.push("invalid-ack") }] }, env);
     assert.deepEqual(actions, [transient ? "retry" : "ack", "invalid-ack"]);
   }
+});
+
+// Workers AI adapter: `run` uses `this`, like the real binding, so a detached call fails here.
+function workersAI(respond) {
+  return { calls: [], async run(model, input) { this.calls.push({ model, input }); return respond(); } };
+}
+const completion = (text, finish = "stop") => ({ choices: [{ finish_reason: finish, message: { role: "assistant", content: text } }] });
+
+test("the provider defaults to Workers AI with a binding and honors an explicit REVIEW_PROVIDER", () => {
+  const AI = workersAI(() => completion("{}"));
+  assert.match(reviewProviderFor({ ...env, AI }).evaluatorVersion, /^workers-ai\//);
+  assert.match(reviewProviderFor({ ...env, AI, REVIEW_PROVIDER: "openai-responses" }).evaluatorVersion, /^openai-responses\//);
+  assert.match(reviewProviderFor(env).evaluatorVersion, /^openai-responses\//);
+});
+
+test("Workers AI reviews publish validated findings with evidence IDs constrained to the attempt", async () => {
+  const AI = workersAI(() => completion(JSON.stringify({ findings: [finding] })));
+  const db = fakeDatabase();
+  await processReview("review", { ...env, AI }, db);
+  assert.equal(db.saved.status, "ready");
+  assert.equal(db.saved.findings.length, 1);
+  const { model, input } = AI.calls[0];
+  assert.equal(model, "@cf/moonshotai/kimi-k2.6");
+  assert.deepEqual(input.response_format.json_schema.schema.properties.findings.items.properties.evidenceIds.items.enum, evidence.map(item => item.id));
+  assert.deepEqual(JSON.parse(input.messages[1].content).allowedEvidenceIds, evidence.map(item => item.id));
+});
+
+test("Workers AI truncation fails the review; an outage leaves it pending for a queue retry", async () => {
+  let db = fakeDatabase();
+  await processReview("review", { ...env, AI: workersAI(() => completion("{\"findings\": [", "length")) }, db);
+  assert.equal(db.saved.status, "failed");
+  assert.match(db.saved.reason, /stopped with length/);
+  db = fakeDatabase();
+  await assert.rejects(processReview("review", { ...env, AI: workersAI(() => { throw new Error("3040: Capacity temporarily exceeded"); }) }, db));
+  assert.equal(db.saved.status, "pending");
 });

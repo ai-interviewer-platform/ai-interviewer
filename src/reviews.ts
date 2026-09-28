@@ -5,6 +5,7 @@ import { personalCollectionEnabled } from "./data-policy";
 import { PermanentReviewError, reviewLimits, TransientReviewError, validateFindings, type ReviewProvider } from "./review-provider";
 import { reviewProviderFor } from "./review-provider-factory";
 import { logOperationalEvent } from "./observability";
+import { consumeRate, limits } from "./security";
 
 type Evidence = {
   id: string; type: string; occurrenceOffsetMs: number;
@@ -84,6 +85,11 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
     // Keep the row lock through the bounded request and publication. Concurrent
     // delivery waits or retries; a crash rolls back and releases the lock.
     try {
+      // Each review is a paid model call; cap them per account per UTC day.
+      const owner = (await client.query<{ user_id: string }>("SELECT user_id FROM attempts WHERE id = $1", [review.attempt_id])).rows[0];
+      if (owner && !(await consumeRate(pool, `review:${owner.user_id}`, 24 * 60 * 60, limits.accountReviewsPerDay)).allowed) {
+        throw new PermanentReviewError("The daily review limit for this account was reached; no findings were generated.");
+      }
       const provider = configuredProvider ?? reviewProviderFor(env);
       const { payload, byId, canRetry } = await loadEvidence(client, review);
       await client.query("UPDATE reviews SET started_at = now(), evaluator_version = $2, updated_at = now() WHERE id = $1", [reviewId, provider.evaluatorVersion]);

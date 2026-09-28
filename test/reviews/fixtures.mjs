@@ -16,6 +16,10 @@ export function fakeDatabase({ status = "pending", failCitation = false, rows = 
     else if (sql === "COMMIT") saved = working;
     else if (sql === "ROLLBACK") working = undefined;
     else if (sql.startsWith("SET LOCAL")) return { rows: [] };
+    // The daily review cap: owner lookup, then the rate bucket (always allowed here).
+    else if (sql.startsWith("SELECT user_id FROM attempts")) return { rows: [{ user_id: "owner" }] };
+    else if (sql.startsWith("DELETE FROM security_rate_limits")) return { rows: [] };
+    else if (sql.includes("INSERT INTO security_rate_limits")) return { rows: [{ count: 1 }] };
     else if (sql.startsWith("SELECT id, attempt_id")) return { rows: [{ id: "review", attempt_id: "attempt", status: saved.status, evidence_manifest: manifest }] };
     else if (sql.includes("FROM attempts a JOIN problems")) { if (values[0] !== "attempt") throw new Error("Wrong scope"); return { rows: [{ status: "completed", source_attempt_id: null, prompt: "Sum odd indexes", mode: "mock", input_mode: "text" }] }; }
     else if (sql.includes("WITH selected")) { if (values[0] !== "attempt") throw new Error("Wrong scope"); return { rows: rows.map(evidence => ({ evidence })) }; }
