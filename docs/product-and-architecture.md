@@ -37,10 +37,10 @@ fail closed when collection is unavailable.
   reduced-motion behavior.
 
 Retained audio and hosted isolated Python execution are not complete merely
-because their interfaces or bindings exist. Claude (Anthropic API) writes
-evidence-linked reviews (`claude-opus-5-5`) and text-mode interviewer replies
-(`claude-sonnet-5`) when the `ANTHROPIC_API_KEY` Worker secret is set; the model
-IDs are constants in `src/claude.ts`. Local Python
+because their interfaces or bindings exist. Workers AI (the `AI` binding, no
+provider key) writes evidence-linked reviews (`@cf/moonshotai/kimi-k2.7-code`) and
+text-mode interviewer replies (`@cf/moonshotai/kimi-k2.6`); the model IDs are
+constants in `src/llm.ts`. Both models need Workers Paid. Local Python
 execution has a dedicated Docker runner behind the existing optional service
 binding; see [Python runner](python-runner.md) for setup, limits and verification. The Deepgram voice
 transport is implemented, but live provider behavior still requires a configured
@@ -56,9 +56,9 @@ Browser (`public/`)
                          ├─ PostgreSQL through an invocation-scoped pool
                          ├─ authenticated voice relay → Deepgram Voice Agent
                          │    └─ Nova-3 listen → GPT-5.6 Terra think → Flux speak
-                         ├─ text interviewer turn → Claude Sonnet 5
+                         ├─ text interviewer turn → Workers AI Kimi K2.6
                          ├─ optional isolated Python runner binding
-                         └─ review queue → Claude Opus 5.5 → evidence-validation boundary
+                         └─ review queue → Workers AI Kimi K2.7 Code → evidence-validation boundary
 ```
 
 Cloudflare Workers serves the static assets and API as one application.
@@ -78,7 +78,7 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `public/practice.css` | Roadmap, practice, and profile layout |
 | `src/worker.ts` | Static/API boundary, fail-closed collection gate, and queue entry |
 | `src/api.ts` | Attempt, evidence, run, review, correction, and retry operations |
-| `src/claude.ts` | Anthropic client, model IDs, and provider failure reasons |
+| `src/llm.ts` | Workers AI client, model IDs, and provider failure reasons |
 | `src/review.ts` | Review evidence loading, findings schema, validation, and publication |
 | `src/deepgram.ts` | Server-owned Deepgram settings and voice availability |
 | `src/browser/voice-agent.js` | Deepgram microphone, live conversation, playback, and transcript flow |
@@ -171,8 +171,8 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
 | Personal collection | Explicit fail-closed gate, data export, password-confirmed account deletion, optional email reset/verification | Approved retention, disclosure, and processor policy; published privacy terms; verified Resend sender domain |
 | Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
-| Review | Claude Opus 5.5 findings with structured output, strict evidence-reference validation, and idempotent publication; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and quality review of real findings |
-| Text interviewer | Claude Sonnet 5 replies and requested help in text mode, with per-attempt and per-account caps; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and live reply quality checks |
+| Review | Kimi K2.7 Code findings with a per-review JSON schema, strict evidence-reference validation, and idempotent publication; one real local review published 4 cited findings | Quality review of real findings |
+| Text interviewer | Kimi K2.6 replies and requested help in text mode, with per-attempt and per-account caps; real local replies in about 2 s | Live reply quality checks |
 | Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
 
