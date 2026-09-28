@@ -107,10 +107,18 @@ function chrome(content, workspace = false) {
   return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
     ${brandWordmark()}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
-    <nav class="nav-account" aria-label="Account">${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
+    <nav class="nav-account" aria-label="Account"><a class="button primary small" href="#personal" data-account-link><span>${accountLabel}</span></a>${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
   </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
   ${pageFooter()}</div></div>`;
 }
+
+// The prototype screens are fictional; this link is the way into the real app.
+let accountLabel = 'Sign in';
+fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).then(session => {
+  if (!session?.user) return;
+  accountLabel = 'My sessions';
+  document.querySelectorAll('[data-account-link] span').forEach(node => { node.textContent = accountLabel; });
+}).catch(() => {});
 
 function syncNavbar() {
   document.documentElement.dataset.scrolled = String(window.scrollY > 0);
