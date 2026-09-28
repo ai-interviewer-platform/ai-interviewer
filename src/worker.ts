@@ -5,6 +5,8 @@ import { personalCollectionEnabled, personalCollectionUnavailable } from "./data
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import type { Env } from "./env";
 import { boundedRequest, checkOrigin, json, serverUnavailable } from "./http";
+import { runtimeCapabilities } from "./runtime-config";
+import { logOperationalEvent } from "./observability";
 export { VoiceSession } from "./voice-session";
 
 function isExpectedServiceError(error: unknown): boolean {
@@ -21,11 +23,19 @@ export default {
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
     if (url.pathname === "/api/personal-availability" && request.method === "GET") {
+      const capabilities = runtimeCapabilities(env);
       return json({
         collectionEnabled: personalCollectionEnabled(env),
         voiceEnabled: deepgramVoiceEnabled(env),
         voiceProvider: DEEPGRAM_VOICE_PROVIDER,
         thinkingModel: DEEPGRAM_THINKING_MODEL,
+        mvpReady: capabilities.mvpReady,
+        services: {
+          database: capabilities.databaseConfigured,
+          voice: capabilities.voiceConfigured,
+          runner: capabilities.runnerConfigured,
+          review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
+        },
       });
     }
     if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
@@ -42,7 +52,11 @@ export default {
       }
       return await handleApi(bounded, env, ctx, pool);
     } catch (error) {
-      if (isExpectedServiceError(error)) return serverUnavailable("The data service is unavailable. Nothing was recorded.");
+      if (isExpectedServiceError(error)) {
+        logOperationalEvent("warn", "database_unavailable");
+        return serverUnavailable("The data service is unavailable. Nothing was recorded.");
+      }
+      logOperationalEvent("error", "request_failed");
       return json({ error: "The request could not be completed. Nothing new was published." }, { status: 500 });
     } finally {
       await pool?.end();
@@ -65,6 +79,7 @@ export default {
           // Transient provider/database failures are retried by Cloudflare Queues. The
           // review record itself keeps the frozen evidence set and remains the
           // recovery source if dispatch was lost after an attempt completed.
+          logOperationalEvent("warn", "review_queue_retry");
           message.retry();
         }
       }

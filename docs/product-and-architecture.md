@@ -25,8 +25,9 @@ fail closed when collection is unavailable.
 
 ## User-facing scope
 
-- English Python practice with Deepgram voice as the primary configured path and
-  text as an alternative.
+- English Python practice with Deepgram voice. Text-only interviewing is not an
+  MVP requirement; text evidence remains supported internally for fixtures and
+  compatibility, but is not a launch substitute for voice.
 - Email/password authentication through Better Auth.
 - Mock and Coach modes with user-requested help.
 - Draft saving, immutable run/submission checkpoints, and visible test results.
@@ -54,8 +55,8 @@ Browser (`public/`)
                          ├─ PostgreSQL through an invocation-scoped pool
                          ├─ authenticated voice relay → Deepgram Voice Agent
                          │    └─ Nova-3 listen → GPT-5.6 Terra think → Flux speak
-                         ├─ optional isolated Python runner binding
-                         └─ review queue → evidence-validation boundary
+                         ├─ hosted isolated Python runner binding/HTTPS adapter
+                         └─ review queue → provider adapter → evidence validation
 ```
 
 Cloudflare Workers serves the static assets and API as one application.
@@ -80,6 +81,10 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `src/auth.ts` | Better Auth runtime configuration |
 | `src/db/generated-auth.ts` | CLI-generated Better Auth Drizzle schema |
 | `migrations/0002_application.sql` | Application schema and database invariants |
+| `src/voice-context.ts` | Bounded, owner-scoped coding context for the voice agent |
+| `src/review-provider.ts` | Provider-independent review request/result contract |
+| `src/review-providers/` | Vendor-specific review transport adapters |
+| `src/python-runner-client.ts` | Service-binding or authenticated HTTPS runner transport |
 
 ## Data and evidence contract
 
@@ -119,8 +124,32 @@ request validation, and boundaries that relational keys cannot express alone.
   a consented voice attempt to Deepgram while keeping retained audio off.
 - Permanent Deepgram credentials stay in the Worker. An authenticated, active
   voice attempt connects through a metered Durable Object relay; no provider token reaches the browser.
-- Retention, export, deletion, and provider-processing behavior must be approved
-  before collecting real personal sessions.
+- Retention, export, deletion, backup/log handling, and provider-processing
+  behavior must be approved before collecting real personal sessions. While
+  unresolved, collection remains fail-closed and no export/deletion API claims
+  behavior that has not been approved.
+
+### Personal-data inventory and lifecycle
+
+The application database stores account/profile identifiers, credentials managed
+by Better Auth, sessions and rate-limit records; attempt setup/consent metadata;
+saved Python source, checkpoints, visible-run outputs and test outcomes;
+transcript text and provider/session provenance; requested-assistance records;
+review manifests, findings, evidence links, corrections, and retry lineage; and
+voice reservation timestamps/usage. The application does not store raw audio.
+
+Candidate source, transcript text, and runner output can contain personal data
+entered by a user. Operational logs are limited to named backend events and small
+non-sensitive scalars; they omit passwords, cookies, tokens, API keys, source,
+transcripts, and raw provider errors. Provider-side processing, platform logs,
+and database backups remain governed by the deployment decisions in
+`mvp-blockers.md`.
+
+Better Auth supports session invalidation and sign-out. Account export, personal
+record deletion, automated retention, backup erasure, and self-service password
+recovery are not represented as implemented. Completed evidence is deliberately
+immutable at the ordinary application role, so deletion needs an approved,
+auditable privileged workflow rather than weakening evidence constraints.
 
 ## API surface
 
@@ -151,8 +180,9 @@ answers, free-form personal goals, raw audio, hidden tests, reference solutions,
 and raw event payloads are not sent. Candidate text/code/output can contain
 user-entered private information; this is not a content-redaction service.
 
-The fixed OpenAI Responses transport uses server-only `REVIEW_PROVIDER_API_KEY`
-and `REVIEW_PROVIDER_MODEL`, strict structured output, no tools, and `store: false`.
+The core processor depends only on the `ReviewProvider` interface. The included
+`openai-responses` adapter uses server-only `REVIEW_PROVIDER_API_KEY` and
+`REVIEW_PROVIDER_MODEL`, strict structured output, no tools, and `store: false`.
 It sends an explicit allowed event-ID list. Model findings use the existing
 observation, interpretation, limitations, suggested action, criterion, and evidence
 status fields. Every finding needs unique citations from precisely that supplied
@@ -190,10 +220,10 @@ mocked and PostgreSQL verification commands.
 | Authentication | Better Auth configuration and generated PostgreSQL schema | Hosted environment and end-to-end deployment verification |
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
 | Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
-| Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
-| Review | OpenAI Responses structured findings, frozen evidence validation, atomic publication, idempotent queue handling, mocked-provider and PostgreSQL tests | Credentialed hosted verification and human evaluation of finding quality |
-| Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
-| Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
+| Runner | Local restricted Docker runner plus a production client that accepts only a Worker service binding or fixed authenticated HTTPS endpoint | Select/deploy an independently isolated sandbox; prove cleanup, limits, and no secret/network access in the hosted target |
+| Review | Provider-independent interface, OpenAI Responses adapter, frozen evidence validation, atomic publication, idempotent queue handling, mocked-provider and PostgreSQL tests | Credentialed hosted verification and human evaluation of finding quality |
+| Voice/audio | Server-controlled Deepgram relay, bounded coding-context function, transcript provenance, quotas, timeouts, and no application raw-audio retention | Live credentialed microphone/playback/function-call test, provider-processing approval, transcript quality, and hosted interruption/reconnection proof |
+| Deployment | Wrangler resources, runtime readiness report, exact-origin validation, structured logs, CI, migration/schema verification, and an authoritative checklist | Real bindings, secrets, provider credentials, alert configuration, and hosted smoke tests |
 
 Passing local checks proves the checked behavior only. It does not prove hosted
 PostgreSQL, third-party provider behavior, runner isolation, or product demand.
@@ -216,11 +246,17 @@ application policy, not provider guarantees; see `src/security.ts`.
 | History and evidence | 50 rows per collection per page, explicit Load more controls |
 | Attempt evidence | 10,000 events; completion and writes share the attempt row lock |
 | Voice control messages | 1,200 per connection; only KeepAlive and InjectUserMessage permitted |
+| Voice coding context | 30 function calls, 10 KiB saved source, 16 KiB total response; active owned attempt only |
 | Voice persistence backlog | 50 pending transcript writes; disconnect rather than accumulate unbounded memory |
 | Audio input | 16 kHz, 16-bit mono throughput plus two seconds of capture jitter |
+| Review provider | 200 evidence events, 192 KiB request context, 64 KiB response, 45 seconds, 8 findings × 8 citations |
+| Runner | 64 KiB source, 1–16 tests, 256 KiB request/result, 95-second application deadline; sandbox limits are documented separately |
 
 Voice sessions end on disconnect, deadline, invalid client messages or persistence
-failure. The database serializes allocation before any provider connection;
+failure. The interviewer may call only the server-owned `get_coding_context`
+function. It receives a bounded saved draft, latest checkpoint, normalized latest
+visible-test outcomes, and latest help request; it never receives hidden tests,
+raw runner output, account metadata, or another attempt. The database serializes allocation before any provider connection;
 a durable alarm and a live timer close both sockets. Provider settings are built
 from server-owned problem data. Only messages received from the provider socket
 can create verified voice events. Browser transcript/token endpoints are removed.

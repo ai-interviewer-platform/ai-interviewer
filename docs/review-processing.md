@@ -11,6 +11,7 @@ Set these server-side values in `.dev.vars` for local development:
 ```dotenv
 REVIEW_PROVIDER_API_KEY=<OpenAI API key>
 REVIEW_PROVIDER_MODEL=<model available to your account supporting Responses structured outputs>
+REVIEW_PROVIDER=openai-responses
 ```
 
 For a deployed Worker, set `REVIEW_PROVIDER_API_KEY` using
@@ -19,7 +20,13 @@ For a deployed Worker, set `REVIEW_PROVIDER_API_KEY` using
 model automatically. The model must accept the configured JSON Schema and output
 budget. Deepgram credentials and its managed thinking-model setting are separate.
 
-The review transport is fixed to `https://api.openai.com/v1/responses`, uses
+Core processing depends on the provider-independent `ReviewProvider` interface:
+it supplies a bounded evidence package and allowed evidence-ID set and receives
+normalized findings. Core processing revalidates that normalized result before
+any database write, so a future adapter cannot bypass the common field and
+evidence-ID boundary. The included `openai-responses` adapter is isolated in
+`src/review-providers/openai-responses.ts`. It sends requests to
+`https://api.openai.com/v1/responses`, uses
 `text.format` with a strict JSON Schema, disables response storage with
 `store: false`, and enables no tools. This does not promise zero provider retention;
 the deployment's existing personal-data and processor approval still applies.
@@ -28,8 +35,9 @@ No provider key, database connection string, or raw provider error is returned t
 the browser. Provider configuration is not needed to run mocked tests.
 
 See the official [Structured Outputs documentation](https://developers.openai.com/api/docs/guides/structured-outputs)
-for the transport format. Existing review configuration was provider-neutral;
-this implementation selects direct OpenAI Responses, independently of voice.
+for that adapter's transport format. A future adapter must normalize into the
+same `Finding[]` contract and cannot bypass the shared evidence-ID and field
+validation boundary.
 
 ## Frontend/API contract (unchanged)
 

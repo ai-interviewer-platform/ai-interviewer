@@ -2,7 +2,9 @@ import type { Pool, PoolClient } from "pg";
 import type { Env } from "./env";
 import { isRecord } from "./http";
 import { personalCollectionEnabled } from "./data-policy";
-import { generateFindings, PermanentReviewError, reviewLimits, TransientReviewError } from "./review-provider";
+import { PermanentReviewError, reviewLimits, TransientReviewError, validateFindings, type ReviewProvider } from "./review-provider";
+import { reviewProviderFor } from "./review-provider-factory";
+import { logOperationalEvent } from "./observability";
 
 type Evidence = {
   id: string; type: string; occurrenceOffsetMs: number;
@@ -68,7 +70,7 @@ async function loadEvidence(client: PoolClient, review: Review) {
   return { payload, byId, canRetry: attempt.source_attempt_id === null };
 }
 
-export async function processReview(reviewId: string, env: Env, pool: Pool): Promise<void> {
+export async function processReview(reviewId: string, env: Env, pool: Pool, configuredProvider?: ReviewProvider): Promise<void> {
   // Queue invocations must honor the same collection gate as API invocations.
   if (!personalCollectionEnabled(env)) throw new TransientReviewError("Personal collection is disabled.");
   const client = await pool.connect();
@@ -82,11 +84,14 @@ export async function processReview(reviewId: string, env: Env, pool: Pool): Pro
     // Keep the row lock through the bounded request and publication. Concurrent
     // delivery waits or retries; a crash rolls back and releases the lock.
     try {
-      if (!env.REVIEW_PROVIDER_API_KEY?.trim() || !env.REVIEW_PROVIDER_MODEL?.trim()) throw new PermanentReviewError("Review provider is not configured; no findings were generated.");
-      if (env.REVIEW_PROVIDER_MODEL.length > 200) throw new PermanentReviewError("Review model configuration is invalid.");
+      const provider = configuredProvider ?? reviewProviderFor(env);
       const { payload, byId, canRetry } = await loadEvidence(client, review);
-      await client.query("UPDATE reviews SET started_at = now(), evaluator_version = $2, updated_at = now() WHERE id = $1", [reviewId, `openai-responses/evidence-v1/${env.REVIEW_PROVIDER_MODEL}`]);
-      const findings = await generateFindings(env, payload, new Set(byId.keys()));
+      await client.query("UPDATE reviews SET started_at = now(), evaluator_version = $2, updated_at = now() WHERE id = $1", [reviewId, provider.evaluatorVersion]);
+      const allowedEvidenceIds = new Set(byId.keys());
+      const generated = await provider.generate({ payload, allowedEvidenceIds });
+      // Provider adapters normalize transport envelopes, but remain an untrusted
+      // boundary. Revalidate every adapter's output immediately before writes.
+      const findings = validateFindings({ findings: generated }, allowedEvidenceIds);
       for (const finding of findings) {
         const findingId = crypto.randomUUID();
         const cited = finding.evidenceIds.map(id => byId.get(id)!);
@@ -106,6 +111,7 @@ export async function processReview(reviewId: string, env: Env, pool: Pool): Pro
       await client.query("UPDATE reviews SET status = 'ready', failure_reason = NULL, completed_at = now(), updated_at = now() WHERE id = $1", [reviewId]);
     } catch (error) {
       if (!(error instanceof PermanentReviewError)) throw error;
+      logOperationalEvent("warn", "review_permanent_failure");
       await client.query("UPDATE reviews SET status = 'failed', failure_reason = $2, completed_at = now(), updated_at = now() WHERE id = $1", [reviewId, error.message]);
     }
     await client.query("COMMIT");

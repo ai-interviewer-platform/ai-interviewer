@@ -3,6 +3,11 @@ import { authenticatedUserId } from "./auth";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits } from "./security";
+import { pythonRunnerFor } from "./python-runner-client";
+import { reviewProviderConfigured } from "./review-provider-factory";
+import { configuredApplicationOrigin } from "./origin";
+import { logOperationalEvent } from "./observability";
+import { runtimeCapabilities } from "./runtime-config";
 import type { Env } from "./env";
 import { badRequest, boolean, boundedRequest, checkOrigin, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
 
@@ -182,7 +187,7 @@ async function listAttempts(pool: Pool, userId: string, page: number): Promise<R
   return json({ attempts: result.rows, page, hasMore: result.rows.length === limits.pageSize });
 }
 
-async function createAttempt(pool: Pool, userId: string, body: Record<string, unknown>): Promise<Response> {
+async function createAttempt(pool: Pool, env: Env, userId: string, body: Record<string, unknown>): Promise<Response> {
   const problemId = string(body.problemId);
   const mode = string(body.mode);
   const inputMode = string(body.inputMode);
@@ -197,6 +202,7 @@ async function createAttempt(pool: Pool, userId: string, body: Record<string, un
     return badRequest("A problem, mode, input mode, practice goal, familiarity, and session-record consent are required.");
   }
   if (saveAudio) return badRequest("Saved audio is unavailable until the owner approves the retention and provider policy.");
+  if (inputMode === "voice" && !deepgramVoiceEnabled(env)) return serverUnavailable("Voice interviewing is not configured. No attempt was created.");
 
   const problem = await pool.query<{ id: string; starter_code: string }>("SELECT id, starter_code FROM problems WHERE id = $1 AND is_active = true AND is_sample = false", [problemId]);
   if (!problem.rows[0]) return badRequest("That practice problem is unavailable.");
@@ -329,7 +335,8 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
   const sourceOrder = body.sourceOrder;
   const occurrenceOffsetMs = body.occurrenceOffsetMs;
   if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable run event metadata is required.");
-  if (!env.PYTHON_RUNNER) return serverUnavailable("The isolated Python runner is not configured. Your draft remains available and this is not a code result.");
+  const runner = pythonRunnerFor(env);
+  if (!runner) return serverUnavailable("The isolated Python runner is not configured. Your draft remains available and this is not a code result.");
   const checkpoint = await withTransaction(pool, (client) => createCheckpoint(client, attempt, "run", sourceId, sourceOrder, occurrenceOffsetMs));
   const content = await pool.query<{ id: string; entry_point: string; test_contract: unknown; input_data: unknown; expected_output: unknown }>(
     `SELECT p.entry_point, p.test_contract, tc.id, tc.input_data, tc.expected_output
@@ -339,22 +346,27 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
   );
   let response: Response;
   try {
-    response = await env.PYTHON_RUNNER.fetch(new Request("https://python-runner/run", {
+    response = await runner.fetch(new Request("https://python-runner/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ attemptId: attempt.id, checkpointId: checkpoint.checkpointId, sourceCode: attempt.draft_source, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
       signal: AbortSignal.timeout(95_000),
     }));
   } catch {
+    logOperationalEvent("warn", "runner_unreachable");
     return serverUnavailable("The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
   }
-  if (!response.ok) return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
+  if (!response.ok) {
+    logOperationalEvent("warn", "runner_http_failure", { status: response.status });
+    return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
+  }
   let result: RunnerResult | null;
   try {
     const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
     if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
     result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
   } catch {
+    logOperationalEvent("warn", "runner_invalid_result");
     return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
   }
   if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
@@ -380,6 +392,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
   const sourceOrder = body.sourceOrder;
   const occurrenceOffsetMs = body.occurrenceOffsetMs;
   if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable finish event metadata is required.");
+  if (!reviewProviderConfigured(env) || !env.REVIEW_QUEUE?.send) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
   const finished = await withTransaction(pool, async (client) => {
     const current = await client.query<AttemptRow>("SELECT * FROM attempts WHERE id = $1 AND user_id = $2 FOR UPDATE", [attempt.id, attempt.user_id]);
     const locked = current.rows[0];
@@ -400,7 +413,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
   const dispatch = claim.rows.length ? "queued" : "already dispatched";
   if (claim.rows.length) {
     try { await env.REVIEW_QUEUE.send({ reviewId: finished.reviewId }); }
-    catch { await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [finished.reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
+    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [finished.reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
   }
   return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
 }
@@ -423,8 +436,8 @@ async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<stri
   await withTransaction(pool, async (client) => {
     await client.query(
       `INSERT INTO attempts (id, user_id, problem_id, mode, input_mode, status, source_attempt_id, source_checkpoint_id, draft_source, setup_context, familiarity, consent_at, disclosure_version, practice_goal, save_audio)
-       VALUES ($1, $2, $3, 'coach', 'text', 'active', $4, $5, $6, $7::jsonb, 'unanswered', now(), $8, $9, false)`,
-      [attemptId, userId, original.problem_id, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, sourceAttemptId: original.id, throughOffsetMs: original.occurrence_offset_ms }), DISCLOSURE_VERSION, practiceGoal],
+       VALUES ($1, $2, $3, 'coach', $4, 'active', $5, $6, $7, $8::jsonb, 'unanswered', now(), $9, $10, false)`,
+      [attemptId, userId, original.problem_id, original.input_mode, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, sourceAttemptId: original.id, throughOffsetMs: original.occurrence_offset_ms }), DISCLOSURE_VERSION, practiceGoal],
     );
     await addEvent(client, { attemptId, eventType: "retry_started", sourceId: `server:retry:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { sourceAttemptId: original.id, sourceCheckpointId: checkpointId } });
   });
@@ -477,12 +490,22 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   const page = Number(url.searchParams.get("page") ?? 0);
   if (!Number.isSafeInteger(page) || page < 0 || !Number.isSafeInteger(page * limits.pageSize)) return badRequest("Invalid page.");
   if (path === "/api/health" && request.method === "GET") return json({ status: "ok" });
-  if (path === "/api/personal-availability" && request.method === "GET") return json({
-    collectionEnabled: personalCollectionEnabled(env),
-    voiceEnabled: deepgramVoiceEnabled(env),
-    voiceProvider: DEEPGRAM_VOICE_PROVIDER,
-    thinkingModel: DEEPGRAM_THINKING_MODEL,
-  });
+  if (path === "/api/personal-availability" && request.method === "GET") {
+    const capabilities = runtimeCapabilities(env);
+    return json({
+      collectionEnabled: personalCollectionEnabled(env),
+      voiceEnabled: deepgramVoiceEnabled(env),
+      voiceProvider: DEEPGRAM_VOICE_PROVIDER,
+      thinkingModel: DEEPGRAM_THINKING_MODEL,
+      mvpReady: capabilities.mvpReady,
+      services: {
+        database: capabilities.databaseConfigured,
+        voice: capabilities.voiceConfigured,
+        runner: capabilities.runnerConfigured,
+        review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
+      },
+    });
+  }
   if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
   const originError = checkOrigin(request, env.BETTER_AUTH_URL);
   if (originError) return originError;
@@ -494,7 +517,7 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId, page);
   if (path === "/api/attempts" && request.method === "POST") {
     const body = await requestBody(request);
-    return body ? createAttempt(pool, userId, body) : badRequest("Expected a JSON request body.");
+    return body ? createAttempt(pool, env, userId, body) : badRequest("Expected a JSON request body.");
   }
   const attemptMatch = /^\/api\/attempts\/([^/]+)(?:\/(draft|run|finish|retry|review|related|messages|help|voice))?(?:\/findings\/([^/]+)\/corrections)?$/.exec(path);
   if (!attemptMatch) return notFound();
@@ -515,7 +538,9 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
     return body ? appendCandidateMessage(pool, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "voice" && request.method === "GET") {
-    if (request.headers.get("origin") !== new URL(env.BETTER_AUTH_URL).origin) return forbidden();
+    const origin = configuredApplicationOrigin(env.BETTER_AUTH_URL);
+    if (!origin) return serverUnavailable("The application origin is not configured safely.");
+    if (request.headers.get("origin") !== origin) return forbidden();
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return badRequest("WebSocket required.");
     if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice input.");
     const headers = new Headers(request.headers);

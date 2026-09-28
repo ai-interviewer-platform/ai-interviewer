@@ -4,6 +4,7 @@ import test from "node:test";
 
 const authSchema = await readFile(new URL("../src/db/generated-auth.ts", import.meta.url), "utf8");
 const applicationSchema = await readFile(new URL("../migrations/0002_application.sql", import.meta.url), "utf8");
+const contentFoundation = await readFile(new URL("../migrations/0004_mvp_content_foundation.sql", import.meta.url), "utf8");
 
 test("Better Auth generator owns the mapped PostgreSQL auth tables", () => {
   assert.match(authSchema, /pgTable\("users"/);
@@ -11,6 +12,13 @@ test("Better Auth generator owns the mapped PostgreSQL auth tables", () => {
   assert.match(authSchema, /display_name/);
   assert.match(authSchema, /default_save_audio/);
   assert.doesNotMatch(applicationSchema, /CREATE TABLE users/);
+});
+
+test("MVP fixture problems have multiple meaningful visible cases", () => {
+  for (const family of ["sum-odd", "count-rises"]) {
+    assert.ok((contentFoundation.match(new RegExp(`'${family}[^']*'`, "g")) ?? []).length >= 2);
+  }
+  assert.doesNotMatch(contentFoundation, /reference_solution|hidden/);
 });
 
 test("application migration retains evidence, ownership, and retry constraints", () => {

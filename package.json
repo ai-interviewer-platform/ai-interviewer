@@ -12,7 +12,8 @@
     "db:local:status": "node scripts/local-postgres.mjs status",
     "db:local:verify": "node scripts/local-postgres.mjs verify",
     "db:local:verify-auth": "node scripts/verify-better-auth-local.mjs",
-    "migrate:postgres": "node scripts/apply-migrations.mjs",
+    "db:verify:target": "node --env-file-if-exists=.dev.vars scripts/verify-postgres.mjs",
+    "migrate:postgres": "node --env-file-if-exists=.dev.vars scripts/apply-migrations.mjs",
     "check": "npm run build:voice && tsc --noEmit && node --check src/browser/voice-agent.js && node --check public/voice-agent.js && node --check public/app.js && node --check public/personal-adapter.js && node --check public/model.js && node --check public/discovery.js",
     "test": "node --test test/*.test.mjs",
     "test:browser": "node test/browser/app-check.mjs",
@@ -23,7 +24,8 @@
     "dev:runner": "npm run build:voice && wrangler dev --env runner",
     "test:runner": "node --test test/runner/*.test.mjs",
     "test:runner:api": "node test/runner/api-integration.mjs",
-    "runner:smoke": "node test/runner/http-smoke.mjs"
+    "runner:smoke": "node test/runner/http-smoke.mjs",
+    "test:postgres": "node --env-file-if-exists=.dev.vars scripts/verify-postgres.mjs && node --env-file-if-exists=.dev.vars test/review-integration.mjs && node --env-file-if-exists=.dev.vars test/security-integration.mjs && node --env-file-if-exists=.dev.vars test/mvp-backend-integration.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.3",

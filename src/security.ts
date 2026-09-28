@@ -11,6 +11,9 @@ export const limits = {
   eventsPerAttempt: 10000,
   voiceCommands: 1200,
   pendingTranscripts: 50,
+  voiceFunctionCalls: 30,
+  voiceContextSourceBytes: 10 * 1024,
+  voiceContextBytes: 16 * 1024,
 };
 
 export async function consumeRate(pool: Pool, key: string, window: number, max: number) {

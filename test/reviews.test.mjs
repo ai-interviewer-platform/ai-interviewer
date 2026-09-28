@@ -9,12 +9,13 @@ import { env, finding, evidence, envelope, fakeDatabase } from "./reviews/fixtur
 
 const directory = await mkdtemp(join(tmpdir(), "reviews-unit-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/reviews.ts", "src/review-provider.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "queue-runtime", setup(plugin) {
+await build({ entryPoints: ["src/reviews.ts", "src/review-provider.ts", "src/review-provider-factory.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "queue-runtime", setup(plugin) {
   plugin.onResolve({ filter: /^\.\/(database|auth|voice-session)$/ }, args => ({ path: args.path, namespace: "test" }));
   plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "./database" ? "export const databaseForInvocation = () => globalThis.reviewTestDatabase;" : args.path === "./auth" ? "export const authenticatedUserId = async () => 'owner'; export const authFor = () => ({});" : "export class VoiceSession {}" }));
 } }] });
 const { processReview } = await import(pathToFileURL(join(directory, "reviews.mjs")));
-const { validateFindings, generateFindings } = await import(pathToFileURL(join(directory, "review-provider.mjs")));
+const { validateFindings } = await import(pathToFileURL(join(directory, "review-provider.mjs")));
+const { reviewProviderFor } = await import(pathToFileURL(join(directory, "review-provider-factory.mjs")));
 const { default: worker } = await import(pathToFileURL(join(directory, "worker.mjs")));
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; delete globalThis.reviewTestDatabase; });
@@ -74,6 +75,32 @@ test("no defensible findings is a valid ready review", async () => {
   assert.equal(db.saved.status, "ready"); assert.equal(db.saved.findings.length, 0);
 });
 
+test("core review processing accepts a provider-independent normalized result", async () => {
+  const db = fakeDatabase();
+  const fakeProvider = {
+    evaluatorVersion: "fake/evidence-v1",
+    async generate({ payload, allowedEvidenceIds }) {
+      assert.equal(JSON.parse(payload).attempt.problemPrompt, "Sum odd indexes");
+      assert.deepEqual([...allowedEvidenceIds], evidence.map(item => item.id));
+      return [finding];
+    },
+  };
+  await processReview("review", { PERSONAL_DATA_COLLECTION_APPROVED: "true" }, db, fakeProvider);
+  assert.equal(db.saved.status, "ready");
+  assert.equal(db.saved.findings.length, 1);
+});
+
+test("core revalidates normalized output from every provider adapter", async () => {
+  const db = fakeDatabase();
+  await processReview("review", { PERSONAL_DATA_COLLECTION_APPROVED: "true" }, db, {
+    evaluatorVersion: "untrusted-adapter/evidence-v1",
+    async generate() { return [{ ...finding, evidenceIds: ["invented"] }]; },
+  });
+  assert.equal(db.saved.status, "failed");
+  assert.equal(db.saved.findings.length, 0);
+  assert.equal(db.saved.citations.length, 0);
+});
+
 for (const [name, response] of [
   ["malformed model JSON", () => Response.json(envelope("{"))],
   ["malformed provider JSON", () => new Response("{")],
@@ -106,7 +133,7 @@ test("network and body-stream failures remain retryable", async () => {
 test("deadline covers stalled provider body", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   globalThis.fetch = async () => new Response(new ReadableStream());
-  const pending = generateFindings(env, "{}", new Set());
+  const pending = reviewProviderFor(env).generate({ payload: "{}", allowedEvidenceIds: new Set() });
   const assertion = assert.rejects(pending, /timed out/);
   t.mock.timers.tick(45000);
   await assertion;

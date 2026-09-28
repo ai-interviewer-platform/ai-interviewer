@@ -5,6 +5,8 @@ import { voiceSettings } from "./deepgram";
 import type { Env } from "./env";
 import { json } from "./http";
 import { limits } from "./security";
+import { loadVoiceCodingContext } from "./voice-context";
+import { logOperationalEvent } from "./observability";
 
 export class VoiceSession extends DurableObject<Env> {
   private active = false;
@@ -39,6 +41,7 @@ export class VoiceSession extends DurableObject<Env> {
              OR expires_at > now()`, [attempt.user_id]);
         const budget = usage.rows[0];
         if (budget.active || budget.account_seconds + limits.voiceSeconds > limits.accountVoiceSeconds || budget.project_seconds + limits.voiceSeconds > limits.projectVoiceSeconds) {
+          logOperationalEvent("info", "voice_allocation_rejected");
           await client.query("ROLLBACK"); return json({ error: "Voice allocation is exhausted or another connection is active." }, { status: 429 });
         }
         await client.query("INSERT INTO voice_reservations (id, user_id, attempt_id, expires_at, reserved_seconds) VALUES ($1, $2, $3, now() + $4 * interval '1 second', $4)", [reservationId, attempt.user_id, attempt.id, limits.voiceSeconds]);
@@ -65,8 +68,10 @@ export class VoiceSession extends DurableObject<Env> {
       let queued = 0;
       let audioBytes = 0;
       let commands = 0;
+      let functionCalls = 0;
       let providerSessionId = reservationId;
       let writes = Promise.resolve();
+      const cancelledFunctions = new Set<string>();
       let timer: ReturnType<typeof setTimeout>;
       const close = () => {
         if (closed) return;
@@ -108,7 +113,22 @@ export class VoiceSession extends DurableObject<Env> {
             providerSessionId = message.request_id ?? reservationId;
             provider.send(JSON.stringify(voiceSettings(attempt, problem)));
           }
-          if (message.type === "ConversationText") {
+          if (message.type === "FunctionCallCancelled" && Array.isArray(message.functions)) {
+            for (const fn of message.functions) if (typeof fn === "object" && fn !== null && typeof fn.id === "string") cancelledFunctions.add(fn.id);
+          } else if (message.type === "FunctionCallRequest") {
+            if (!Array.isArray(message.functions) || message.functions.length === 0 || message.functions.length > 4) return close();
+            for (const fn of message.functions) {
+              if (typeof fn !== "object" || fn === null || fn.name !== "get_coding_context" || fn.client_side !== true
+                || typeof fn.id !== "string" || fn.id.length > 256 || ++functionCalls > limits.voiceFunctionCalls) return close();
+              writes = writes.then(async () => {
+                const context = await loadVoiceCodingContext(pool, attempt.id, attempt.user_id);
+                if (!context || cancelledFunctions.has(fn.id) || closed) return;
+                const response = { type: "FunctionCallResponse", id: fn.id, name: fn.name, content: context,
+                  ...(typeof fn.thought_signature === "string" && fn.thought_signature.length <= 1024 ? { thought_signature: fn.thought_signature } : {}) };
+                provider.send(JSON.stringify(response));
+              }).catch(close);
+            }
+          } else if (message.type === "ConversationText") {
             if (typeof message.content !== "string" || new TextEncoder().encode(message.content).length > limits.textBytes || ++queued > limits.pendingTranscripts) return close();
             const body = { role: message.role, text: message.content, providerSessionId, sourceId: `${reservationId}:${++order}`, sourceOrder: order, occurrenceOffsetMs: Date.now() - Date.parse(attempt.created_at) };
             writes = writes.then(async () => {
@@ -126,7 +146,7 @@ export class VoiceSession extends DurableObject<Env> {
       }
       connected = true;
       return new Response(null, { status: 101, webSocket: pair[0] });
-    } catch { return json({ error: "Voice could not connect." }, { status: 503 }); }
+    } catch { logOperationalEvent("warn", "voice_connection_failed"); return json({ error: "Voice could not connect." }, { status: 503 }); }
     finally { if (!connected) { this.active = false; await pool.end(); } }
   }
 }
