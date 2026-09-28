@@ -12,8 +12,8 @@ The code that exists is in good shape: security controls, evidence invariants,
 runner isolation, and auth all pass against real PostgreSQL 16, Docker, and
 workerd. It is **not ready for live users** yet. As of 2026-09-28 the database is
 connected through Hyperdrive; Workers AI reviews, the text-mode interviewer, and
-account deletion/export are live; the hosted Python runner is implemented but waits
-for Cloudflare Containers access. The polished UI is still a fictional
+account deletion/export are live, and so is the hosted Python runner on Cloudflare
+Containers. Hidden tests still never run on finish (grading is undecided). The polished UI is still a fictional
 prototype; the real app lives at `#personal`, reached through **Sign in** in the
 account nav.
 
@@ -59,7 +59,7 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | # | Blocker | Who | Cheapest fix |
 | --- | --- | --- | --- |
 | 1 | Database connection not deployed: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes) and bound through Hyperdrive `ai-interviewer-db` (caching disabled), but the deployed Worker predates the binding and still returns 503 on personal routes | You | Set `BETTER_AUTH_URL` and the secrets, then deploy (runbook steps 5–6) |
-| 2 | Hosted Python runner **implemented, pending deploy**: Worker `ai-interviewer-python-runner` runs each run in a fresh Cloudflare Container with the existing harness; the app binds `PYTHON_RUNNER` to it. Real-image isolation tests pass locally; Cloudflare egress and cold-start time are unverified until deployed | You | `npm run runner:hosted:deploy` before the app deploy (runbook step 6); see [hosted runner](python-runner.md#hosted-runner) |
+| 2 | Hosted Python runner **deployed 2026-09-28**: Worker `ai-interviewer-python-runner` runs each run in a fresh Cloudflare Container with the existing harness; the app binds `PYTHON_RUNNER` to it. Deployed probe: pass/fail verdicts in about 2 s including the cold start, infinite loop killed, no network egress | You | Run visible tests once from a signed-in session; see [hosted runner](python-runner.md#hosted-runner) |
 | 3 | Implemented 2026-09-28: `processReview` asks Workers AI `@cf/moonshotai/kimi-k2.7-code` for JSON-schema findings (event and checkpoint IDs constrained to the attempt's own), rejects any output that cites an event outside the frozen, verified evidence, and publishes findings in one idempotent transaction. A real local review took 53 s and published 4 cited findings | You | Review real findings for quality. About 2,300 Neurons per review (10,000 free per day, then about $0.025 each) |
 | 4 | Implemented 2026-09-28: text messages and requested help get a Workers AI `@cf/moonshotai/kimi-k2.6` reply (reasoning off, about 2 s) stored as an `interviewer_text` event; provider failure keeps the message and returns no reply | You | Check live reply quality. About 450 Neurons per reply |
 | 5 | Real app reachable only through the nav: the account nav has **Sign in** (or **My sessions** when signed in) → `#personal`; the other main screens still show prepared data ("preview", "Prepared code · read-only") | Product decision | Done: the nav link. Later: wire the designed screens to the API |
