@@ -36,8 +36,11 @@ fail closed when collection is unavailable.
 - Session history, responsive workspace panes, keyboard access, and explicit
   reduced-motion behavior.
 
-Retained audio, hosted isolated Python execution, and model-generated reviews are
-not complete merely because their interfaces or bindings exist. Local Python
+Retained audio and hosted isolated Python execution are not complete merely
+because their interfaces or bindings exist. Claude (Anthropic API) writes
+evidence-linked reviews (`claude-opus-5-5`) and text-mode interviewer replies
+(`claude-sonnet-5`) when the `ANTHROPIC_API_KEY` Worker secret is set; the model
+IDs are constants in `src/claude.ts`. Local Python
 execution has a dedicated Docker runner behind the existing optional service
 binding; see [Python runner](python-runner.md) for setup, limits and verification. The Deepgram voice
 transport is implemented, but live provider behavior still requires a configured
@@ -53,8 +56,9 @@ Browser (`public/`)
                          ├─ PostgreSQL through an invocation-scoped pool
                          ├─ authenticated voice relay → Deepgram Voice Agent
                          │    └─ Nova-3 listen → GPT-5.6 Terra think → Flux speak
+                         ├─ text interviewer turn → Claude Sonnet 5
                          ├─ optional isolated Python runner binding
-                         └─ review queue → evidence-validation boundary
+                         └─ review queue → Claude Opus 5.5 → evidence-validation boundary
 ```
 
 Cloudflare Workers serves the static assets and API as one application.
@@ -74,6 +78,8 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `public/practice.css` | Roadmap, practice, and profile layout |
 | `src/worker.ts` | Static/API boundary, fail-closed collection gate, and queue entry |
 | `src/api.ts` | Attempt, evidence, run, review, correction, and retry operations |
+| `src/claude.ts` | Anthropic client, model IDs, and provider failure reasons |
+| `src/review.ts` | Review evidence loading, findings schema, validation, and publication |
 | `src/deepgram.ts` | Server-owned Deepgram settings and voice availability |
 | `src/browser/voice-agent.js` | Deepgram microphone, live conversation, playback, and transcript flow |
 | `src/auth.ts` | Better Auth runtime configuration |
@@ -112,8 +118,18 @@ request validation, and boundaries that relational keys cannot express alone.
   or public network access. The local runner uses restricted per-test Docker
   containers; an optional binding alone is not proof of production isolation.
 - Review output remains failed rather than publishing fabricated fallback
-  findings when provider configuration or evidence-reference validation is
-  missing.
+  findings when provider configuration, the provider call, or validation fails.
+  A review sends the frozen evidence up to the final checkpoint, without
+  unverified voice events or reference solutions. Every finding must match the
+  schema, stay within text limits, avoid score or outcome claims, and cite 1–10
+  event IDs from that set. Findings and the `ready` status are written in one
+  transaction guarded by `status = 'pending'`, so queue redelivery is a no-op.
+- The text interviewer receives the problem, authored guidance, saved draft,
+  latest visible run, and the last 20 transcript segments, never the reference
+  solution. Mock mode does not hint unless help is requested; Coach mode guides
+  without writing the solution. A reply is its own `interviewer_text` event and
+  transcript segment. If the provider fails, the candidate message stays saved
+  and the response says no reply was generated.
 - Voice processing and retained audio are separate decisions. The app can stream
   a consented voice attempt to Deepgram while keeping retained audio off.
 - Permanent Deepgram credentials stay in the Worker. An authenticated, active
@@ -143,7 +159,8 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
 | Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
 | Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
-| Review | Durable pending record, frozen evidence manifest, queue recovery path | Selected provider, structured output validation, and evidence-reference quality proof |
+| Review | Claude Opus 5.5 findings with structured output, strict evidence-reference validation, and idempotent publication; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and quality review of real findings |
+| Text interviewer | Claude Sonnet 5 replies and requested help in text mode, with per-attempt and per-account caps; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and live reply quality checks |
 | Voice/audio | Deepgram audio helpers, server-controlled WebSocket relay, Nova-3 listening, GPT-5.6 Terra thinking, Flux speech, barge-in, transcript persistence, and no application audio retention | Live credentialed microphone/playback test, provider-processing approval, transcript quality checks, and hosted interruption/reconnection proof |
 | Deployment | Wrangler configuration and dry-run support | Real bindings, secrets, provider credentials, and hosted smoke tests |
 
@@ -169,6 +186,8 @@ application policy, not provider guarantees; see `src/security.ts`.
 | Saved input text | 64 KiB per string; setup permits only studiedTopics and concern strings |
 | API requests | 120 per authenticated account per 60-second fixed window |
 | Auth requests | Better Auth's shipped route-specific limits, explicitly enabled with atomic PostgreSQL storage and Cloudflare client IP |
+| Model turns (text replies and help) | 40 per attempt; 60 per account per hour |
+| Reviews | 20 model reviews per account per day; evidence above about 100k tokens fails |
 | History and evidence | 50 rows per collection per page, explicit Load more controls |
 | Attempt evidence | 10,000 events; completion and writes share the attempt row lock |
 | Voice control messages | 1,200 per connection; only KeepAlive and InjectUserMessage permitted |
@@ -182,8 +201,8 @@ from server-owned problem data. Only messages received from the provider socket
 can create verified voice events. Browser transcript/token endpoints are removed.
 A verified transcript means verified transport provenance, not factual correctness.
 No transcript automatically marks requested help as delivered. Historical voice
-events lacking `payload.verified: true` remain unverified; do not use them as
-provider evidence in a future review implementation.
+events lacking `payload.verified: true` remain unverified; reviews neither send
+nor accept them as evidence.
 
 Unsafe API methods require an exact Origin match; custom JSON writes require
 application/json. Static assets carry CSP, anti-framing, no-sniff and privacy

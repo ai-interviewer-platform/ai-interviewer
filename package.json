@@ -28,6 +28,7 @@
     "runner:smoke": "node test/runner/http-smoke.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
     "@better-auth/drizzle-adapter": "^1.7.3",
     "@cloudflare/containers": "0.3.7",
     "@deepgram/agents": "0.1.2",

@@ -1,10 +1,11 @@
-import { handleApi, processReview } from "./api";
+import { handleApi } from "./api";
 import { authFor } from "./auth";
 import { databaseForInvocation } from "./database";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import type { Env } from "./env";
 import { boundedRequest, checkOrigin, json, serverUnavailable } from "./http";
+import { processReview } from "./review";
 export { VoiceSession } from "./voice-session";
 
 function isExpectedServiceError(error: unknown): boolean {

@@ -23,9 +23,11 @@
         "queue": "ai-interviewer-review"
       }
     ],
+    // One review per invocation: each makes a model call of up to several minutes.
     "consumers": [
       {
-        "queue": "ai-interviewer-review"
+        "queue": "ai-interviewer-review",
+        "max_batch_size": 1
       }
     ]
   },
@@ -35,7 +37,7 @@
       "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
       "queues": {
         "producers": [{ "binding": "REVIEW_QUEUE", "queue": "ai-interviewer-review" }],
-        "consumers": [{ "queue": "ai-interviewer-review" }]
+        "consumers": [{ "queue": "ai-interviewer-review", "max_batch_size": 1 }]
       }
     }
   }
