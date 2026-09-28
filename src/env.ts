@@ -30,5 +30,6 @@ export interface Env {
   EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;
   VOICE_SESSIONS: DurableObjectNamespace;
-  ANTHROPIC_API_KEY?: string;
+  // Workers AI: evidence-linked reviews and text-mode interviewer replies.
+  AI?: Ai;
 }

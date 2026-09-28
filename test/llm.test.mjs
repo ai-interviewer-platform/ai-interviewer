@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
 
-// The Anthropic API is always faked here; `test/claude-integration.mjs` runs
+// Workers AI is always faked here; `test/llm-integration.mjs` runs
 // the same flows against real PostgreSQL.
-const directory = await mkdtemp(join(tmpdir(), "claude-"));
+const directory = await mkdtemp(join(tmpdir(), "llm-"));
 after(() => rm(directory, { recursive: true, force: true }));
 await build({ entryPoints: ["src/api.ts", "src/review.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
   plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
@@ -17,17 +17,17 @@ await build({ entryPoints: ["src/api.ts", "src/review.ts"], outdir: directory, o
 const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
 const { citableEvent, processReview, validateFindings } = await import(pathToFileURL(join(directory, "review.mjs")));
 
-const originalFetch = globalThis.fetch;
-after(() => { globalThis.fetch = originalFetch; });
 const calls = [];
+const env = { BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true" };
 function provider(respond) {
-  globalThis.fetch = async (url, init) => {
-    calls.push(JSON.parse(init.body));
+  // `run` uses `this`, like the real binding, so a detached call fails here too.
+  env.AI = { calls, async run(model, input) {
+    this.calls.push({ model, ...input });
     return respond();
-  };
+  } };
 }
-const message = (text) => Response.json({ id: "msg", type: "message", role: "assistant", model: "fake", content: [{ type: "text", text }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
-const outage = () => new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "fake" } }), { status: 400, headers: { "content-type": "application/json" } });
+const message = (text) => ({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: text } }] });
+const outage = () => { throw new Error("3040: Capacity temporarily exceeded"); };
 
 const finding = (eventId) => ({ observation: "Two visible tests failed on the submitted draft.", interpretation: null, limitations: "Hidden tests were not run.", suggested_action: null, criterion: null, evidence_status: "reproducible_observation", retry_checkpoint_id: null, evidence: [{ event_id: eventId, locator: null }] });
 const events = new Set(["e1"]);
@@ -77,7 +77,6 @@ function database({ reviewStatus = "pending", inputMode = "text" } = {}) {
   } };
   return pool;
 }
-const env = { BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true", ANTHROPIC_API_KEY: "fake-test-key" };
 const sendMessage = (pool) => handleApi(new Request("https://app.example/api/attempts/a1/messages", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ text: "Hello", sourceId: "m1", sourceOrder: 1, occurrenceOffsetMs: 1 }) }), env, {}, pool);
 
 test("a text message returns and stores the interviewer reply", async () => {
@@ -85,7 +84,9 @@ test("a text message returns and stores the interviewer reply", async () => {
   const pool = database();
   const body = await (await sendMessage(pool)).json();
   assert.deepEqual(body.reply, { eventId: "reply", speaker: "interviewer", text: "Why?", occurrenceOffsetMs: 5 });
-  assert.equal(calls.at(-1).model, "claude-sonnet-5");
+  assert.equal(calls.at(-1).model, "@cf/moonshotai/kimi-k2.6");
+  assert.equal(calls.at(-1).reasoning_effort, "none");
+  assert.equal(calls.at(-1).messages[0].role, "system");
   assert.ok(pool.writes.some((write) => write.sql.includes("INSERT INTO attempt_events") && write.values[2] === "interviewer_text"));
 });
 
@@ -107,9 +108,11 @@ test("reviews publish validated findings once and fail closed otherwise", async 
   await processReview("r1", env, pool);
   assert.ok(pool.writes.some((write) => write.sql.startsWith("UPDATE reviews SET status = 'ready'")));
   assert.ok(pool.writes.some((write) => write.sql.includes("INSERT INTO finding_evidence") && write.values[2] === "e1"));
-  assert.equal(calls.at(-1).model, "claude-opus-5-5");
+  assert.equal(calls.at(-1).model, "@cf/moonshotai/kimi-k2.7-code");
+  assert.equal(calls.at(-1).response_format.type, "json_schema");
 
-  for (const respond of [outage, () => message(JSON.stringify({ findings: [finding("foreign")] }))]) {
+  const truncated = () => ({ choices: [{ finish_reason: "length", message: { content: "{\"findings\": [" } }] });
+  for (const respond of [outage, truncated, () => message(JSON.stringify({ findings: [finding("foreign")] }))]) {
     provider(respond);
     pool = database();
     await processReview("r1", env, pool);
