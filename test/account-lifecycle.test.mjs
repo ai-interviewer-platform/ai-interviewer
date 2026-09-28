@@ -8,11 +8,12 @@ import { after, test } from "node:test";
 
 const directory = await mkdtemp(join(tmpdir(), "account-lifecycle-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
+await build({ entryPoints: ["src/api.ts", "src/email.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
   plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
   plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => globalThis.accountTestUser ?? null; export const passwordMatches = async (_request, _env, _pool, password) => password === "correct password";' }));
 } }] });
 const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+const { emailConfigured, passwordResetText, sendEmail, verificationText } = await import(pathToFileURL(join(directory, "email.mjs")));
 const origin = "https://app.example";
 const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true" };
 const deleteRequest = (body, headers = {}) => new Request(`${origin}/api/me`, { method: "DELETE", headers: { origin, "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -65,4 +66,31 @@ test("data export is an attachment scoped to the signed-in user without hidden p
     assert.match(sql, /\$1/);
     assert.doesNotMatch(sql, /reference_solution|test_cases|password|token/);
   }
+});
+
+test("email is skipped without Resend configuration and sent as plain text when configured", async () => {
+  const originalFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url, init) => { sent.push({ url, init }); return new Response("{}", { status: sent.length > 1 ? 500 : 200 }); };
+  try {
+    for (const partial of [{}, { RESEND_API_KEY: "re_test" }, { EMAIL_FROM: "Coursay <no-reply@example.invalid>" }]) {
+      assert.equal(emailConfigured(partial), false);
+      await sendEmail(partial, "someone@example.invalid", "Subject", "Body");
+    }
+    assert.equal(sent.length, 0, "no request leaves the Worker without both values");
+
+    const configured = { RESEND_API_KEY: "re_test", EMAIL_FROM: "Coursay <no-reply@example.invalid>" };
+    const hostile = '"<script>alert(1)</script>"@example.invalid';
+    await sendEmail(configured, hostile, "Reset", passwordResetText("https://app.example", "a&b<c>"));
+    assert.equal(sent[0].url, "https://api.resend.com/emails");
+    assert.equal(sent[0].init.headers.authorization, "Bearer re_test");
+    const body = JSON.parse(sent[0].init.body);
+    assert.deepEqual(Object.keys(body).sort(), ["from", "subject", "text", "to"], "no HTML body is ever sent");
+    assert.deepEqual(body.to, [hostile]);
+    assert.match(body.text, /https:\/\/app\.example\/#personal\?reset=a%26b%3Cc%3E\n/);
+    await assert.rejects(sendEmail(configured, "someone@example.invalid", "Reset", "Body"), /status 500/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.match(verificationText("https://app.example", "jwt.token"), /^Confirm[\s\S]*https:\/\/app\.example\/api\/auth\/verify-email\?token=jwt\.token&callbackURL=%2F%23personal\n/);
 });

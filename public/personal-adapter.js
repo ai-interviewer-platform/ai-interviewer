@@ -35,8 +35,14 @@ function sourceMetadata(state, name) {
   };
 }
 
-function authMarkup(error = "") {
-  return `<main id="main" class="page-main personal-entry"><section class="empty-state"><span class="eyebrow">Practice, inspect, retry</span><h1>Keep the evidence<br>with the work.</h1><p>Use the guided sample without an account, or sign in to record a personal Python practice attempt.</p><div class="actions"><a class="button secondary" href="#sample"><span>Try the guided sample</span></a></div>${error ? `<p class="form-error" role="status">${escapeHtml(error)}</p>` : ""}</section><section class="setup-form auth-card"><div class="segmented" aria-label="Authentication"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form"><div data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required><p class="small muted">Email and password are the only MVP login method.</p><button class="button primary" type="submit">Sign in</button></form></section></main>`;
+function authForm(state) {
+  if (state.resetToken) return `<form id="personal-reset-form"><h2>Choose a new password</h2><label for="reset-password">New password</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required><p class="small muted">Use at least 8 characters. Other signed-in devices are signed out.</p><button class="button primary" type="submit">Save new password</button></form>`;
+  if (state.authView === "forgot") return `<form id="personal-forgot-form"><h2>Reset your password</h2><p class="small muted">Enter the email for your account. We send a reset link that works for one hour.</p><label for="forgot-email">Email</label><input id="forgot-email" name="email" type="email" autocomplete="email" required><div class="actions"><button class="button primary" type="submit">Send reset link</button><button class="button quiet" type="button" data-auth-view="sign-in">Back to sign in</button></div></form>`;
+  return `<div class="segmented" aria-label="Authentication"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form"><div data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required><p class="small muted">Email and password are the only MVP login method.</p><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
+}
+
+function authMarkup(state, message = "") {
+  return `<main id="main" class="page-main personal-entry"><section class="empty-state"><span class="eyebrow">Practice, inspect, retry</span><h1>Keep the evidence<br>with the work.</h1><p>Use the guided sample without an account, or sign in to record a personal Python practice attempt.</p><div class="actions"><a class="button secondary" href="#sample"><span>Try the guided sample</span></a></div>${message ? `<p class="form-error" role="status">${escapeHtml(message)}</p>` : ""}</section><section class="setup-form auth-card">${authForm(state)}</section></main>`;
 }
 
 function collectionUnavailableMarkup() {
@@ -115,7 +121,7 @@ function relatedMarkup(state) {
 }
 
 export function mountPersonal(root) {
-  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", sourceOrder: 0, lastOffsetMs: 0, selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 } };
+  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", sourceOrder: 0, lastOffsetMs: 0, selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
   let authMode = "sign-in";
   let voiceSession = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
@@ -156,7 +162,7 @@ export function mountPersonal(root) {
   const render = () => {
     if (!state.attempt || state.page !== "workspace" || state.selectedProblemId) stopVoice();
     if (!state.collectionEnabled) { root.innerHTML = collectionUnavailableMarkup(); return; }
-    if (!state.user) { root.innerHTML = authMarkup(); return; }
+    if (!state.user) { root.innerHTML = authMarkup(state); return; }
     if (state.page === "review") { root.innerHTML = reviewMarkup(state); return; }
     if (state.page === "related") { root.innerHTML = relatedMarkup(state); return; }
     if (state.selectedProblemId) {
@@ -172,6 +178,7 @@ export function mountPersonal(root) {
     state.voiceEnabled = availability.voiceEnabled === true;
     state.voiceProvider = availability.voiceProvider || VOICE_PROVIDER;
     state.thinkingModel = availability.thinkingModel || THINKING_MODEL;
+    state.emailEnabled = availability.emailEnabled === true;
     if (!state.collectionEnabled) return;
     const [me, catalog, attempts] = await Promise.all([api("/api/me"), api("/api/catalog"), api("/api/attempts")]);
     state.user = me;
@@ -199,7 +206,11 @@ export function mountPersonal(root) {
     const control = event.target.closest("button");
     if (!control) return;
     try {
-      if (control.dataset.authView) {
+      if (control.dataset.authView === "forgot" || (control.dataset.authView && state.authView === "forgot")) {
+        state.authView = control.dataset.authView; authMode = "sign-in";
+        root.innerHTML = authMarkup(state);
+        root.querySelector(".auth-card input[type=email]")?.focus();
+      } else if (control.dataset.authView) {
         authMode = control.dataset.authView;
         root.querySelector("[data-signup-name]").hidden = authMode !== "sign-up";
         root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
@@ -267,8 +278,19 @@ export function mountPersonal(root) {
       if (form.id === "personal-auth-form") {
         const data = new FormData(form);
         const email = data.get("email"); const password = data.get("password"); const name = data.get("name");
-        await api(authMode === "sign-up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email", { method: "POST", body: authMode === "sign-up" ? { email, password, name } : { email, password } });
+        const result = await api(authMode === "sign-up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email", { method: "POST", body: authMode === "sign-up" ? { email, password, name } : { email, password } });
+        // With email verification on, sign-up returns no session token.
+        if (authMode === "sign-up" && !result.token) { authMode = "sign-in"; root.innerHTML = authMarkup(state, "Check your email for a confirmation link, then sign in."); return; }
         await reload(); render();
+      } else if (form.id === "personal-forgot-form") {
+        await api("/api/auth/request-password-reset", { method: "POST", body: { email: new FormData(form).get("email") } });
+        state.authView = "sign-in";
+        root.innerHTML = authMarkup(state, "If an account uses that email, a reset link is on its way. It works for one hour.");
+      } else if (form.id === "personal-reset-form") {
+        await api("/api/auth/reset-password", { method: "POST", body: { newPassword: new FormData(form).get("password"), token: state.resetToken } });
+        state.resetToken = null;
+        history.replaceState(null, "", "#personal");
+        root.innerHTML = authMarkup(state, "Your password was changed. Sign in with the new password.");
       } else if (form.id === "personal-setup-form") {
         const data = new FormData(form);
         const result = await api("/api/attempts", { method: "POST", body: { problemId: data.get("problemId"), mode: data.get("mode"), inputMode: data.get("inputMode"), saveAudio: false, consent: data.get("consent") === "on", familiarity: "unanswered", practiceGoal: data.get("practiceGoal"), setupContext: { studiedTopics: data.get("studiedTopics"), concern: data.get("concern") } } });
@@ -287,7 +309,7 @@ export function mountPersonal(root) {
       } else if (form.id === "delete-account-form") {
         await api("/api/me", { method: "DELETE", body: { password: new FormData(form).get("password") } });
         state.user = null; state.attempts = []; state.attempt = null;
-        root.innerHTML = authMarkup("Your account and all of its records were deleted.");
+        root.innerHTML = authMarkup(state, "Your account and all of its records were deleted.");
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
         await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/review/findings/${encodeURIComponent(form.dataset.findingId)}/corrections`, { method: "POST", body: { reason } });
@@ -303,5 +325,5 @@ export function mountPersonal(root) {
     }
   };
   window.addEventListener("hashchange", stopOnNavigation);
-  (async () => { try { await reload(); render(); } catch (error) { state.user = null; root.innerHTML = authMarkup(error instanceof Error ? error.message : "The data service is unavailable."); } })();
+  (async () => { try { await reload(); render(); } catch (error) { state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); } })();
 }

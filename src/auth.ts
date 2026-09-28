@@ -5,11 +5,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import type { Env } from "./env";
 import * as schema from "./db/generated-auth";
+import { emailConfigured, passwordResetText, sendEmail, verificationText } from "./email";
 import { consumeRate } from "./security";
 
 type AuthInstance = ReturnType<typeof betterAuth>;
 
 function authOptions(pool: Pool, env: Env): BetterAuthOptions {
+  // Links are built from BETTER_AUTH_URL only, never from the request host.
+  const appUrl = env.BETTER_AUTH_URL.replace(/\/$/, "");
+  const email = emailConfigured(env);
   return {
     database: drizzleAdapter(drizzle(pool, { schema }), {
       provider: "pg",
@@ -23,7 +27,22 @@ function authOptions(pool: Pool, env: Env): BetterAuthOptions {
       enabled: true,
       customStorage: { consume: (key, rule) => consumeRate(pool, `auth:${key}`, rule.window, rule.max) },
     },
-    emailAndPassword: { enabled: true },
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: email,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: email
+        ? ({ user, token }) => sendEmail(env, user.email, "Reset your Coursay password", passwordResetText(appUrl, token))
+        : undefined,
+    },
+    emailVerification: email
+      ? {
+        sendOnSignUp: true,
+        sendOnSignIn: true,
+        autoSignInAfterVerification: true,
+        sendVerificationEmail: ({ user, token }) => sendEmail(env, user.email, "Confirm your Coursay email", verificationText(appUrl, token)),
+      }
+      : undefined,
     user: {
       modelName: "users",
       fields: {
