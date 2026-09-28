@@ -10,12 +10,12 @@ for the product contract.
 
 The code that exists is in good shape: security controls, evidence invariants,
 runner isolation, and auth all pass against real PostgreSQL 16, Docker, and
-workerd. It is **not ready for live users** yet. Two core pieces are missing in
-production, not merely unconfigured: a database connection and a hosted Python
-runner. The Claude review generator and text-mode interviewer (2026-09-28) need
-only the `ANTHROPIC_API_KEY` secret and a deploy. The polished UI
-is also a fictional prototype; the real app lives at `#personal`, and nothing
-links to it.
+workerd. It is **not ready for live users** yet. As of 2026-09-28 the database is
+connected through Hyperdrive and the hosted Python runner, Claude reviews, text-mode
+interviewer, and account deletion/export are implemented; reviews and text replies
+need the `ANTHROPIC_API_KEY` secret. The polished UI is still a fictional
+prototype; the real app lives at `#personal`, reached through **Sign in** in the
+account nav.
 
 ## What was run
 
@@ -25,6 +25,8 @@ links to it.
 | `npm run check`, `npm run lint`, `wrangler deploy --dry-run` | Pass |
 | Migrations applied twice (idempotent) + `scripts/verify-postgres.mjs` | Pass |
 | `test/security-integration.mjs` (quotas, voice relay, dispatch, concurrency) | Pass |
+| `test/account-deletion-integration.mjs` (export scope, deletion of every row of one user only, immutability kept) — 2026-09-28 | Pass |
+| `test/email-auth-integration.mjs` (verification, reset, email off; Resend mocked) — 2026-09-28 | Pass |
 | `npm run test:runner` (17 real-container isolation tests) | Pass |
 | `npm run test:runner:api` (API → controller → Docker → PostgreSQL) | Pass |
 | `scripts/verify-better-auth-local.mjs` (sign-up, session, revocation) | Pass |
@@ -60,8 +62,8 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | 2 | Hosted Python runner **implemented, pending deploy**: Worker `ai-interviewer-python-runner` runs each run in a fresh Cloudflare Container with the existing harness; the app binds `PYTHON_RUNNER` to it. Real-image isolation tests pass locally; Cloudflare egress and cold-start time are unverified until deployed | You | `npm run runner:hosted:deploy` before the app deploy (runbook step 6); see [hosted runner](python-runner.md#hosted-runner) |
 | 3 | Implemented 2026-09-28: `processReview` asks `claude-opus-5-5` for structured findings, rejects any output that cites an event outside the frozen, verified evidence, and publishes findings in one idempotent transaction. Tested with a fake provider only | You | `npx wrangler secret put ANTHROPIC_API_KEY`, then deploy. No new migration is required |
 | 4 | Implemented 2026-09-28: text messages and requested help get a `claude-sonnet-5` reply stored as an `interviewer_text` event; provider failure keeps the message and returns no reply. Tested with a fake provider only | You | Same secret and deploy as blocker 3; then check live reply quality |
-| 5 | Real app is unreachable: only `/#personal` is real; the main screens show prepared data ("preview", "Prepared code · read-only") | Product decision | Minimum: add Sign in → `#personal` to the main nav; later wire the designed screens to the API |
-| 6 | `PERSONAL_DATA_COLLECTION_APPROVED=false` by design; disclosure version is `pending-owner-data-policy`; no real export or deletion; no password reset or email verification | You (policy), then code | Publish privacy terms, add account deletion, and add email via a provider before inviting strangers |
+| 5 | Real app reachable only through the nav: the account nav has **Sign in** (or **My sessions** when signed in) → `#personal`; the other main screens still show prepared data ("preview", "Prepared code · read-only") | Product decision | Done: the nav link. Later: wire the designed screens to the API |
+| 6 | Code done (2026-09-28): `DELETE /api/me` (password re-entry) deletes the user and every personal row through `migrations/0007_account_deletion.sql`; `GET /api/me/export` downloads the user's data as JSON; password reset and email verification through Resend turn on when `RESEND_API_KEY` and `EMAIL_FROM` are set. Still open: `PERSONAL_DATA_COLLECTION_APPROVED=false` and disclosure version `pending-owner-data-policy` by design | You (policy) | Publish the privacy and terms text (it still says export and delete are unavailable), verify a Resend sender domain, set `EMAIL_FROM` and `RESEND_API_KEY`, apply migration 0007, then approve collection |
 
 ## Should fix soon after
 
@@ -134,7 +136,11 @@ valid for a minute. Create the config with caching disabled.
    npx wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 48
    npx wrangler secret put DEEPGRAM_API_KEY
    npx wrangler secret put ANTHROPIC_API_KEY           # reviews and text interviewer
+   npx wrangler secret put RESEND_API_KEY              # optional: password reset + email verification
    ```
+   Email also needs `EMAIL_FROM` (for example `Coursay <no-reply@your-domain>`) as a
+   dashboard variable, with that domain verified in Resend. With email on, new
+   accounts must confirm their address before they can sign in.
 6. **Deploy and smoke-test**: `npm run runner:hosted:deploy` (Docker must be
    running; the app's `PYTHON_RUNNER` binding needs this Worker), then
    `npm run build:voice && npx wrangler deploy`, then

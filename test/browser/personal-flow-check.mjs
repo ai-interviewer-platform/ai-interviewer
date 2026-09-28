@@ -1,6 +1,6 @@
 // Real signed-in journey against a local stack: `npm run runner:dev` plus
 // `npm run dev:runner`, local PostgreSQL, and collection approved in .dev.vars.
-// Creates a fictional account; it is retained for inspection.
+// Creates a fictional account and deletes it through the account controls at the end.
 import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
@@ -20,12 +20,15 @@ const axe = async (screen) => {
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   assert.deepEqual(result.violations.map((violation) => `${screen}: ${violation.id} ${violation.nodes.map((node) => node.target).join(' ')}`), []);
 };
+const email = `flow-${randomUUID()}@example.invalid`;
+const password = randomBytes(18).toString('base64url');
 try {
-  await page.goto(`${base}/#personal`);
+  await page.goto(`${base}/#welcome`);
+  await page.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'Sign in' }).click();
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByLabel('Display name').fill('Fictional flow check');
-  await page.getByLabel('Email').fill(`flow-${randomUUID()}@example.invalid`);
-  await page.getByLabel('Password').fill(randomBytes(18).toString('base64url'));
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
   await page.locator('#personal-auth-form button[type="submit"]').click();
   await page.getByRole('heading', { name: /Start with the work/ }).waitFor();
   await axe('dashboard');
@@ -107,8 +110,36 @@ try {
 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('button', { name: 'Create account' }).waitFor();
-  assert.deepEqual(errors, []);
   console.log('Passed: sign out');
+
+  await page.goto(`${base}/#welcome`);
+  await page.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'Sign in' }).click();
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.locator('#personal-auth-form button[type="submit"]').click();
+  await page.getByRole('heading', { name: /Start with the work/ }).waitFor();
+  await page.goto(`${base}/#welcome`);
+  await page.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'My sessions' }).waitFor();
+  await page.getByRole('link', { name: 'My sessions' }).click();
+  const exported = await api('/api/me/export');
+  assert.equal(exported.user.email, email);
+  assert.equal(exported.attempts.length, 2);
+  assert.doesNotMatch(JSON.stringify(exported), /reference_solution|expected_output/);
+  await page.getByText('Delete account', { exact: true }).click();
+  await axe('account deletion');
+  await page.getByLabel('Current password').fill('not-the-password');
+  await page.getByRole('checkbox', { name: /cannot be undone/ }).check();
+  await page.getByRole('button', { name: 'Delete account permanently' }).click();
+  await page.locator('#personal-error').getByText(/password is incorrect/).waitFor();
+  await page.getByLabel('Current password').fill(password);
+  await page.getByRole('button', { name: 'Delete account permanently' }).click();
+  await page.getByText('Your account and all of its records were deleted.').waitFor();
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.locator('#personal-auth-form button[type="submit"]').click();
+  await page.locator('#personal-error').getByText(/Invalid email or password/i).waitFor();
+  assert.deepEqual(errors, []);
+  console.log('Passed: nav sign-in, data export, and permanent account deletion');
 } finally {
   await browser.close();
 }

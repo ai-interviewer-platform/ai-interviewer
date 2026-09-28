@@ -47,7 +47,9 @@ test("sample routes use labeled fixtures and the personal route stays fail-close
       await page.goto(`${baseUrl}/#sample`);
       await page.getByRole("button", { name: "Run sample tests", exact: true }).waitFor();
       assert.match(await page.locator("body").innerText(), /Guided sample · not scored/);
-      await page.goto(`${baseUrl}/#personal`);
+      await page.goto(`${baseUrl}/#welcome`);
+      await page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Sign in" }).click();
+      assert.equal(new URL(page.url()).hash, "#personal");
       await page.getByRole("heading", { name: "Records are not being collected." }).waitFor();
       assert.doesNotMatch(await page.locator("body").innerText(), /Design prototype|Simulated result|Run prepared tests|Fictional saved attempt/);
     } finally {

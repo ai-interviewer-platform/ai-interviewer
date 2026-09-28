@@ -30,7 +30,7 @@ try {
   }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "fictional-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "fictional-runner-owner";' }));
+    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "fictional-runner-owner"; export const passwordMatches = async () => false;' }));
   } }] });
   const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));

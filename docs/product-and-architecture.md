@@ -83,6 +83,8 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `src/deepgram.ts` | Server-owned Deepgram settings and voice availability |
 | `src/browser/voice-agent.js` | Deepgram microphone, live conversation, playback, and transcript flow |
 | `src/auth.ts` | Better Auth runtime configuration |
+| `src/account.ts` | Account data export and deletion |
+| `src/email.ts` | Optional Resend email for password reset and verification |
 | `src/db/generated-auth.ts` | CLI-generated Better Auth Drizzle schema |
 | `migrations/0002_application.sql` | Application schema and database invariants |
 
@@ -135,7 +137,15 @@ request validation, and boundaries that relational keys cannot express alone.
 - Permanent Deepgram credentials stay in the Worker. An authenticated, active
   voice attempt connects through a metered Durable Object relay; no provider token reaches the browser.
 - Retention, export, deletion, and provider-processing behavior must be approved
-  before collecting real personal sessions.
+  before collecting real personal sessions. The mechanisms exist: a signed-in
+  user can download their data and, after re-entering the password, permanently
+  delete the account and every personal row. Only `delete_user_account()`
+  (`migrations/0007_account_deletion.sql`) may delete completed evidence, and only
+  that user's; normal updates and deletes stay rejected.
+- Email (password reset, verification) is sent as plain text through Resend only
+  when `RESEND_API_KEY` and `EMAIL_FROM` are set; links use `BETTER_AUTH_URL`,
+  never the request host. Without both values, reset is off and verification is
+  not required.
 
 ## API surface
 
@@ -143,7 +153,9 @@ Unauthenticated operational routes expose health and collection availability.
 Better Auth owns `/api/auth/*`. The personal API provides catalog access plus
 owned attempt listing, creation, detail, draft updates, messages, requested help,
 a same-origin voice WebSocket, runs, completion, review,
-corrections, retry, and related-problem lookup.
+corrections, retry, and related-problem lookup, plus `GET /api/me/export` (a JSON
+attachment of the user's own data, without reference solutions or tests) and
+`DELETE /api/me` (requires the current password).
 
 Every owned-attempt route verifies the authenticated user before returning or
 changing data. Finishing an attempt freezes an evidence manifest and creates a
@@ -157,7 +169,7 @@ without creating a second review. Dispatch claims are serialized and expire afte
 | Frontend | Maintained vanilla HTML/CSS/JavaScript app, fixture/personal route separation, responsive and accessibility checks | User validation of the product loop |
 | Authentication | Better Auth configuration and generated PostgreSQL schema | Hosted environment and end-to-end deployment verification |
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
-| Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
+| Personal collection | Explicit fail-closed gate, data export, password-confirmed account deletion, optional email reset/verification | Approved retention, disclosure, and processor policy; published privacy terms; verified Resend sender domain |
 | Runner | Opt-in local service binding, per-test restricted Docker containers, external result comparison, and contract/API/execution tests | Successful execution of Docker and database checks in the target environment; production isolation proof and deployed transport |
 | Review | Claude Opus 5.5 findings with structured output, strict evidence-reference validation, and idempotent publication; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and quality review of real findings |
 | Text interviewer | Claude Sonnet 5 replies and requested help in text mode, with per-attempt and per-account caps; tested with a fake provider | `ANTHROPIC_API_KEY` secret, deploy, and live reply quality checks |

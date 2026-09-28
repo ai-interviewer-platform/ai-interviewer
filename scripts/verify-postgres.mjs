@@ -29,6 +29,7 @@ try {
     "migrations/0003_security.sql",
     "migrations/0004_seed_newlines.sql",
     "migrations/0005_problem_bank.sql",
+    "migrations/0007_account_deletion.sql",
     "migrations/auth/0000_colorful_vindicator.sql",
   ]);
   const starters = await client.query("SELECT count(*)::int AS broken FROM problems WHERE position(E'\\n' IN starter_code) = 0");
@@ -98,8 +99,19 @@ try {
     [],
     /retry source must be a checkpoint from the source attempt for the same problem/,
   );
+  await expectDatabaseRejection(
+    "completed_update",
+    "UPDATE code_checkpoints SET source_code = 'edited' WHERE id = 'verify-checkpoint-a'",
+    [],
+    /completed attempt evidence is immutable/,
+  );
+  await client.query("SELECT delete_user_account('verify-owner-a')");
+  const remaining = await client.query(
+    "SELECT (SELECT count(*)::int FROM users WHERE id = 'verify-owner-a') AS users, (SELECT count(*)::int FROM attempts WHERE user_id = 'verify-owner-a') AS deleted, (SELECT count(*)::int FROM attempts WHERE user_id = 'verify-owner-b') AS kept",
+  );
+  assert.deepEqual(remaining.rows[0], { users: 0, deleted: 0, kept: 1 });
   await client.query("ROLLBACK");
-  console.log("Verified generated auth columns, migration ledger, completed-evidence immutability, review ownership, and retry lineage.");
+  console.log("Verified generated auth columns, migration ledger, completed-evidence immutability, review ownership, retry lineage, and account deletion.");
 } catch (error) {
   await client.query("ROLLBACK").catch(() => undefined);
   throw error;
