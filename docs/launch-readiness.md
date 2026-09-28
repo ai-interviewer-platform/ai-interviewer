@@ -55,7 +55,7 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 
 | # | Blocker | Who | Cheapest fix |
 | --- | --- | --- | --- |
-| 1 | No hosted database connection: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is linked and migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes), but no Hyperdrive config exists and `wrangler.jsonc` has no `HYPERDRIVE` binding, so every personal route in the deployed Worker returns 503 | Config | Hyperdrive, **caching disabled** (runbook step 4) |
+| 1 | Database connection not deployed: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes) and bound through Hyperdrive `ai-interviewer-db` (caching disabled), but the deployed Worker predates the binding and still returns 503 on personal routes | You | Set `BETTER_AUTH_URL` and the secrets, then deploy (runbook steps 5–6) |
 | 2 | No hosted Python runner: without `PYTHON_RUNNER`, **Run visible tests** returns 503. The local controller runs one job at a time (~3 s per 3-test run) and must not be exposed | Code | Workers Paid + Cloudflare Containers/Sandbox running the existing `runner/` harness; about 1 container per run |
 | 3 | Reviews never produce findings: `processReview` marks every review `failed`, so review, dispute, and retry-from-checkpoint are unreachable | Decision, then code | Pick an LLM, implement structured findings that cite `attempt_events` IDs |
 | 4 | Text mode has no interviewer: messages are stored, nobody replies | Decision, then code | Reuse the review LLM for text turns, or make voice the only interview mode at launch |
@@ -122,6 +122,11 @@ valid for a minute. Create the config with caching disabled.
    "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<id>" }],
    "vars": { "BETTER_AUTH_URL": "https://<your-domain>", "PERSONAL_DATA_COLLECTION_APPROVED": "false" }
    ```
+   Done for the binding: `ai-interviewer-db` uses the direct Neon connection string
+   without `channel_binding`. `vars` is still open. With the binding present,
+   `wrangler dev` requires `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`
+   in `.env`; `npm run db:local:setup` writes it. The `runner` environment has no
+   binding and keeps using `DATABASE_URL` from `.dev.vars`.
 5. **Queue and secrets**:
    ```sh
    npx wrangler queues create ai-interviewer-review   # skip if it already exists
