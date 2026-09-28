@@ -6,7 +6,25 @@ frontend or paid provider call is required for the automated tests.
 
 ## Configuration
 
-Set these server-side values in `.dev.vars` for local development:
+`src/review-provider-factory.ts` selects the adapter. An explicit
+`REVIEW_PROVIDER` wins; otherwise Workers AI is used when the Worker has the `AI`
+binding (production and `wrangler dev`), and OpenAI Responses otherwise.
+
+| `REVIEW_PROVIDER` | Adapter | Needs |
+| --- | --- | --- |
+| empty or `workers-ai` | `src/review-providers/workers-ai.ts`, model `REVIEW_MODEL` in `src/llm.ts` (`@cf/moonshotai/kimi-k2.6`, reasoning off) | The `AI` binding in `wrangler.jsonc` (Workers Paid); no key |
+| `openai-responses` | `src/review-providers/openai-responses.ts` | `REVIEW_PROVIDER_API_KEY` and `REVIEW_PROVIDER_MODEL` |
+
+The Workers AI adapter sends the same instructions (`reviewInstructions`) and
+schema as the OpenAI adapter, with `evidenceIds` enumerated to the attempt's own
+allowed IDs. Truncated, filtered, or empty output fails the review; outages and
+timeouts are transient and retried by the queue. Both adapters must answer
+within `reviewLimits.timeoutMs` (45 s) because the review row lock is held under a
+60 s idle-transaction limit; Kimi K2.7 Code (always reasoning) took 36-53 s and
+timed out, while K2.6 with reasoning off answered in 9-20 s in local tests.
+Reviews are capped at `limits.accountReviewsPerDay` per account per UTC day.
+
+To use OpenAI instead, set these server-side values in `.dev.vars` for local development:
 
 ```dotenv
 REVIEW_PROVIDER_API_KEY=<OpenAI API key>
