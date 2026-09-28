@@ -10,9 +10,10 @@ for the product contract.
 
 The code that exists is in good shape: security controls, evidence invariants,
 runner isolation, and auth all pass against real PostgreSQL 16, Docker, and
-workerd. It is **not ready for live users** yet. Four core pieces are missing in
-production, not merely unconfigured: a database connection, a hosted Python
-runner, an interviewer for text mode, and a review generator. The polished UI
+workerd. It is **not ready for live users** yet. Two core pieces are missing in
+production, not merely unconfigured: a database connection and a hosted Python
+runner. The Claude review generator and text-mode interviewer (2026-09-28) need
+only the `ANTHROPIC_API_KEY` secret and a deploy. The polished UI
 is also a fictional prototype; the real app lives at `#personal`, and nothing
 links to it.
 
@@ -57,8 +58,8 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | --- | --- | --- | --- |
 | 1 | Database connection not deployed: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes) and bound through Hyperdrive `ai-interviewer-db` (caching disabled), but the deployed Worker predates the binding and still returns 503 on personal routes | You | Set `BETTER_AUTH_URL` and the secrets, then deploy (runbook steps 5–6) |
 | 2 | No hosted Python runner: without `PYTHON_RUNNER`, **Run visible tests** returns 503. The local controller runs one job at a time (~3 s per 3-test run) and must not be exposed | Code | Workers Paid + Cloudflare Containers/Sandbox running the existing `runner/` harness; about 1 container per run |
-| 3 | Reviews never produce findings: `processReview` marks every review `failed`, so review, dispute, and retry-from-checkpoint are unreachable | Decision, then code | Pick an LLM, implement structured findings that cite `attempt_events` IDs |
-| 4 | Text mode has no interviewer: messages are stored, nobody replies | Decision, then code | Reuse the review LLM for text turns, or make voice the only interview mode at launch |
+| 3 | Implemented 2026-09-28: `processReview` asks `claude-opus-5-5` for structured findings, rejects any output that cites an event outside the frozen, verified evidence, and publishes findings in one idempotent transaction. Tested with a fake provider only | You | `npx wrangler secret put ANTHROPIC_API_KEY`, then deploy. No new migration is required |
+| 4 | Implemented 2026-09-28: text messages and requested help get a `claude-sonnet-5` reply stored as an `interviewer_text` event; provider failure keeps the message and returns no reply. Tested with a fake provider only | You | Same secret and deploy as blocker 3; then check live reply quality |
 | 5 | Real app is unreachable: only `/#personal` is real; the main screens show prepared data ("preview", "Prepared code · read-only") | Product decision | Minimum: add Sign in → `#personal` to the main nav; later wire the designed screens to the API |
 | 6 | `PERSONAL_DATA_COLLECTION_APPROVED=false` by design; disclosure version is `pending-owner-data-policy`; no real export or deletion; no password reset or email verification | You (policy), then code | Publish privacy terms, add account deletion, and add email via a provider before inviting strangers |
 
@@ -132,6 +133,7 @@ valid for a minute. Create the config with caching disabled.
    npx wrangler queues create ai-interviewer-review   # skip if it already exists
    npx wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 48
    npx wrangler secret put DEEPGRAM_API_KEY
+   npx wrangler secret put ANTHROPIC_API_KEY           # reviews and text interviewer
    ```
 6. **Deploy and smoke-test**: `npm run build:voice && npx wrangler deploy`, then
    `GET /api/health` and `GET /api/personal-availability`. Flip
