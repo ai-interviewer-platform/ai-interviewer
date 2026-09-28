@@ -8,6 +8,9 @@
     "directory": "./public",
     "not_found_handling": "single-page-application"
   },
+  // keep_vars preserves dashboard variables (e.g. PERSONAL_DATA_COLLECTION_APPROVED) across deploys.
+  "keep_vars": true,
+  "vars": { "BETTER_AUTH_URL": "https://ai-interviewer.jack-cao.workers.dev" },
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "737f5774922a4f44bdd83817b62a9ab3" }],
   "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceSession"] }],
