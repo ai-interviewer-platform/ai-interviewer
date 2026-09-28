@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { performance } from "node:perf_hooks";
-import { candidateResult, infrastructureResult, limits, versions } from "./contract.mjs";
+import { executionResult, infrastructureResult, runTests } from "./contract.mjs";
 
 export const imageTag = "ai-interviewer-python:local-v1";
 const docker = process.env.PYTHON_RUNNER_DOCKER ?? "docker";
@@ -50,65 +49,37 @@ export function createDockerRunner(image, command = dockerCommand) {
     if (unhealthy) return infrastructureResult(request, "Runner cleanup failed. Restart the controller after checking Docker.");
     if (active) return infrastructureResult(request, "Runner is busy. Retry later.");
     active = true;
-    const start = performance.now();
-    const result = { ...versions, status: "passed", testResults: [], stdout: "", stderr: "", executionTimeMs: 0 };
-    try {
-      for (const test of request.tests) {
-        if (result.runnerError || performance.now() - start >= limits.runMs) {
-          result.status = result.runnerError ? "runner_error" : "failed";
-          result.testResults.push({ testId: test.testId, outcome: "skipped", error: result.runnerError ?? "Run deadline exceeded" });
-          continue;
-        }
-        const name = `interviewer-python-${randomUUID()}`;
-        let outcome;
-        let output;
-        try {
-          const created = await command(containerArgs(name, image));
-          if (created.code !== 0 || created.failure) throw new Error("Runner container could not be created.");
-          const executed = await command(["start", "--attach", "--interactive", name], {
-            input: JSON.stringify({ sourceCode: request.sourceCode, entryPoint: request.entryPoint, args: test.inputData.args }),
-            timeoutMs: Math.min(limits.testMs, Math.max(1, limits.runMs - (performance.now() - start))),
-          });
-          if (executed.failure === "unavailable") throw new Error("Runner transport is unavailable.");
-          if (executed.failure) outcome = { testId: test.testId, outcome: "failed", error: executed.failure === "timeout" ? "Execution timeout" : "Output limit exceeded" };
-          else {
-            const inspected = await command(["inspect", "--format", "{{json .State}}", name]);
-            if (inspected.code !== 0 || inspected.failure) throw new Error("Runner could not inspect execution state.");
-            const state = JSON.parse(inspected.stdout);
-            if (state.Error || state.Running || state.Status !== "exited") throw new Error("Runner container did not complete normally.");
-            if (state.ExitCode !== 0 || state.OOMKilled) outcome = { testId: test.testId, outcome: "failed", error: state.OOMKilled ? "Memory limit exceeded" : `Candidate process exited (${state.ExitCode})` };
-            else {
-              try {
-                output = JSON.parse(executed.stdout);
-                outcome = candidateResult(test, output);
-              } catch {
-                output = undefined;
-                outcome = { testId: test.testId, outcome: "failed", error: "Candidate returned invalid or oversized output" };
-              }
-            }
-          }
-        } catch {
-          result.runnerError = "Runner infrastructure failed; this is not a code verdict.";
-          outcome = { testId: test.testId, outcome: "skipped", error: result.runnerError };
-        } finally {
-          // Killing the CLI alone does not stop a container. Always remove it.
-          const removed = await command(["rm", "--force", name]);
-          if (removed.code !== 0 || removed.failure) {
-            unhealthy = true;
-            result.runnerError = "Runner cleanup failed. Check Docker before restarting the controller.";
-            outcome = { testId: test.testId, outcome: "skipped", error: result.runnerError };
-          }
-        }
-        result.testResults.push(outcome);
-        for (const stream of ["stdout", "stderr"]) result[stream] = Buffer.from(result[stream] + (output?.[stream] ?? "")).subarray(0, limits.outputBytes).toString("utf8");
-        if (outcome.error && !output?.stderr) result.stderr = Buffer.from(result.stderr + outcome.error + "\n").subarray(0, limits.outputBytes).toString("utf8");
-        if (result.runnerError) result.status = "runner_error";
-        else if (outcome.outcome !== "passed") result.status = "failed";
-      }
-    } finally { active = false; }
-    result.executionTimeMs = Math.round(performance.now() - start);
-    // JSON escaping can expand strings considerably; stay below API's 256 KiB.
-    if (Buffer.byteLength(JSON.stringify(result)) > limits.requestBytes) return { ...infrastructureResult(request, "Runner response exceeds 256 KiB"), executionTimeMs: result.executionTimeMs };
-    return result;
+    try { return await runTests(request, (test, timeoutMs) => execute(request, test, timeoutMs)); }
+    finally { active = false; }
   };
+
+  async function execute(request, test, timeoutMs) {
+    const name = `interviewer-python-${randomUUID()}`;
+    const executed = await attempt(name, request, test, timeoutMs).catch(() => undefined);
+    // Killing the CLI alone does not stop a container. Always remove it.
+    const removed = await command(["rm", "--force", name]);
+    if (removed.code !== 0 || removed.failure) {
+      unhealthy = true;
+      throw Object.assign(new Error("Runner cleanup failed."), { runnerError: "Runner cleanup failed. Check Docker before restarting the controller." });
+    }
+    if (!executed) throw new Error("Runner infrastructure failed.");
+    return executed;
+  }
+
+  async function attempt(name, request, test, timeoutMs) {
+    const created = await command(containerArgs(name, image));
+    if (created.code !== 0 || created.failure) throw new Error("Runner container could not be created.");
+    const executed = await command(["start", "--attach", "--interactive", name], {
+      input: JSON.stringify({ sourceCode: request.sourceCode, entryPoint: request.entryPoint, args: test.inputData.args }),
+      timeoutMs,
+    });
+    if (executed.failure === "unavailable") throw new Error("Runner transport is unavailable.");
+    if (executed.failure) return executionResult(test, { timedOut: executed.failure === "timeout", oversized: true });
+    const inspected = await command(["inspect", "--format", "{{json .State}}", name]);
+    if (inspected.code !== 0 || inspected.failure) throw new Error("Runner could not inspect execution state.");
+    const state = JSON.parse(inspected.stdout);
+    if (state.Error || state.Running || state.Status !== "exited") throw new Error("Runner container did not complete normally.");
+    if (state.OOMKilled) return { outcome: { testId: test.testId, outcome: "failed", error: "Memory limit exceeded" } };
+    return executionResult(test, { exitCode: state.ExitCode, stdout: executed.stdout });
+  }
 }
