@@ -38,6 +38,8 @@ try {
   const env = { BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: { fetch: async request => fetch(runnerUrl, { method: "POST", headers: { authorization: "Bearer fictional-integration-token", "content-type": "application/json" }, body: await request.text() }) } };
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('fictional-runner-owner', 'Runner Fixture', 'runner@example.invalid')");
   await database.query("INSERT INTO attempts (id, user_id, problem_id, mode, input_mode, status, setup_context, consent_at, disclosure_version, practice_goal) VALUES ('fictional-attempt', 'fictional-runner-owner', 'sum-odd-positions-v1', 'mock', 'text', 'active', '{}', now(), 'test', 'Fictional runner verification')");
+  const caseCount = Number((await database.query("SELECT count(*) FROM test_cases WHERE problem_id = 'sum-odd-positions-v1'")).rows[0].count);
+  assert.ok(caseCount > 0);
   let order = 0;
   async function call(action, body, method = "POST") {
     assert.ok(method === "POST" || method === "PATCH");
@@ -56,7 +58,7 @@ try {
     assert.equal(stored.checkpoint_id, result.checkpointId);
     assert.equal(stored.event_type, "code_run");
     assert.equal(stored.status, status);
-    assert.equal(stored.test_results.length, 2);
+    assert.equal(stored.test_results.length, caseCount);
     assert.equal(stored.runner_version, "docker-python-local-v1");
     assert.ok(stored.execution_time_ms >= 0);
     console.log(`PASS API -> HTTP controller -> isolated Python -> PostgreSQL: ${status}`);
