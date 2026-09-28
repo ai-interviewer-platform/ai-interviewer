@@ -13,7 +13,8 @@ async function api(path, options = {}) {
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "The request could not be completed.");
+    // App routes send `error`; Better Auth sends `message` (e.g. "Password too short").
+    if (!response.ok) throw new Error(payload.error || payload.message || "The request could not be completed.");
     return payload;
   } finally {
     finishLoading();
@@ -202,6 +203,8 @@ export function mountPersonal(root) {
         authMode = control.dataset.authView;
         root.querySelector("[data-signup-name]").hidden = authMode !== "sign-up";
         root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
+        // Better Auth's default minimum password length.
+        root.querySelector("#auth-password").minLength = authMode === "sign-up" ? 8 : 0;
         root.querySelectorAll("[data-auth-view]").forEach((button) => { const selected = button.dataset.authView === authMode; button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected)); });
       } else if (control.dataset.personalPage === "catalog") { state.page = "home"; state.attempt = null; state.selectedProblemId = null; render(); root.querySelector(".home-route")?.scrollIntoView({ block: "start" }); }
       else if (control.dataset.personalPage === "home" || control.dataset.personalPage === "sessions") {
