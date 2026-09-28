@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Production runner. Reachable only through the app's PYTHON_RUNNER service binding.
+  "name": "ai-interviewer-python-runner",
+  "main": "../src/python-runner-hosted.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "containers": [{ "class_name": "RunnerSandbox", "image": "./hosted.Dockerfile", "instance_type": "basic", "max_instances": 10 }],
+  "durable_objects": { "bindings": [{ "name": "RUNNER_SANDBOX", "class_name": "RunnerSandbox" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RunnerSandbox"] }]
+}
