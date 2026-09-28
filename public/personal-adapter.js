@@ -248,7 +248,7 @@ export function mountPersonal(root) {
           showError(`Attempt completed. Review dispatch: ${result.dispatch}.`);
         } finally { control.disabled = false; }
       }
-      else if (control.hasAttribute("data-help")) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/help`, { method: "POST", body: { category: "hint", ...sourceMetadata(state, "help") } }); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else showError(result.message); }
+      else if (control.hasAttribute("data-help")) { if (state.attempt.attempt.input_mode === "text" && root.querySelector("#personal-code")?.value !== state.attempt.attempt.draft_source) await saveDraft(); const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/help`, { method: "POST", body: { category: "hint", ...sourceMetadata(state, "help") } }); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
   root.addEventListener("change", (event) => {
@@ -280,8 +280,12 @@ export function mountPersonal(root) {
           voiceSession.sendText(message.trim());
           form.reset();
         } else {
-          await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/messages`, { method: "POST", body: { text: message, ...sourceMetadata(state, "message") } });
+          // The interviewer reads the saved draft, so save unsaved edits first.
+          if (root.querySelector("#personal-code")?.value !== state.attempt.attempt.draft_source) await saveDraft();
+          const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/messages`, { method: "POST", body: { text: message, ...sourceMetadata(state, "message") } });
+          // The reply is stored as a transcript segment, so the reload renders it as escaped text.
           await openAttempt(state.attempt.attempt.id);
+          if (result.replyError) showError(`Message saved. ${result.replyError}`);
         }
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
