@@ -7,23 +7,20 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 // Exercises reviews and text interviewer turns against real PostgreSQL with a
-// fake Anthropic API. It never calls the real provider.
+// fake Workers AI binding. It never calls the real provider.
 if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-const schema = `claude_test_${crypto.randomUUID().replaceAll("-", "")}`;
+const schema = `llm_test_${crypto.randomUUID().replaceAll("-", "")}`;
 const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
-const directory = await mkdtemp(join(tmpdir(), "claude-integration-"));
-const originalFetch = globalThis.fetch;
+const directory = await mkdtemp(join(tmpdir(), "llm-integration-"));
 const calls = [];
 let reply = () => ({ text: "unused" });
-const message = (text, stop = "end_turn") => Response.json({ id: "msg_test", type: "message", role: "assistant", model: "fake", content: [{ type: "text", text }], stop_reason: stop, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
-globalThis.fetch = async (url, init) => {
-  assert.equal(String(url), "https://api.anthropic.com/v1/messages");
-  const body = JSON.parse(init.body);
-  calls.push(body);
-  const next = reply(body);
-  return next instanceof Response ? next : message(next.text, next.stop);
-};
+const AI = { run: async (model, input) => {
+  calls.push({ model, ...input });
+  const next = reply(input);
+  return { choices: [{ finish_reason: next.stop ?? "stop", message: { role: "assistant", content: next.text } }] };
+} };
+const outage = () => { throw new Error("3040: Capacity temporarily exceeded"); };
 try {
   await admin.query(`CREATE SCHEMA ${schema}`);
   for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
@@ -36,7 +33,7 @@ try {
   const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { processReview } = await import(pathToFileURL(join(directory, "review.mjs")));
   const origin = "https://app.example";
-  const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", ANTHROPIC_API_KEY: "fake-test-key", REVIEW_QUEUE: { send: async () => {} } };
+  const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", AI, REVIEW_QUEUE: { send: async () => {} } };
   const post = (path, body) => handleApi(new Request(`${origin}/api/attempts/text/${path}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), env, {}, database);
   const rows = async (sql, values = []) => (await database.query(sql, values)).rows;
 
@@ -51,10 +48,11 @@ try {
   const first = await response.json();
   assert.equal(first.reply.text, "What should happen for an empty list?");
   assert.equal(first.reply.speaker, "interviewer");
-  assert.equal(calls.at(-1).model, "claude-sonnet-5");
-  assert.match(calls.at(-1).system, /return 0/, "the prompt includes the saved draft");
-  assert.deepEqual(calls.at(-1).messages, [{ role: "user", content: "I will loop over the odd indexes." }]);
-  assert.doesNotMatch(calls.at(-1).system, /values\[1::2\]/, "the reference solution never reaches the interviewer");
+  assert.equal(calls.at(-1).model, "@cf/moonshotai/kimi-k2.6");
+  const [system, ...turns] = calls.at(-1).messages;
+  assert.match(system.content, /return 0/, "the prompt includes the saved draft");
+  assert.deepEqual(turns, [{ role: "user", content: "I will loop over the odd indexes." }]);
+  assert.doesNotMatch(system.content, /values\[1::2\]/, "the reference solution never reaches the interviewer");
   response = await post("messages", { text: "I will loop over the odd indexes.", sourceId: "message-1", sourceOrder: 1, occurrenceOffsetMs: 100 });
   assert.deepEqual((await response.json()).reply, first.reply, "a repeated message returns the stored reply");
   assert.equal(calls.length, 1, "a repeated message does not call the model again");
@@ -62,7 +60,7 @@ try {
   assert.deepEqual(stored.map((row) => [row.event_type, row.speaker]), [["candidate_text", "candidate"], ["interviewer_text", "interviewer"]]);
 
   // Provider failure: the candidate message stays; no reply is invented.
-  reply = () => new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "fake outage" } }), { status: 500, headers: { "content-type": "application/json" } });
+  reply = outage;
   response = await post("messages", { text: "Is the list ever empty?", sourceId: "message-2", sourceOrder: 2, occurrenceOffsetMs: 200 });
   assert.equal(response.status, 201);
   const failed = await response.json();
@@ -91,7 +89,7 @@ try {
   const findingCount = async () => Number((await rows("SELECT count(*) FROM review_findings"))[0].count);
   const reset = () => database.query("UPDATE reviews SET status = 'pending', failure_reason = NULL WHERE id = $1", [reviewId]);
 
-  await processReview(reviewId, { ...env, ANTHROPIC_API_KEY: undefined }, database);
+  await processReview(reviewId, { ...env, AI: undefined }, database);
   assert.match((await review()).failure_reason, /not configured/);
   for (const [label, output, reason] of [
     ["foreign event", () => ({ text: JSON.stringify({ findings: [finding("foreign-event")] }) }), /outside the reviewed evidence/],
@@ -99,8 +97,9 @@ try {
     ["unknown event", () => ({ text: JSON.stringify({ findings: [finding("invented-id")] }) }), /outside the reviewed evidence/],
     ["no evidence", () => ({ text: JSON.stringify({ findings: [finding(candidateEvent, { evidence: [] })] }) }), /must cite/],
     ["score", () => ({ text: JSON.stringify({ findings: [finding(candidateEvent, { observation: "Overall score of 7/10." })] }) }), /out-of-contract/],
-    ["refusal", () => ({ text: "{}", stop: "refusal" }), /stopped with refusal/],
-    ["provider error", () => new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "bad" } }), { status: 400, headers: { "content-type": "application/json" } }), /provider HTTP 400/],
+    ["filtered", () => ({ text: "{}", stop: "content_filter" }), /stopped with content_filter/],
+    ["truncated", () => ({ text: "{\"findings\": [", stop: "length" }), /stopped with length/],
+    ["provider error", outage, /3040/],
   ]) {
     await reset();
     reply = output;
@@ -124,12 +123,13 @@ try {
   const before = calls.length;
   await processReview(reviewId, env, database);
   const request = calls.at(-1);
-  assert.equal(request.model, "claude-opus-5-5");
-  assert.equal(request.output_config.format.type, "json_schema");
-  assert.doesNotMatch(request.messages[0].content, /UNVERIFIED VOICE TEXT|unverified-voice/);
-  assert.doesNotMatch(request.messages[0].content, /foreign-event/);
-  assert.match(request.messages[0].content, new RegExp(candidateEvent));
-  assert.deepEqual(await review(), { status: "ready", failure_reason: null, evaluator_version: "claude-opus-5-5/review-v1" });
+  assert.equal(request.model, "@cf/moonshotai/kimi-k2.7-code");
+  assert.equal(request.response_format.type, "json_schema");
+  assert.equal(request.messages[0].role, "system");
+  assert.doesNotMatch(request.messages[1].content, /UNVERIFIED VOICE TEXT|unverified-voice/);
+  assert.doesNotMatch(request.messages[1].content, /foreign-event/);
+  assert.match(request.messages[1].content, new RegExp(candidateEvent));
+  assert.deepEqual(await review(), { status: "ready", failure_reason: null, evaluator_version: "@cf/moonshotai/kimi-k2.7-code/review-v1" });
   assert.equal(await findingCount(), 2);
   assert.deepEqual((await rows("SELECT event_id FROM finding_evidence")).map((row) => row.event_id).sort(), [candidateEvent, candidateEvent, submissionEvent].sort());
 
@@ -140,9 +140,8 @@ try {
   const detail = await (await handleApi(new Request(`${origin}/api/attempts/text/review`), env, {}, database)).json();
   assert.equal(detail.findings.length, 2);
   assert.ok(detail.findings.every((item) => item.evidence.length > 0));
-  console.log("Claude review publication, validation failures, redelivery, text replies, provider failure and requested help passed.");
+  console.log("Workers AI review publication, validation failures, redelivery, text replies, provider failure and requested help passed.");
 } finally {
-  globalThis.fetch = originalFetch;
   await database.end();
   await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
   await admin.end();

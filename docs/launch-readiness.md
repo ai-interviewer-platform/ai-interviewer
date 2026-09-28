@@ -11,9 +11,9 @@ for the product contract.
 The code that exists is in good shape: security controls, evidence invariants,
 runner isolation, and auth all pass against real PostgreSQL 16, Docker, and
 workerd. It is **not ready for live users** yet. As of 2026-09-28 the database is
-connected through Hyperdrive and the hosted Python runner, Claude reviews, text-mode
-interviewer, and account deletion/export are implemented; reviews and text replies
-need the `ANTHROPIC_API_KEY` secret. The polished UI is still a fictional
+connected through Hyperdrive; Workers AI reviews, the text-mode interviewer, and
+account deletion/export are live; the hosted Python runner is implemented but waits
+for Cloudflare Containers access. The polished UI is still a fictional
 prototype; the real app lives at `#personal`, reached through **Sign in** in the
 account nav.
 
@@ -60,8 +60,8 @@ Not testable here: live Deepgram audio (no key; provider traffic is simulated in
 | --- | --- | --- | --- |
 | 1 | Database connection not deployed: the Neon project `spring-butterfly-24966276` (`aws-us-east-2`, branch `production`) is migrated (2026-09-28: all migrations, 474 problems, `verify-postgres.mjs` passes) and bound through Hyperdrive `ai-interviewer-db` (caching disabled), but the deployed Worker predates the binding and still returns 503 on personal routes | You | Set `BETTER_AUTH_URL` and the secrets, then deploy (runbook steps 5–6) |
 | 2 | Hosted Python runner **implemented, pending deploy**: Worker `ai-interviewer-python-runner` runs each run in a fresh Cloudflare Container with the existing harness; the app binds `PYTHON_RUNNER` to it. Real-image isolation tests pass locally; Cloudflare egress and cold-start time are unverified until deployed | You | `npm run runner:hosted:deploy` before the app deploy (runbook step 6); see [hosted runner](python-runner.md#hosted-runner) |
-| 3 | Implemented 2026-09-28: `processReview` asks `claude-opus-5-5` for structured findings, rejects any output that cites an event outside the frozen, verified evidence, and publishes findings in one idempotent transaction. Tested with a fake provider only | You | `npx wrangler secret put ANTHROPIC_API_KEY`, then deploy. No new migration is required |
-| 4 | Implemented 2026-09-28: text messages and requested help get a `claude-sonnet-5` reply stored as an `interviewer_text` event; provider failure keeps the message and returns no reply. Tested with a fake provider only | You | Same secret and deploy as blocker 3; then check live reply quality |
+| 3 | Implemented 2026-09-28: `processReview` asks Workers AI `@cf/moonshotai/kimi-k2.7-code` for JSON-schema findings (event and checkpoint IDs constrained to the attempt's own), rejects any output that cites an event outside the frozen, verified evidence, and publishes findings in one idempotent transaction. A real local review took 53 s and published 4 cited findings | You | Review real findings for quality. About 2,300 Neurons per review (10,000 free per day, then about $0.025 each) |
+| 4 | Implemented 2026-09-28: text messages and requested help get a Workers AI `@cf/moonshotai/kimi-k2.6` reply (reasoning off, about 2 s) stored as an `interviewer_text` event; provider failure keeps the message and returns no reply | You | Check live reply quality. About 450 Neurons per reply |
 | 5 | Real app reachable only through the nav: the account nav has **Sign in** (or **My sessions** when signed in) → `#personal`; the other main screens still show prepared data ("preview", "Prepared code · read-only") | Product decision | Done: the nav link. Later: wire the designed screens to the API |
 | 6 | Code done (2026-09-28): `DELETE /api/me` (password re-entry) deletes the user and every personal row through `migrations/0007_account_deletion.sql`; `GET /api/me/export` downloads the user's data as JSON; password reset and email verification through Resend turn on when `RESEND_API_KEY` and `EMAIL_FROM` are set. Still open: `PERSONAL_DATA_COLLECTION_APPROVED=false` and disclosure version `pending-owner-data-policy` by design | You (policy) | Publish the privacy and terms text (it still says export and delete are unavailable), verify a Resend sender domain, set `EMAIL_FROM` and `RESEND_API_KEY`, apply migration 0007, then approve collection |
 
@@ -135,7 +135,6 @@ valid for a minute. Create the config with caching disabled.
    npx wrangler queues create ai-interviewer-review   # skip if it already exists
    npx wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 48
    npx wrangler secret put DEEPGRAM_API_KEY
-   npx wrangler secret put ANTHROPIC_API_KEY           # reviews and text interviewer
    npx wrangler secret put RESEND_API_KEY              # optional: password reset + email verification
    ```
    Email also needs `EMAIL_FROM` (for example `Coursay <no-reply@your-domain>`) as a

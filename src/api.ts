@@ -4,7 +4,7 @@ import { authenticatedUserId } from "./auth";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits } from "./security";
-import { INTERVIEWER_MODEL, claudeText } from "./claude";
+import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";
 import { badRequest, boolean, boundedRequest, checkOrigin, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
 
@@ -269,7 +269,7 @@ async function savedReply(pool: Pool, attemptId: string, triggerEventId: string)
 async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, triggerEventId: string, triggerOffsetMs: number, helpCategory: string | null): Promise<{ reply: InterviewerReply | null; replyError?: string }> {
   const existing = await savedReply(pool, attempt.id, triggerEventId);
   if (existing) return { reply: existing };
-  if (!env.ANTHROPIC_API_KEY) return { reply: null, replyError: "The text interviewer is not configured, so no reply was generated." };
+  if (!env.AI) return { reply: null, replyError: "The text interviewer is not configured, so no reply was generated." };
   const turns = await pool.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1 AND event_type = 'interviewer_text'", [attempt.id]);
   if (Number(turns.rows[0].count) >= limits.modelTurnsPerAttempt) return { reply: null, replyError: "This attempt reached its interviewer reply limit, so no reply was generated." };
   if (!(await consumeRate(pool, `model:${attempt.user_id}`, 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
@@ -288,7 +288,7 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
 
   let text: string;
   try {
-    text = await claudeText(env.ANTHROPIC_API_KEY, { model: INTERVIEWER_MODEL, max_tokens: 2048, output_config: { effort: "low" }, system, messages }, { maxRetries: 0, timeoutMs: 30_000 });
+    text = await modelText(env.AI, INTERVIEWER_MODEL, { max_completion_tokens: 2048, reasoning_effort: "none", messages: [{ role: "system", content: system }, ...messages] }, { attempts: 1, timeoutMs: 30_000 });
   } catch {
     return { reply: null, replyError: "The interviewer could not respond, so no reply was generated." };
   }
