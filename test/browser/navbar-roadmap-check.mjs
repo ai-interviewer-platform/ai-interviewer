@@ -1,8 +1,8 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import assert from 'node:assert/strict';
 const base = process.env.APP_URL;
 if (!base) throw new Error('Set APP_URL to the running preview.');
-const browser = await chromium.launch({channel:'msedge'});
+const browser = await launchBrowser();
 const page = await browser.newPage({viewport:{width:1440,height:900}});
 try {
   await page.goto(`${base}/#roadmap?topic=sets`);
@@ -42,7 +42,7 @@ try {
   await page.goto(`${base}/#preferences`);
   await page.mouse.wheel(0,900);
   await page.waitForFunction(()=>document.documentElement.dataset.scrolled==='true');
-  await header.evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished)));
+  await header.evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished.catch(() => {}))));
   const compact = await header.boundingBox();
   assert.ok(compact.width<expanded.width);
   assert.equal(Math.round(compact.x+compact.width/2),720);
@@ -50,7 +50,7 @@ try {
   await page.screenshot({path:'output/playwright/navbar-compact.png'});
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.waitForFunction(()=>document.documentElement.dataset.scrolled==='false');
-  await header.evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished)));
+  await header.evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished.catch(() => {}))));
   assert.equal(Math.round((await header.boundingBox()).width),Math.round(expanded.width));
   assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).overscrollBehavior),'none');
   await page.goto(`${base}/#roadmap?topic=sets&leaf=seen`);

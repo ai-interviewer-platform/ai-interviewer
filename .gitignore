@@ -24,3 +24,5 @@ worker-configuration.d.ts
 
 # Local runtime and package-manager logs.
 *.log
+.neon
+.claude/worktrees/

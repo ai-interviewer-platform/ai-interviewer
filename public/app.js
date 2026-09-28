@@ -107,10 +107,22 @@ function chrome(content, workspace = false) {
   return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
     ${brandWordmark()}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
-    <nav class="nav-account" aria-label="Account">${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
+    <nav class="nav-account" aria-label="Account"><a class="button primary small" href="#personal" data-account-link><span>${accountLabel}</span></a>${navItem('Preferences', 'preferences')}${navItem('Design system', 'system')}<a class="avatar" href="#profile" aria-label="Open profile" ${route.page === 'profile' ? 'aria-current="page"' : ''}>${esc((state.profile?.name || 'Alex').charAt(0).toUpperCase())}</a></nav>
   </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
   ${pageFooter()}</div></div>`;
 }
+
+// The prototype screens are fictional; this link is the way into the real app.
+// It is checked on load and after leaving #personal, where sign-in state changes.
+let accountLabel = 'Sign in';
+let leftPersonal = false;
+function refreshAccountLabel() {
+  fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).catch(() => null).then(session => {
+    accountLabel = session?.user ? 'My sessions' : 'Sign in';
+    document.querySelectorAll('[data-account-link] span').forEach(node => { node.textContent = accountLabel; });
+  });
+}
+refreshAccountLabel();
 
 function syncNavbar() {
   document.documentElement.dataset.scrolled = String(window.scrollY > 0);
@@ -288,8 +300,10 @@ function render(navigation = false) {
     app.innerHTML = `<div class="app-shell"><div class="app-content"><div id="personal-app" aria-live="polite"></div>${pageFooter()}</div></div>`;
     document.title = 'Coursay';
     mountPersonal(app.querySelector('#personal-app'));
+    leftPersonal = true;
     return;
   }
+  if (leftPersonal) { leftPersonal = false; refreshAccountLabel(); }
   if (isSample()) { state.sampleRoute = location.hash.slice(1) || 'sample'; persist(); }
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
@@ -476,7 +490,7 @@ document.addEventListener('change', (event) => {
   if (input.name === 'input') { state.input = input.value; render(); }
   if (input.name === 'goal') state.goal = input.value;
   if (['audio', 'audio-pref'].includes(input.name)) state.audio = input.checked;
-  if (input.name === 'consent') { state.consent = input.checked; document.querySelector('#consent-error').hidden = input.checked; input.removeAttribute('aria-invalid'); }
+  if (input.name === 'consent') { state.consent = input.checked; const consentError = document.querySelector('#consent-error'); if (consentError) consentError.hidden = input.checked; input.removeAttribute('aria-invalid'); }
   if (input.name === 'voice-pref') state.input = input.checked ? 'voice' : 'text';
   if (input.name === 'reduce') { state.reduce = input.checked; document.documentElement.dataset.reduce = String(state.reduce); persist(); notify(state.reduce ? 'Reduced motion enabled.' : 'Operating-system motion preference is used.'); }
   if (input.id === 'checkpoint') { state.checkpoint = input.value; render(); notify('Saved checkpoint changed. Code and results now match the selected checkpoint.'); }

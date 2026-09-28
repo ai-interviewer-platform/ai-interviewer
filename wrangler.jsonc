@@ -8,6 +8,14 @@
     "directory": "./public",
     "not_found_handling": "single-page-application"
   },
+  // keep_vars preserves dashboard variables (e.g. PERSONAL_DATA_COLLECTION_APPROVED) across deploys.
+  "keep_vars": true,
+  "vars": { "BETTER_AUTH_URL": "https://ai-interviewer.jack-cao.workers.dev" },
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "737f5774922a4f44bdd83817b62a9ab3" }],
+  // Reviews and text-mode interviewer replies (src/llm.ts). Always remote, even in wrangler dev.
+  "ai": { "binding": "AI", "remote": true },
+  // Hosted runner (runner/hosted.wrangler.jsonc). env.runner rebinds it to the local Docker proxy.
+  "services": [{ "binding": "PYTHON_RUNNER", "service": "ai-interviewer-python-runner" }],
   "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceSession"] }],
   "queues": {
@@ -17,19 +25,22 @@
         "queue": "ai-interviewer-review"
       }
     ],
+    // One review per invocation: each makes a model call of up to several minutes.
     "consumers": [
       {
-        "queue": "ai-interviewer-review"
+        "queue": "ai-interviewer-review",
+        "max_batch_size": 1
       }
     ]
   },
   "env": {
     "runner": {
       "services": [{ "binding": "PYTHON_RUNNER", "service": "ai-interviewer-python-runner" }],
+      "ai": { "binding": "AI", "remote": true },
       "durable_objects": { "bindings": [{ "name": "VOICE_SESSIONS", "class_name": "VoiceSession" }] },
       "queues": {
         "producers": [{ "binding": "REVIEW_QUEUE", "queue": "ai-interviewer-review" }],
-        "consumers": [{ "queue": "ai-interviewer-review" }]
+        "consumers": [{ "queue": "ai-interviewer-review", "max_batch_size": 1 }]
       }
     }
   }

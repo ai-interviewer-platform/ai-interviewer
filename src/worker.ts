@@ -1,12 +1,14 @@
-import { handleApi, processReview } from "./api";
+import { handleApi } from "./api";
 import { authFor } from "./auth";
 import { databaseForInvocation } from "./database";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
+import { emailConfigured } from "./email";
 import type { Env } from "./env";
 import { boundedRequest, checkOrigin, json, serverUnavailable } from "./http";
 import { runtimeCapabilities } from "./runtime-config";
 import { logOperationalEvent } from "./observability";
+import { processReview } from "./reviews";
 export { VoiceSession } from "./voice-session";
 
 function isExpectedServiceError(error: unknown): boolean {
@@ -26,6 +28,7 @@ export default {
       const capabilities = runtimeCapabilities(env);
       return json({
         collectionEnabled: personalCollectionEnabled(env),
+        emailEnabled: emailConfigured(env),
         voiceEnabled: deepgramVoiceEnabled(env),
         voiceProvider: DEEPGRAM_VOICE_PROVIDER,
         thinkingModel: DEEPGRAM_THINKING_MODEL,

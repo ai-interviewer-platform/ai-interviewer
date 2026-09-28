@@ -1,3 +1,5 @@
 *
 !Dockerfile
 !harness.py
+!hosted.Dockerfile
+!sandbox.py

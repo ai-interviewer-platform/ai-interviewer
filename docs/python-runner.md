@@ -1,7 +1,8 @@
 # Python runner
 
-This is the backend development implementation of the existing `PYTHON_RUNNER`
-contract. Product/security authority remains
+This implements the existing `PYTHON_RUNNER` contract twice: a local Docker
+controller for development and a [hosted runner](#hosted-runner) on Cloudflare
+Containers for production. Product/security authority remains
 [product and architecture](product-and-architecture.md). It does not implement
 hidden tests, reviews, or frontend changes. The local implementation and the
 production transport boundary are intentionally separate.
@@ -62,8 +63,12 @@ after that Worker has been deployed, and keep actual Python execution in the
 approved sandbox service. A dedicated hardened single-purpose VM may implement
 the same contract for a small pilot only after independent review, with private
 ingress/TLS, firewall-denied egress, no application credentials, a patched host,
-and crash cleanup monitoring. The repository does not choose or create that
-external account.
+and crash cleanup monitoring.
+
+Chosen on 2026-09-28: the Cloudflare Containers [hosted runner](#hosted-runner),
+a Worker bound as `PYTHON_RUNNER` that runs each request in a fresh container
+without network access. The HTTPS adapter remains available for an external
+sandbox; the service binding takes precedence.
 
 ### Hosted deployment and verification
 
@@ -115,9 +120,12 @@ npm run runner:dev
 npm run dev:runner
 ```
 
-`npm run dev` keeps its existing behavior without a runner. `dev:runner` selects
-`env.runner` in `wrangler.jsonc`, which binds `PYTHON_RUNNER` to
-`ai-interviewer-python-runner`. The existing local `.dev.vars` fallback supplies
+Both `npm run dev` and `dev:runner` bind `PYTHON_RUNNER` to
+`ai-interviewer-python-runner`, so either connects to a running `runner:dev`
+proxy. Without one, Wrangler answers the binding with 503 and **Run visible
+tests** returns the existing 503 infrastructure error (its run checkpoint is
+still recorded). `dev:runner` selects `env.runner` in `wrangler.jsonc`, which
+also omits Hyperdrive. The existing local `.dev.vars` fallback supplies
 application configuration; collection must already be approved for fictional
 local testing. This feature does not change that gate or database credentials.
 
@@ -157,11 +165,60 @@ The controller treats malformed candidate protocol output as a candidate failure
 
 Container isolation shares the Docker Linux kernel and is intended for local
 fictional practice, not a claim of production multi-tenant sandbox security.
-Production still requires an independently deployed runner and isolation review.
-Do not deploy the loopback proxy as a production runner. The default deployment
-has no runner service binding; the `runner` environment is for development only.
+Production uses the hosted runner below. Do not deploy the loopback proxy
+(`runner/wrangler.jsonc`); it has the same Worker name as the hosted runner.
 The Python base tag is maintained upstream, not digest-pinned; the resolved local
 image ID is used consistently during a controller session.
+
+## Hosted runner
+
+```text
+main Worker: runCode()
+  -> PYTHON_RUNNER service binding (unchanged request/response contract)
+  -> Worker ai-interviewer-python-runner (src/python-runner-hosted.ts)
+     no routes, no workers.dev URL, no app secrets or DB bindings
+  -> one new RunnerSandbox Durable Object + container per run (random name)
+  -> runner/sandbox.py: POST /exec per test -> harness.py as nobody
+  -> the Worker compares output with expected JSON and aggregates the result
+  -> the container is destroyed after the run
+```
+
+The Worker applies the same validation, verdict and aggregation code as the
+local controller (`scripts/python-runner/contract.mjs`), so limits and messages
+match. Only `{sourceCode, entryPoint, args}` enters the container. The response
+reports `runnerVersion: "cloudflare-container-python-v1"`.
+
+Isolation per test: UID/GID 65534, a new session, rlimits (2 CPU seconds,
+256 MiB address space, 32 processes, 64 files, 64 KiB file size, no core
+dumps), an empty directory as its only writable path, a 5 s wall limit, and 256 KiB
+of captured protocol output. Afterwards the server kills every UID 65534
+process, including processes that left the session, and reaps them. The
+container class sets `enableInternet = false`.
+
+Honest limits: the root server shares the container with candidate code, and
+isolation between those two relies on Linux users and rlimits, not a seccomp
+filter or read-only root. Tests in one run share one container, so a candidate
+can affect only its own later tests. There is no cgroup memory cap per test;
+a process can exhaust the `basic` instance's 1 GiB and fail its own run as
+`runner_error`. Every run is one cold container start, adding seconds of
+latency. `max_instances` is 10; beyond that, runs return `runner_error`. Local
+tests use `docker run --network=none` to mirror `enableInternet = false`.
+Deployed check (2026-09-28, `.local/runner-probe.mjs` through a remote service
+binding): a correct solution passed and a wrong one failed in about 2 s including
+the cold start; an infinite loop was killed by the CPU limit; a raw TCP connection
+to 1.1.1.1 and an HTTP request both timed out, so candidate code has no egress.
+
+Deploy the runner before the app, because the app binds to it by name.
+Wrangler builds `runner/hosted.Dockerfile` with Docker and pushes it:
+
+```sh
+npm run runner:hosted:deploy
+npm run build:voice && npx wrangler deploy
+```
+
+Costs: Workers Paid includes 375 vCPU-minutes, 25 GiB-hours of memory and
+200 GB-hours of disk per month. A `basic` instance provisions 1 GiB and 4 GB for
+each run's lifetime (a few seconds), so the allowance covers thousands of runs.
 
 ## Request contract
 
@@ -185,9 +242,12 @@ Only `POST /run`, `Content-Type: application/json` is supported internally:
 }
 ```
 
-This version supports exactly the authored contract above: one positional list,
-a top-level named callable, synchronous execution, JSON-serializable return,
-and exact JSON equality (object key order is irrelevant, array order matters,
+Two argument contracts are accepted. `"arguments": "values: list"` (above)
+requires exactly one list argument. `"arguments": "positional JSON arguments"`,
+used by the [problem bank](problem-bank.md), passes each element of
+`inputData.args` (0–16 JSON values) as one positional argument. Both call a
+top-level named callable, execute synchronously, require a JSON-serializable return,
+and use exact JSON equality (object key order is irrelevant, array order matters,
 booleans are distinct from numbers). Python integers beyond JavaScript's safe
 integer range cannot be represented losslessly through this existing JSON API.
 No expressions, dotted entry points, dunder entry points, keyword arguments,
@@ -297,7 +357,8 @@ operation and never manufactures a runner result.
 # Contract/HTTP, real workerd binding, API result tests (no Docker/DB)
 node --test test/python-runner*.test.mjs
 
-# Real Python execution and isolation tests; requires built image + Docker
+# Real Python execution and isolation tests; requires built image + Docker.
+# Includes the hosted image and sandbox server (also: npm run test:runner:hosted)
 npm run test:runner
 
 # Real API handler -> HTTP controller -> Docker -> temporary PostgreSQL schema
@@ -311,7 +372,11 @@ npm test
 npm run check
 npm run lint
 npx wrangler deploy --dry-run
+npx wrangler deploy --dry-run --config runner/hosted.wrangler.jsonc  # builds the image
 ```
+
+The resource-limit table describes the local controller; the hosted runner's
+differences are listed under [Hosted runner](#hosted-runner).
 
 The PostgreSQL runner test supplies a fictional authenticated identity to the
 real API handler; it does not retest Better Auth or the browser. It applies the

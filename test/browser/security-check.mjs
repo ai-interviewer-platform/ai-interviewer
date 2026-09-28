@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
+import { launchBrowser } from './launch.mjs';
 
 const base = process.env.APP_URL;
 if (!base) throw new Error("Set APP_URL to the running preview.");
-const browser = await chromium.launch({ channel: "msedge" });
+const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
   const payload = '"><img src=x onerror="document.documentElement.dataset.auditXss=1">';

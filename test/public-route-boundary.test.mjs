@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser/launch.mjs";
 
 const publicRoot = resolve(import.meta.dirname, "../public");
 const contentType = { ".css": "text/css", ".js": "text/javascript", ".html": "text/html" };
@@ -34,7 +34,7 @@ async function withPublicServer(run) {
 
 test("sample routes use labeled fixtures and the personal route stays fail-closed", async () => {
   await withPublicServer(async (baseUrl) => {
-    const browser = await chromium.launch({ channel: "msedge", headless: true });
+    const browser = await launchBrowser({ headless: true });
     try {
       const page = await browser.newPage();
       for (const path of ["interview", "review", "retry", "related"]) {
@@ -47,7 +47,9 @@ test("sample routes use labeled fixtures and the personal route stays fail-close
       await page.goto(`${baseUrl}/#sample`);
       await page.getByRole("button", { name: "Run sample tests", exact: true }).waitFor();
       assert.match(await page.locator("body").innerText(), /Guided sample · not scored/);
-      await page.goto(`${baseUrl}/#personal`);
+      await page.goto(`${baseUrl}/#welcome`);
+      await page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Sign in" }).click();
+      assert.equal(new URL(page.url()).hash, "#personal");
       await page.getByRole("heading", { name: "Records are not being collected." }).waitFor();
       assert.doesNotMatch(await page.locator("body").innerText(), /Design prototype|Simulated result|Run prepared tests|Fictional saved attempt/);
     } finally {

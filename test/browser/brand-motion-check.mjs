@@ -1,10 +1,10 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
 const base = process.env.APP_URL;
 if (!base) throw new Error('Set APP_URL to the running app.');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await launchBrowser({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -27,7 +27,8 @@ try {
     const first = getComputedStyle(node).r;
     animation.currentTime = delay + 3600 + 360;
     const second = getComputedStyle(node).r;
-    animation.play();
+    // A script-controlled CSS animation outlives later style changes; drop the probe.
+    animation.cancel();
     return [first, second];
   });
   assert.notEqual(frames[0], frames[1]);

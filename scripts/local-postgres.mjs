@@ -26,6 +26,9 @@ function discoverPostgresBin() {
 }
 
 const postgresBin = discoverPostgresBin();
+const envPath = resolve(root, ".env");
+// Wrangler reads this from .env (not .dev.vars) to emulate the HYPERDRIVE binding locally.
+const hyperdriveLocalVariable = "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE";
 // The installed system cluster occupies 5432; setup verifies 5433 is free.
 const port = Number(process.env.LOCAL_POSTGRES_PORT ?? "5433");
 const appRole = "ai_interviewer_app";
@@ -175,11 +178,15 @@ async function ensureDatabase(credentials) {
   }
 }
 
-async function writeLocalEnvironment(credentials) {
-  const existing = await readFile(devVarsPath, "utf8").catch((error) => {
+async function readOptional(path) {
+  return readFile(path, "utf8").catch((error) => {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return "";
     throw error;
   });
+}
+
+async function writeLocalEnvironment(credentials) {
+  const existing = await readOptional(devVarsPath);
   const authSecret = existing.match(/^BETTER_AUTH_SECRET=(.+)$/m)?.[1] ?? randomBytes(48).toString("base64url");
   const managedVariables = new Set([
     "DATABASE_URL",
@@ -200,6 +207,11 @@ async function writeLocalEnvironment(credentials) {
     "",
   ].join("\n");
   await writeFile(devVarsPath, contents, { encoding: "utf8", mode: 0o600 });
+
+  const envLines = (await readOptional(envPath)).split(/\r?\n/).filter((line) => !line.startsWith(`${hyperdriveLocalVariable}=`));
+  while (envLines.at(-1) === "") envLines.pop();
+  envLines.push(`${hyperdriveLocalVariable}=${connectionString(credentials.applicationPassword)}`, "");
+  await writeFile(envPath, envLines.join("\n"), { encoding: "utf8", mode: 0o600 });
 }
 
 async function readDatabaseUrl() {

@@ -28,9 +28,13 @@ export interface Env {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   PERSONAL_DATA_COLLECTION_APPROVED?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;
   VOICE_SESSIONS: DurableObjectNamespace;
   REVIEW_PROVIDER_API_KEY?: string;
   REVIEW_PROVIDER_MODEL?: string;
   REVIEW_PROVIDER?: string;
+  // Workers AI: evidence-linked reviews and text-mode interviewer replies.
+  AI?: Ai;
 }

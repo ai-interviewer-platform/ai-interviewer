@@ -1,16 +1,16 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 const base=process.env.APP_URL;
 if (!base) throw new Error('Set APP_URL to the running preview.');
-const browser=await chromium.launch({channel:'msedge'});
+const browser=await launchBrowser();
 const context=await browser.newContext({viewport:{width:1440,height:900}});
 const page=await context.newPage();
 try {
  for(const route of ['welcome','profile']) {
   await page.goto(`${base}/#${route}`);
   await page.locator('.v2-screen').waitFor();
-  await page.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().map(a=>a.finished));});
+  await page.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().map(a=>a.finished.catch(() => {})));});
   const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
   // The requested reference palette retains its known secondary-text contrast findings.
   console.log(route, 'reference-palette contrast findings:', result.violations.filter(v=>v.id==='color-contrast').flatMap(v=>v.nodes).length);

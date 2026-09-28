@@ -37,11 +37,15 @@ fail closed when collection is unavailable.
 - Session history, responsive workspace panes, keyboard access, and explicit
   reduced-motion behavior.
 
-Retained audio and hosted isolated Python execution remain incomplete.
-Evidence-backed review processing is implemented; live model quality and hosted
-provider behavior still require verification. Local Python
-execution has a dedicated Docker runner behind the existing optional service
-binding; see [Python runner](python-runner.md) for setup, limits and verification. The Deepgram voice
+Retained audio remains incomplete. Evidence-backed review processing runs behind a
+provider adapter (`src/review-provider-factory.ts`): Workers AI (the `AI` binding,
+no provider key, `@cf/moonshotai/kimi-k2.6`) by default, or OpenAI Responses when
+`REVIEW_PROVIDER=openai-responses` with its key and model. Text-mode interviewer
+replies use Workers AI `@cf/moonshotai/kimi-k2.6`; the model IDs are constants in
+`src/llm.ts` and need Workers Paid. Live model quality still requires human
+evaluation. Python runs in a Docker runner locally and in a hosted Cloudflare
+Containers runner in production; see [Python runner](python-runner.md) for setup,
+limits and verification. The Deepgram voice
 transport is implemented, but live provider behavior still requires a configured
 account and hosted verification as recorded below.
 
@@ -55,8 +59,9 @@ Browser (`public/`)
                          ├─ PostgreSQL through an invocation-scoped pool
                          ├─ authenticated voice relay → Deepgram Voice Agent
                          │    └─ Nova-3 listen → GPT-5.6 Terra think → Flux speak
+                         ├─ text interviewer turn → Workers AI Kimi K2.6
                          ├─ hosted isolated Python runner binding/HTTPS adapter
-                         └─ review queue → provider adapter → evidence validation
+                         └─ review queue → provider adapter (Workers AI | OpenAI Responses) → evidence validation
 ```
 
 Cloudflare Workers serves the static assets and API as one application.
@@ -76,9 +81,13 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `public/practice.css` | Roadmap, practice, and profile layout |
 | `src/worker.ts` | Static/API boundary, fail-closed collection gate, and queue entry |
 | `src/api.ts` | Attempt, evidence, run, review, correction, and retry operations |
+| `src/llm.ts` | Workers AI client, model IDs, and provider failure reasons |
+| `src/review.ts` | Review evidence loading, findings schema, validation, and publication |
 | `src/deepgram.ts` | Server-owned Deepgram settings and voice availability |
 | `src/browser/voice-agent.js` | Deepgram microphone, live conversation, playback, and transcript flow |
 | `src/auth.ts` | Better Auth runtime configuration |
+| `src/account.ts` | Account data export and deletion |
+| `src/email.ts` | Optional Resend email for password reset and verification |
 | `src/db/generated-auth.ts` | CLI-generated Better Auth Drizzle schema |
 | `migrations/0002_application.sql` | Application schema and database invariants |
 | `src/voice-context.ts` | Bounded, owner-scoped coding context for the voice agent |
@@ -118,16 +127,32 @@ request validation, and boundaries that relational keys cannot express alone.
   or public network access. The local runner uses restricted per-test Docker
   containers; an optional binding alone is not proof of production isolation.
 - Review output remains failed rather than publishing fabricated fallback
-  findings when provider configuration or evidence-reference validation is
-  missing.
+  findings when provider configuration, the provider call, or validation fails.
+  A review sends the frozen evidence up to the final checkpoint, without
+  unverified voice events or reference solutions. Every finding must match the
+  schema, stay within text limits, avoid score or outcome claims, and cite 1–10
+  event IDs from that set. Findings and the `ready` status are written in one
+  transaction guarded by `status = 'pending'`, so queue redelivery is a no-op.
+- The text interviewer receives the problem, authored guidance, saved draft,
+  latest visible run, and the last 20 transcript segments, never the reference
+  solution. Mock mode does not hint unless help is requested; Coach mode guides
+  without writing the solution. A reply is its own `interviewer_text` event and
+  transcript segment. If the provider fails, the candidate message stays saved
+  and the response says no reply was generated.
 - Voice processing and retained audio are separate decisions. The app can stream
   a consented voice attempt to Deepgram while keeping retained audio off.
 - Permanent Deepgram credentials stay in the Worker. An authenticated, active
   voice attempt connects through a metered Durable Object relay; no provider token reaches the browser.
 - Retention, export, deletion, backup/log handling, and provider-processing
-  behavior must be approved before collecting real personal sessions. While
-  unresolved, collection remains fail-closed and no export/deletion API claims
-  behavior that has not been approved.
+  behavior must be approved before collecting real personal sessions. The
+  mechanisms exist: a signed-in user can download their data and, after
+  re-entering the password, permanently delete the account and every personal row.
+  Only `delete_user_account()` (`migrations/0007_account_deletion.sql`) may delete
+  completed evidence, and only that user's; normal updates and deletes stay rejected.
+- Email (password reset, verification) is sent as plain text through Resend only
+  when `RESEND_API_KEY` and `EMAIL_FROM` are set; links use `BETTER_AUTH_URL`,
+  never the request host. Without both values, reset is off and verification is
+  not required.
 
 ### Personal-data inventory and lifecycle
 
@@ -145,11 +170,11 @@ transcripts, and raw provider errors. Provider-side processing, platform logs,
 and database backups remain governed by the deployment decisions in
 `mvp-blockers.md`.
 
-Better Auth supports session invalidation and sign-out. Account export, personal
-record deletion, automated retention, backup erasure, and self-service password
-recovery are not represented as implemented. Completed evidence is deliberately
-immutable at the ordinary application role, so deletion needs an approved,
-auditable privileged workflow rather than weakening evidence constraints.
+Better Auth supports session invalidation and sign-out. Account export and
+password-confirmed account deletion are implemented (see above); password reset
+works only when email is configured. Automated retention and backup erasure are
+not implemented. Completed evidence stays immutable at the ordinary application
+role; the single deletion path is the audited `delete_user_account()` function.
 
 ## API surface
 
@@ -157,7 +182,9 @@ Unauthenticated operational routes expose health and collection availability.
 Better Auth owns `/api/auth/*`. The personal API provides catalog access plus
 owned attempt listing, creation, detail, draft updates, messages, requested help,
 a same-origin voice WebSocket, runs, completion, review,
-corrections, retry, and related-problem lookup.
+corrections, retry, and related-problem lookup, plus `GET /api/me/export` (a JSON
+attachment of the user's own data, without reference solutions or tests) and
+`DELETE /api/me` (requires the current password).
 
 Every owned-attempt route verifies the authenticated user before returning or
 changing data. Finishing an attempt freezes an evidence manifest and creates a
@@ -219,11 +246,16 @@ mocked and PostgreSQL verification commands.
 | Frontend | Maintained vanilla HTML/CSS/JavaScript app, fixture/personal route separation, responsive and accessibility checks | User validation of the product loop |
 | Authentication | Better Auth configuration and generated PostgreSQL schema | Hosted environment and end-to-end deployment verification |
 | Database | Versioned migrations, ownership/evidence constraints, local tooling | Live migration and constraint proof against the selected hosted PostgreSQL service |
-| Personal collection | Explicit fail-closed gate | Approved retention, deletion, disclosure, and processor policy |
-| Runner | Local restricted Docker runner plus a production client that accepts only a Worker service binding or fixed authenticated HTTPS endpoint | Select/deploy an independently isolated sandbox; prove cleanup, limits, and no secret/network access in the hosted target |
-| Review | Provider-independent interface, OpenAI Responses adapter, frozen evidence validation, atomic publication, idempotent queue handling, mocked-provider and PostgreSQL tests | Credentialed hosted verification and human evaluation of finding quality |
+| Personal collection | Explicit fail-closed gate, data export, password-confirmed account deletion, optional email reset/verification | Approved retention, disclosure, and processor policy; published privacy terms; verified Resend sender domain |
+| Runner | Local restricted Docker runner; production client accepting a Worker service binding or fixed authenticated HTTPS endpoint; hosted Cloudflare Containers runner deployed 2026-09-28 (fresh container per run, verified pass/fail, CPU-limit kill, and no egress) | Independent isolation review, concurrency and cleanup monitoring under real load |
+| Review | Provider-independent interface with Workers AI (default, Kimi K2.6, attempt-scoped evidence-ID enum) and OpenAI Responses adapters, frozen evidence validation, atomic publication, idempotent queue handling, per-account daily cap; mocked-provider and PostgreSQL tests; real local Workers AI reviews in 9-20 s | Human evaluation of finding quality; credentialed OpenAI verification if selected |
+| Text interviewer | Kimi K2.6 replies and requested help in text mode, with per-attempt and per-account caps; real local replies in about 2 s | Live reply quality checks |
 | Voice/audio | Server-controlled Deepgram relay, bounded coding-context function, transcript provenance, quotas, timeouts, and no application raw-audio retention | Live credentialed microphone/playback/function-call test, provider-processing approval, transcript quality, and hosted interruption/reconnection proof |
 | Deployment | Wrangler resources, runtime readiness report, exact-origin validation, structured logs, CI, migration/schema verification, and an authoritative checklist | Real bindings, secrets, provider credentials, alert configuration, and hosted smoke tests |
+
+The 2026-09-24 end-to-end audit, remaining launch blockers, and hosting runbook
+are recorded in [launch readiness](launch-readiness.md). The catalog now includes
+the verified public [problem bank](problem-bank.md).
 
 Passing local checks proves the checked behavior only. It does not prove hosted
 PostgreSQL, third-party provider behavior, runner isolation, or product demand.
@@ -243,6 +275,8 @@ application policy, not provider guarantees; see `src/security.ts`.
 | Saved input text | 64 KiB per string; setup permits only studiedTopics and concern strings |
 | API requests | 120 per authenticated account per 60-second fixed window |
 | Auth requests | Better Auth's shipped route-specific limits, explicitly enabled with atomic PostgreSQL storage and Cloudflare client IP |
+| Model turns (text replies and help) | 40 per attempt; 60 per account per hour |
+| Reviews | 20 model reviews per account per day; evidence above about 100k tokens fails |
 | History and evidence | 50 rows per collection per page, explicit Load more controls |
 | Attempt evidence | 10,000 events; completion and writes share the attempt row lock |
 | Voice control messages | 1,200 per connection; only KeepAlive and InjectUserMessage permitted |
@@ -262,8 +296,8 @@ from server-owned problem data. Only messages received from the provider socket
 can create verified voice events. Browser transcript/token endpoints are removed.
 A verified transcript means verified transport provenance, not factual correctness.
 No transcript automatically marks requested help as delivered. Historical voice
-events lacking `payload.verified: true` remain unverified; do not use them as
-provider evidence in a future review implementation.
+events lacking `payload.verified: true` remain unverified; reviews neither send
+nor accept them as evidence.
 
 Unsafe API methods require an exact Origin match; custom JSON writes require
 application/json. Static assets carry CSP, anti-framing, no-sniff and privacy

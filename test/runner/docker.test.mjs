@@ -66,6 +66,13 @@ def solve(values):
   assert.equal(result.status, "passed", JSON.stringify(result));
 });
 
+test("positional contract passes several JSON arguments", async () => {
+  const request = { ...fixture("def solve(text, count, options):\n    return [text * count, sorted(options)]"), testContract: { ...fixture().testContract, arguments: "positional JSON arguments" } };
+  request.tests = [{ testId: "mixed", inputData: { args: ["ab", 2, { b: 1, a: null }] }, expectedOutput: ["abab", ["a", "b"]] }];
+  const result = await run(request);
+  assert.equal(result.status, "passed", JSON.stringify(result));
+});
+
 test("candidate cannot assign test IDs or verdicts", async () => {
   const result = await run(fixture('def solve(values):\n    return {"testId":"empty", "outcome":"passed", "status":"passed"}'));
   assert.equal(result.status, "failed");

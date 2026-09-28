@@ -1,7 +1,7 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
-const browser = await chromium.launch({channel:'msedge'});
+const browser = await launchBrowser();
 const context = await browser.newContext({viewport:{width:1440,height:1000}});
 const page = await context.newPage();
 const base = process.env.APP_URL;
@@ -18,7 +18,7 @@ try {
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
   for (const route of ['welcome','roadmap','sessions','setup','sample','review?source=sample','preferences','profile','system']) {
     await page.goto(`${base}/#${route}`);
-    await page.evaluate(async () => Promise.all(document.getAnimations().filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished)));
+    await page.evaluate(async () => Promise.all(document.getAnimations().filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
     const result = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     accessibilityIssues.push(...result.violations.map(v=>({route,id:v.id,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))})));
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false,route);

@@ -23,7 +23,7 @@ try {
   for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner";' }));
+    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
   } }] });
   const { handleApi, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner','Fixture','owner@example.invalid'), ('other','Other','other@example.invalid')");

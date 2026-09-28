@@ -38,8 +38,15 @@ async function expectDatabaseRejection(name, statement, parameters, message) {
 
 await client.connect();
 try {
-  const migrations = await client.query("SELECT filename, checksum FROM app_schema_migrations ORDER BY applied_at, filename");
-  assert.deepEqual(migrations.rows, await expectedMigrations());
+  // Compare by filename: a migration added on a parallel branch (0004_mvp_content_foundation)
+  // is applied after later-numbered files on databases that already had them.
+  const byFilename = (a, b) => a.filename.localeCompare(b.filename);
+  const migrations = await client.query("SELECT filename, checksum FROM app_schema_migrations");
+  assert.deepEqual(migrations.rows.sort(byFilename), (await expectedMigrations()).sort(byFilename));
+  const starters = await client.query("SELECT count(*)::int AS broken FROM problems WHERE position(E'\\n' IN starter_code) = 0");
+  assert.equal(starters.rows[0].broken, 0, "Every starter code has real line breaks");
+  const untested = await client.query("SELECT count(*)::int AS missing FROM problems p WHERE is_active AND NOT is_sample AND NOT EXISTS (SELECT 1 FROM test_cases t WHERE t.problem_id = p.id AND t.visibility = 'visible')");
+  assert.equal(untested.rows[0].missing, 0, "Every active problem has visible tests");
 
   const authColumns = await client.query(
     "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'auth_sessions'",
@@ -65,7 +72,9 @@ try {
   assert.ok(catalog.rows.length >= 2);
   for (const problem of catalog.rows) {
     assert.match(problem.entry_point, /^[A-Za-z_][A-Za-z0-9_]{0,127}$/);
-    assert.deepEqual(problem.test_contract, { arguments: "values: list", return: "JSON-serializable return value", comparison: "exact JSON equality" });
+    // The authored problems use "values: list"; the problem bank uses positional JSON arguments.
+    assert.ok(["values: list", "positional JSON arguments"].includes(problem.test_contract.arguments), `${problem.id} has an unsupported runner contract`);
+    assert.deepEqual({ ...problem.test_contract, arguments: undefined }, { arguments: undefined, return: "JSON-serializable return value", comparison: "exact JSON equality" });
     assert.ok(problem.visible_tests >= 2 && problem.visible_tests <= 16, `${problem.id} must have 2–16 visible tests`);
   }
 
@@ -123,8 +132,19 @@ try {
     [],
     /retry source must be a checkpoint from the source attempt for the same problem/,
   );
+  await expectDatabaseRejection(
+    "completed_update",
+    "UPDATE code_checkpoints SET source_code = 'edited' WHERE id = 'verify-checkpoint-a'",
+    [],
+    /completed attempt evidence is immutable/,
+  );
+  await client.query("SELECT delete_user_account('verify-owner-a')");
+  const remaining = await client.query(
+    "SELECT (SELECT count(*)::int FROM users WHERE id = 'verify-owner-a') AS users, (SELECT count(*)::int FROM attempts WHERE user_id = 'verify-owner-a') AS deleted, (SELECT count(*)::int FROM attempts WHERE user_id = 'verify-owner-b') AS kept",
+  );
+  assert.deepEqual(remaining.rows[0], { users: 0, deleted: 0, kept: 1 });
   await client.query("ROLLBACK");
-  console.log("Verified migration checksums, auth columns, required indexes, runner-compatible catalog, completed-evidence immutability, review ownership, and retry lineage.");
+  console.log("Verified migration checksums, auth columns, required indexes, runner-compatible catalog, completed-evidence immutability, review ownership, retry lineage, and account deletion.");
 } catch (error) {
   await client.query("ROLLBACK").catch(() => undefined);
   throw error;

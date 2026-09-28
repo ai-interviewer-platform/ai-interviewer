@@ -24,12 +24,17 @@
     "dev:runner": "npm run build:voice && wrangler dev --env runner",
     "test:runner": "node --test test/runner/*.test.mjs",
     "test:runner:api": "node test/runner/api-integration.mjs",
+    "test:runner:hosted": "node --test test/runner/hosted-container.test.mjs",
+    "runner:hosted:deploy": "wrangler deploy --config runner/hosted.wrangler.jsonc",
     "runner:smoke": "node test/runner/http-smoke.mjs",
-    "test:postgres": "node --env-file-if-exists=.dev.vars scripts/verify-postgres.mjs && node --env-file-if-exists=.dev.vars test/review-integration.mjs && node --env-file-if-exists=.dev.vars test/security-integration.mjs && node --env-file-if-exists=.dev.vars test/mvp-backend-integration.mjs"
+    "test:postgres": "node --env-file-if-exists=.dev.vars scripts/verify-postgres.mjs && node --env-file-if-exists=.dev.vars test/review-integration.mjs && node --env-file-if-exists=.dev.vars test/security-integration.mjs && node --env-file-if-exists=.dev.vars test/mvp-backend-integration.mjs && node --env-file-if-exists=.dev.vars test/llm-integration.mjs && node --env-file-if-exists=.dev.vars test/account-deletion-integration.mjs && node --env-file-if-exists=.dev.vars test/email-auth-integration.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.3",
+    "@cloudflare/containers": "0.3.7",
     "@deepgram/agents": "0.1.2",
+    "@neon/config": "^1.8.2",
+    "@neon/env": "^1.4.7",
     "better-auth": "1.7.3",
     "pg": "8.16.3"
   },

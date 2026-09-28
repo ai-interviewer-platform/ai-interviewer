@@ -47,7 +47,7 @@ try {
     plugin.onResolve({ filter: /^(cloudflare:workers|\.\/database|\.\/auth)$/ }, args => ({ path: args.path, namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "cloudflare:workers"
       ? "export class DurableObject { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }"
-      : args.path === "./auth" ? 'export const authenticatedUserId = async () => "owner";'
+      : args.path === "./auth" ? 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;'
       : "export const databaseForInvocation = () => globalThis.securityTestDatabase();" }));
   } }] });
   const { consumeRate, limits } = await import(pathToFileURL(join(directory, "security.mjs")));

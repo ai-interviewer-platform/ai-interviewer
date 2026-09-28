@@ -14,6 +14,9 @@ export const limits = {
   voiceFunctionCalls: 30,
   voiceContextSourceBytes: 10 * 1024,
   voiceContextBytes: 16 * 1024,
+  modelTurnsPerAttempt: 40,
+  accountModelTurnsPerHour: 60,
+  accountReviewsPerDay: 20,
 };
 
 export async function consumeRate(pool: Pool, key: string, window: number, max: number) {

@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './launch.mjs';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -6,7 +6,7 @@ import { scenes } from '../../public/model.js';
 
 const base = process.env.APP_URL;
 if (!base) throw new Error('Set APP_URL to the URL printed by npm run dev.');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await launchBrowser({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 const errors = [];
@@ -17,7 +17,7 @@ try {
   for (const [title, path] of scenes) {
     await page.goto(`${base}/#${path}`);
     await page.locator('h1').waitFor();
-    await page.evaluate(async () => Promise.all(document.getAnimations().map((animation) => animation.finished)));
+    await page.evaluate(async () => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))));
     assert.ok(await page.title(), title);
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     for (const violation of result.violations) issues.push({ screen: title, id: violation.id, nodes: violation.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) });
@@ -53,7 +53,7 @@ try {
   await page.getByRole('button', { name: 'Start interview preview' }).click();
   await page.getByRole('button', { name: 'Ask for help', exact: true }).click();
   await page.getByRole('button', { name: 'Show the hint', exact: true }).click();
-  assert.match(await page.locator('.workspace-footnote').innerText(), /Guidance used/);
+  assert.match(await page.locator('#messages .coach-message').innerText(), /Coach · guidance/);
   await page.getByLabel('Message the interviewer').fill('<script>not executed</script>');
   await page.getByRole('button', { name: 'Send preview message' }).click();
   assert.match(await page.locator('#messages').innerText(), /<script>not executed<\/script>/);
@@ -71,6 +71,7 @@ try {
   await page.getByRole('link', { name: 'Back to roadmap' }).click();
   assert.match(page.url(), /topic=sets&view=list/);
   await page.getByRole('dialog', { name: 'Seen-value tracking' }).waitFor();
+  await page.waitForFunction(() => document.querySelector('#problem-drawer').open);
   await page.keyboard.press('Escape');
   await page.waitForURL(/return=seen/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'leaf-seen');
@@ -111,7 +112,7 @@ try {
   const action = page.getByRole('button', { name: 'Primary action', exact: true });
   await action.hover();
   await page.mouse.down();
-  await action.evaluate(async (el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+  await action.evaluate(async (el) => Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {}))));
   assert.equal(await action.evaluate((el) => getComputedStyle(el).transform), 'matrix(1, 0, 0, 1, 0, 1)');
   await page.screenshot({ path: 'output/playwright/motion-pressed.png', fullPage: true });
   await page.mouse.up();

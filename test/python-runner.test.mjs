@@ -24,6 +24,24 @@ test("runner validates IDs, size, entry points and authored invocation contract"
   for (const mutate of mutations) { const value = fixture(); mutate(value); assert.equal(validateRequest(value), false); }
 });
 
+test("positional contract accepts any JSON arguments within the argument limit", () => {
+  const positional = () => ({ ...fixture(), testContract: { ...fixture().testContract, arguments: "positional JSON arguments" } });
+  for (const args of [[], [42], ["text", [1, 2], { key: null }], Array.from({ length: limits.arguments }, (_, index) => index)]) {
+    const value = positional();
+    value.tests[0].inputData = { args };
+    assert.equal(validateRequest(value), true, JSON.stringify(args));
+  }
+  const tooMany = positional();
+  tooMany.tests[0].inputData = { args: Array.from({ length: limits.arguments + 1 }, () => 0) };
+  assert.equal(validateRequest(tooMany), false);
+  const notArray = positional();
+  notArray.tests[0].inputData = { args: 42 };
+  assert.equal(validateRequest(notArray), false);
+  const unknown = positional();
+  unknown.testContract.arguments = "keyword arguments";
+  assert.equal(validateRequest(unknown), false);
+});
+
 test("verdict and identity are assigned outside candidate output using JSON equality", () => {
   const item = fixture().tests[0];
   assert.deepEqual(candidateResult(item, { actualOutput: 0, stdout: "", stderr: "", testId: "forged", outcome: "failed" }), { testId: "empty", outcome: "passed", actualOutput: 0 });

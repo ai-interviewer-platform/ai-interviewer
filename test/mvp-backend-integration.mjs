@@ -25,7 +25,7 @@ try {
   }
   await build({ entryPoints: ["src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async request => request.headers.get("x-test-user") ?? "owner";' }));
+    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async request => request.headers.get("x-test-user") ?? "owner"; export const passwordMatches = async () => false;' }));
   } }] });
   const { appendVoiceTranscript, handleApi, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));

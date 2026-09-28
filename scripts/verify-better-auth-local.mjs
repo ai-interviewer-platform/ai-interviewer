@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 
-const baseUrl = process.env.AUTH_VERIFY_URL ?? "http://127.0.0.1:8790";
+const baseUrl = process.env.AUTH_VERIFY_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:8787";
 const email = `verification-${randomUUID()}@example.invalid`;
 const password = randomBytes(24).toString("base64url");
 

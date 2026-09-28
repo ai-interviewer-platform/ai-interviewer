@@ -41,7 +41,7 @@
   /* Ink */
   --ink:    oklch(0.955 0.004 160);
   --ink-2:  oklch(0.73 0.008 160);
-  --ink-3:  oklch(0.56 0.008 160);
+  --ink-3:  oklch(0.63 0.008 160);
   --text: var(--ink);
   --muted: var(--ink-2);
 
@@ -147,7 +147,7 @@
   --shadow-recess:   inset 0 1px 3px oklch(0 0 0 / 0.1);
   --ink:    oklch(0.20 0.006 160);
   --ink-2:  oklch(0.46 0.008 160);
-  --ink-3:  oklch(0.60 0.008 160);
+  --ink-3:  oklch(0.50 0.008 160);
   --accent:      oklch(0.56 0.10 175);
   --accent-lit:  oklch(0.62 0.10 175);
   --accent-deep: oklch(0.50 0.10 175);
