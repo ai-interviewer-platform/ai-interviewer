@@ -11,6 +11,9 @@ export const limits = {
   eventsPerAttempt: 10000,
   voiceCommands: 1200,
   pendingTranscripts: 50,
+  modelTurnsPerAttempt: 40,
+  accountModelTurnsPerHour: 60,
+  accountReviewsPerDay: 20,
 };
 
 export async function consumeRate(pool: Pool, key: string, window: number, max: number) {

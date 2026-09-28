@@ -58,7 +58,7 @@ function isVoiceRole(value: string | null): value is "user" | "assistant" {
   return value === "user" || value === "assistant";
 }
 
-async function withTransaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -544,14 +544,4 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
     return body ? correctFinding(pool, userId, attempt, decodeURIComponent(attemptMatch[3]), body) : badRequest("Expected a JSON request body.");
   }
   return notFound();
-}
-
-export async function processReview(reviewId: string, env: Env, pool: Pool): Promise<void> {
-  if (!env.REVIEW_PROVIDER_API_KEY || !env.REVIEW_PROVIDER_MODEL) {
-    await pool.query("UPDATE reviews SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", ["Review provider is not configured; no findings were generated.", reviewId]);
-    return;
-  }
-  // A configured model must be proven to support the recorded-evidence contract
-  // before this worker publishes findings. Never create prepared fallback feedback.
-  await pool.query("UPDATE reviews SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", ["The configured review transport has not passed evidence-reference validation; no findings were published.", reviewId]);
 }
