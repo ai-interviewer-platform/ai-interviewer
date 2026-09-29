@@ -120,6 +120,7 @@ for (const status of [408, 409, 429, 500, 503]) test(`provider ${status} remains
   const db = fakeDatabase(); globalThis.fetch = async () => new Response("private", { status });
   await assert.rejects(processReview("review", env, db));
   assert.equal(db.saved.status, "pending"); assert.equal(db.saved.findings.length, 0);
+  assert.equal(db.reviewTokens, 0, "the queue retry must not spend a second daily review token");
 });
 
 test("network and body-stream failures remain retryable", async () => {

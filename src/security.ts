@@ -21,7 +21,13 @@ export const limits = {
 
 export async function consumeRate(pool: Pool, key: string, window: number, max: number) {
   await pool.query("DELETE FROM security_rate_limits WHERE expires_at <= now()");
-  const result = await pool.query<{ count: number }>(
+  return takeRate(pool, key, window, max);
+}
+
+// Takes one token without the expiry sweep, so a caller can spend it inside its
+// own transaction: a rollback refunds the token, and no other key is locked.
+export async function takeRate(db: Pick<Pool, "query">, key: string, window: number, max: number) {
+  const result = await db.query<{ count: number }>(
     `INSERT INTO security_rate_limits (key, count, expires_at) VALUES ($1, 1, now() + $2 * interval '1 second')
      ON CONFLICT (key) DO UPDATE SET
        count = CASE WHEN security_rate_limits.expires_at <= now() THEN 1 ELSE security_rate_limits.count + 1 END,
