@@ -18,7 +18,7 @@ Copy `tools/marketing/config.example.env` to `.env.marketing.local` at the repos
 | `QWEN_COVERED_USAGE_CONFIRMED` | `true` after checking Qwen3.8-max coupon/quota coverage |
 | `MONID_CLI_PATH` | Installed `@monid-ai/cli/dist/index.js` absolute path; CLI handles the Jev-only key |
 
-The confirmation flags record operator acknowledgement, **not a billing guarantee**. Enable provider-side free-quota-only protection where available; verify expiry/remaining coverage before running. No retries, provider fallback or automatic background calls. Ctrl+C cancels the current HTTP request; a provider may already have processed it. Keys stay in this local process. Monid remains exclusively for Jev, using its existing CLI credential store.
+The confirmation flags record operator acknowledgement, **not a billing guarantee**. Enable provider-side free-quota-only protection where available; verify expiry/remaining coverage before running. No automatic model-provider fallback or background research. Acquisition can fall back from Firecrawl to a configured public-video extractor. Ctrl+C cancels the current HTTP request; a provider may already have processed it. Keys stay in this local process. Monid remains exclusively for Jev, using its existing CLI credential store.
 
 ## Commands
 
@@ -35,7 +35,7 @@ npm run marketing -- list
 
 The browser supports topic or blank-context discovery, operator-entered source count, streamed progress, cancellation, restart/resume, manual public page/image/video import, sorting/filtering, JSON export and append-only human judgment history. Source count is an operator choice, not a dollar cap. Exa/Firecrawl/Qwen costs are not inferred from tokens; actual available receipts are retained. Successful stages are reused on resume. An uncertain Jev submission requires its existing run ID from Monid history, avoiding an automatic duplicate bill.
 
-Automated page acquisition requests markdown, links and screenshot from Firecrawl with ads enabled. Page screenshots are explicitly distinct from native images and video frames. A discovered direct video URL can be analyzed automatically; other media links remain unverified and can be imported explicitly. Video observations preserve parent source identity and time ranges. Audio/captions are not transcribed by this implementation. Unsupported URLs and missing media remain visible; usable page text is retained. There is no claim of access to a platform's private ad corpus or of complete video coverage from thumbnails. Repeated captures retain the same source ID across runs; individual runs retain their own provenance.
+Automated acquisition requests markdown, links, screenshot and video from Firecrawl with ads enabled. Public social posts can fall back to platform-specific yt-dlp extraction; local config, cookies and plugins are not used. If video extraction fails, a page-only capture is explicitly labeled. Page screenshots are explicitly distinct from native images and video frames. Native video URLs are followed automatically when supplied by Firecrawl or the extractor. The first extracted creative is analyzed; remaining links stay inspectable for import. Signed video URLs can expire. Video observations preserve parent source identity and time ranges. Audio/captions are not transcribed by this implementation. Unsupported URLs and missing media remain visible; usable page text is retained. There is no claim of access to a platform's private ad corpus or of complete video coverage from thumbnails. Repeated captures retain the same source ID across runs; individual runs retain their own provenance.
 
 Smoke sends synthetic text and a synthetic PNG separately: this verifies both text and image request shapes. It prints model, dimension, usage when supplied and latency; never vectors or keys. A missing key/coverage confirmation fails before a request.
 
@@ -54,7 +54,7 @@ Smoke sends synthetic text and a synthetic PNG separately: this verifies both te
 }
 ```
 
-Use only authorized public research material; no candidate recordings/code. Text input: `{ "modality": "text", "text": "...", "title": "..." }`. Gemini video: base64 `data` and `mimeType`. Tongyi video: `{ "modality": "video", "url": "https://..." }`; Alibaba fetches that public media URL. Image input uses base64 with both providers. Inputs must fit provider media/token limits; this slice does not segment, transcribe or download media automatically.
+Use only authorized public research material; no candidate recordings/code. Text input: `{ "modality": "text", "text": "...", "title": "..." }`. Gemini video: base64 `data` and `mimeType`. Tongyi video: `{ "modality": "video", "url": "https://..." }`; Alibaba fetches that public media URL. Image input uses base64 with both providers. Embedding CLI inputs must fit provider limits. The research UI separately segments local videos for Qwen vision; no speech transcription is performed.
 
 ## Architecture
 
@@ -102,3 +102,24 @@ Browser fixtures verify blank-query discovery, source links, evidence inspection
 - [Qwen vision](https://www.alibabacloud.com/help/en/model-studio/vision): image/video content types; video frames do not include audio understanding.
 
 Next skill route: `/implement` drives `/tdd` and `/code-review`. Ticket 01 also uses `/monid` for Jev only and `/error-handling-patterns` for resumable stages. Ticket 02 uses `/codebase-design` for retrieval and lineage. No need to restart Wayfinder.
+
+## Reference dashboard and native video
+
+See [reference contract](REFERENCE.md). The local UI reproduces the supplied demo layout and visible animations with actual run counters, twelve Jev judgments, category distributions, review cards and a final summary. Open **Research controls** to discover sources, import a public URL, supply its optional linked landing page, upload a video or reopen history. Click a tile to stop following newest results; use **Follow newest** to resume. **Evidence & review** contains timestamps, provenance and categorical/numeric human corrections. Timestamp buttons seek the selected video.
+
+Set `FFMPEG_PATH` to an installed FFmpeg executable for uploads. Install the optional public-video extractor with `python -m pip install yt-dlp`, then set `YTDLP_PYTHON` to that Python executable. For a private `pip --target` installation, set `YTDLP_PYTHONPATH` to the target directory. These tools remain local, outside the production Worker.
+
+Uploads retain original bytes under ignored `.local/marketing/research/media/`; H.264 playback and JPEG posters are served only through validated media IDs with byte-range support. FFmpeg's file/pipe protocol allowlist prevents local uploads from causing network fetches. Oversized videos are bisected only when measured base64 size reaches Alibaba's 10 MB limit or duration exceeds two hours. Segment offsets refer to the original timeline. A segment shorter than the provider's two-second minimum is rejected. Successfully analyzed segments persist for resume. Qwen observes sampled frames, not every frame or audio. Originals are never deleted automatically.
+
+Advertiser counts require observed brand evidence. Durability scores mean evergreen relevance, not observed time in market. Homepage match stays unknown without a separate page capture. Human review flags unknown/missing evidence, with no confidence cutoff. Costs contain available Exa/Jev receipts only and are labeled partial; elapsed/rate includes acquisition and vision, not just Jev inference.
+
+Run `node --test test/marketing-*.test.mjs`; set `FFMPEG_PATH` in the test process to include the real codec/upload/playback/browser-seeking test. Other tests use external HTTP/process fixtures. Live checks are documented separately from fixture proof. No private ad-library collector or speech transcription is claimed.
+
+### Native video and design verification (2026-09-29)
+
+- Supplied 48.27-second reference upload: four size-derived segments, 47 timestamped observations from Qwen3.8-max, all twelve Jev judgments. Jev receipt: $0.000752. Run `a7869dca-c331-4fd5-8499-202d1d39f35b`. The original large inline Jev input exceeded Windows' command-line limit; verified pre-launch failure, recovered with `--input-file`, reused saved vision evidence.
+- Public online video `https://www.youtube.com/watch?v=BUst9tSsTQE`: Firecrawl native video → Qwen → Jev completed; 23 timestamped observations, twelve judgments, Jev receipt $0.000306. This is a 5m14s Grammarly tutorial, not ad-performance evidence. Run `772c3e79-d4ba-4ac8-b57a-1ae3f61c6928`.
+- Original X reference: Firecrawl returned HTTP 500; configured yt-dlp recovered the native 48.266-second public video and original-post metadata. This separately proves acquisition fallback.
+- Updated to supplied `Video Analysis.dc.html` design/motion system; rendering runtime `support.js` not shipped. Desktop/mobile screenshots, summary, reduced motion, native playback/seek, categorical/numeric corrections and axe accessibility check passed. Full suite: 100 passed; typecheck, lint and targeted checks after the file-input fix passed. Standards and Spec review findings resolved.
+
+Ticket 01 stays open for remaining broader ad-library/caption coverage; these live checks establish public video and local upload analysis, not access to every social platform. Ticket 02 retrieval UI remains separate. No production deployment.

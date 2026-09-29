@@ -3,7 +3,8 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { discover, acquire, observe, classify, publicUrl, taxonomy } from './research-providers.mjs';
+import { discover, acquire, observe, classify, publicUrl, taxonomy, scoreRubrics, landingPage } from './research-providers.mjs';
+import { prepareVideo } from './media.mjs';
 
 const initialContext = 'Coursay: Python coding interview practice for students and new graduates actively preparing for SWE interviews. Find related ads and short-form or long-form content about explaining, testing and revising solutions.';
 
@@ -43,7 +44,7 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
           let value, failure;
           try { value = publicUrl(item.url); } catch { failure = { unsupported: true, status: 'unavailable', discoveredUrl: item.url, error: 'Unsupported source URL; public HTTPS required' }; }
           const identity = value ?? item.url;
-          return [identity, { id: createHash('sha256').update(identity).digest('hex'), url: value ?? null, title: item.title ?? identity, observedMetrics: null, provenance: { discovery: 'exa', capturedAt }, ...failure }];
+          return [identity, { id: createHash('sha256').update(identity).digest('hex'), url: value ?? null, title: item.title?.trim() || identity, observedMetrics: null, provenance: { discovery: 'exa', capturedAt }, ...failure }];
         })).values()];
         run.discovery = { cost: found.costDollars ?? null, capturedAt };
       }
@@ -52,23 +53,34 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
         try {
           signal.throwIfAborted();
           delete source.error;
+          source.timings ??= {};
+          let started = performance.now();
           run.stage = 'acquisition'; await save(run);
-          if (!source.acquisition?.screenshot && !source.acquisition?.video) source.acquisition = await acquire({ source, env, fetch, signal });
-          source.segmentId = source.acquisition.video ? 'video-frames' : source.kind === 'image' ? 'image' : 'page-screenshot';
+          if (!source.acquisition?.screenshot && !source.acquisition?.video) source.acquisition = source.uploadId
+            ? await prepareVideo({ directory, id: source.uploadId, env, signal }) : await acquire({ source, directory, env, fetch, exec, signal });
+          source.timings.acquisition ??= performance.now() - started;
+          if (!source.title?.trim() || source.title === source.url) source.title = source.acquisition.metadata?.title || source.title || source.url;
+          source.segmentId = source.acquisition.video || source.acquisition.localVideo ? 'video-frames' : source.kind === 'image' ? 'image' : 'page-screenshot';
           run.stage = 'vision'; await save(run);
-          source.evidence ??= await observe({ source, env, fetch, signal });
+          started = performance.now();
+          source.evidence ??= await observe({ source, directory, env, fetch, signal, onSegment: segment => { source.visionSegments ??= []; source.visionSegments.push(segment); save(run); } });
+          source.timings.vision ??= performance.now() - started;
+          if (source.landingUrl && !source.landingPage) source.landingPage = await landingPage({ url: source.landingUrl, env, fetch, signal });
           signal.throwIfAborted();
           run.stage = 'classification'; await save(run);
           if (!env.MONID_CLI_PATH) throw new Error('Configure MONID_CLI_PATH to installed CLI entry');
           if (source.jevAttempted && !source.jevRunId) throw new Error('Jev submission uncertain; attach its run id from Monid history before resuming');
           source.jevAttempted = true; await save(run);
+          started = performance.now();
           const judged = await classify({ source, env, exec, signal });
+          source.timings.classification = performance.now() - started;
           source.jevRunId = judged.runId;
           if (judged.pending) throw new Error(`Jev ${judged.status}; resume to inspect this run`);
           source.classification = judged;
           source.status = 'complete';
         } catch (error) {
           if (error.runId) source.jevRunId = error.runId;
+          if (error.submissionNotStarted) delete source.jevAttempted;
           source.status = 'unavailable'; source.error = error.message;
           if (signal.aborted) throw error;
         }
@@ -80,6 +92,7 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
       run.error = error.message;
     }
     run.stage = null;
+    run.finishedAt = new Date().toISOString();
     await save(run);
   }
   function launch(run) {
@@ -90,15 +103,21 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
   }
   return {
     get, getContext,
+    async importUpload({ id, name }) {
+      const run = { id: randomUUID(), query: name, queryMode: 'local-upload', numResults: 1, createdAt: new Date().toISOString(), status: 'running', discovery: { mode: 'local-upload', cost: null }, sources: [{ id, uploadId: id, title: name, url: null, kind: 'video', observedMetrics: null, provenance: { discovery: 'local-upload', capturedAt: new Date().toISOString() } }] };
+      save(run); return launch(run);
+    },
     async shutdown() {
       const jobs = [...active.values()];
       jobs.forEach(job => job.controller.abort());
       await Promise.allSettled(jobs.map(job => job.finished));
     },
-    async importSource({ url, kind }) {
+    async importSource({ url, kind, landingUrl }) {
       if (!['page', 'image', 'video'].includes(kind)) throw new Error('Source kind must be page, image or video');
       const value = publicUrl(url);
+      if (landingUrl && publicUrl(landingUrl) === value) throw new Error('Landing page must be separate from the creative');
       const run = { id: randomUUID(), query: value, queryMode: 'manual-import', numResults: 1, createdAt: new Date().toISOString(), status: 'running', discovery: { mode: 'manual-import', cost: null }, sources: [{ id: createHash('sha256').update(value).digest('hex'), url: value, title: value, kind, observedMetrics: null, provenance: { discovery: 'operator', capturedAt: new Date().toISOString() } }] };
+      if (landingUrl) run.sources[0].landingUrl = publicUrl(landingUrl);
       save(run); return launch(run);
     },
     subscribe(id, listener) { events.on(id, listener); return () => events.off(id, listener); },
@@ -116,14 +135,16 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
       if (run.status === 'complete') throw new Error('Run already complete');
       return launch(run);
     },
-    async correct(id, { sourceId, field, choice, reason, reviewer }) {
+    async correct(id, { sourceId, field, choice, score, reason, reviewer }) {
       if (active.has(id)) throw new Error('Wait for run to stop before correcting');
-      if (!Object.hasOwn(taxonomy, field) || !taxonomy[field].includes(choice) || typeof reason !== 'string' || !reason.trim() || typeof reviewer !== 'string' || !reviewer.trim()) throw new Error('Valid label, reviewer and rationale required');
+      const scored = Object.hasOwn(scoreRubrics, field);
+      const valid = scored ? Number.isFinite(score) && score >= 0 && score <= 3 : Object.hasOwn(taxonomy, field) && taxonomy[field].includes(choice);
+      if (!valid || typeof reason !== 'string' || !reason.trim() || typeof reviewer !== 'string' || !reviewer.trim()) throw new Error('Valid judgment, reviewer and rationale required');
       const run = get(id);
       const source = run.sources.find(item => item.id === sourceId);
       if (!source?.classification) throw new Error('Classified source required');
       source.corrections ??= [];
-      source.corrections.push({ field, choice, reason, reviewer, agreesWithModel: source.classification.answers[field].choice === choice, createdAt: new Date().toISOString() });
+      source.corrections.push({ field, ...(scored ? { type: 'score', score } : { type: 'choice', choice }), reason, reviewer, agreesWithModel: scored ? source.classification.answers[field]?.score === score : source.classification.answers[field]?.choice === choice, createdAt: new Date().toISOString() });
       await save(run);
       return run;
     },

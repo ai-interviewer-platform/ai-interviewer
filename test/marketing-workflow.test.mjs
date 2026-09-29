@@ -1,9 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { research } from '../tools/marketing/research.mjs';
+
+test('social post acquisition uses a public video extractor when page scraping fails', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'research-social-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  const app = research({ directory, env: { FIRECRAWL_API_KEY: 'fixture', YTDLP_PYTHON: 'python-fixture', YTDLP_PYTHONPATH: 'fixture-modules', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true' }, fetch: async (url, options) => {
+    if (url.includes('firecrawl')) return Response.json({}, { status: 500 });
+    assert.equal(JSON.parse(options.body).messages[1].content[0].video_url.url, 'https://video.twimg.com/creative.mp4');
+    return Response.json({ choices: [{ message: { content: '{"observations":[{"description":"Ad","startSeconds":0,"endSeconds":2}],"gaps":[]}' } }] });
+  }, exec: async (command, args) => {
+    assert.equal(command, 'python-fixture'); assert.ok(args.includes('--ignore-config')); assert.ok(args.includes('--no-plugin-dirs'));
+    return { stdout: JSON.stringify({ url: 'https://video.twimg.com/creative.mp4', title: 'Original creative', thumbnail: 'https://pbs.twimg.com/image.jpg', uploader: 'Creator', description: 'Visible post copy', duration: 48 }) };
+  } });
+  const job = await app.importSource({ url: 'https://x.com/creator/status/123', kind: 'page' }); await job.finished;
+  const source = app.get(job.id).sources[0];
+  assert.equal(source.acquisition.collector, 'yt-dlp');
+  assert.equal(source.url, 'https://x.com/creator/status/123');
+  assert.equal(source.evidence.coverage, 'video-frames');
+});
+
+test('discovered video is inspected as video and gets the twelve reference judgments without invented landing evidence', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'research-video-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const app = research({ directory, env: { EXA_API_KEY: 'fixture', FIRECRAWL_API_KEY: 'fixture', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true', MONID_CLI_PATH: 'fixture-cli' }, fetch: async (url, options) => {
+    if (url.includes('exa.ai')) return Response.json({ results: [{ url: 'https://example.com/watch' }] });
+    if (url.includes('firecrawl')) return Response.json({ success: true, data: { video: 'https://cdn.example.com/ad.mp4', screenshot: 'https://cdn.example.com/poster.png', markdown: 'Start practicing' } });
+    assert.equal(JSON.parse(options.body).messages[1].content[0].video_url.url, 'https://cdn.example.com/ad.mp4');
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ observations: [{ description: 'Practice CTA', startSeconds: 4, endSeconds: 5 }], gaps: [] }) } }] });
+  }, exec: async (_cmd, args) => {
+    const body = JSON.parse(await readFile(args[args.indexOf('--input-file') + 1], 'utf8'));
+    assert.equal(Object.keys(body.questions).length, 12);
+    assert.equal(body.questions.hookSpecificity.type, 'score');
+    assert.equal(body.state.landingPage, null);
+    return { stdout: JSON.stringify({ status: 'COMPLETED', runId: 'fixture', output: { model: 'jev-1.13.0', answers: Object.fromEntries(Object.entries(body.questions).map(([key, q]) => [key, q.type === 'score' ? { type: 'score', score: 2.3, confidence: 0.8 } : { type: 'choice', choice: key === 'homepageMatch' ? 'holds' : 'unknown', confidence: 0.8 }])) } }) };
+  } });
+  const job = await app.start({ query: 'practice video ads', numResults: 1 }); await job.finished;
+  const source = app.get(job.id).sources[0];
+  assert.equal(source.status, 'complete');
+  assert.equal(source.acquisition.video, 'https://cdn.example.com/ad.mp4');
+  assert.equal(source.classification.answers.homepageMatch.choice, 'unknown');
+  assert.equal(source.classification.answers.hookSpecificity.score, 2.3);
+  assert.ok(source.timings.classification >= 0);
+});
 
 test('operator discovery uses saved context for blank queries and preserves source identity', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'research-'));
@@ -82,7 +123,7 @@ test('failed stages resume without repeating discovery; corrections retain origi
     if (url.includes('firecrawl')) return Response.json({ success: true, data: { screenshot: 'https://cdn.example.com/a.png' } });
     if (!retry) return Response.json({}, { status: 429 });
     return Response.json({ choices: [{ message: { content: '{"observations":[],"gaps":["No readable text"]}' } }] });
-  }, exec: async () => ({ stdout: JSON.stringify({ status: 'COMPLETED', runId: 'fixture', output: { model: 'jev-1.13.0', answers: Object.fromEntries(['hook','format','awareness','offer','cta'].map(key => [key, { type: 'choice', choice: 'unknown', confidence: 1 }])) } }) }) });
+  }, exec: async (_command, args) => ({ stdout: JSON.stringify({ status: 'COMPLETED', runId: 'fixture', output: { model: 'jev-1.13.0', answers: Object.fromEntries(Object.entries(JSON.parse(await readFile(args[args.indexOf('--input-file') + 1], 'utf8')).questions).map(([key, q]) => [key, q.type === 'score' ? { type: 'score', score: 1, confidence: 1 } : { type: 'choice', choice: 'unknown', confidence: 1 }])) } }) }) });
   const started = await app.start({ query: 'ads', numResults: 1 }); await started.finished;
   assert.equal((await app.get(started.id)).status, 'partial');
   retry = true;
@@ -94,6 +135,11 @@ test('failed stages resume without repeating discovery; corrections retain origi
   assert.equal(changed.classification.answers.hook.choice, 'unknown');
   assert.equal(changed.corrections[0].choice, 'demonstration');
   assert.equal(changed.corrections[0].agreesWithModel, false);
+  await app.correct(run.id, { sourceId: run.sources[0].id, field: 'hookSpecificity', score: 3, reason: 'Specific hook visible', reviewer: 'operator' });
+  const scored = app.get(run.id).sources[0];
+  assert.equal(scored.classification.answers.hookSpecificity.score, null);
+  assert.equal(scored.corrections.at(-1).score, 3);
+  await assert.rejects(app.correct(run.id, { sourceId: scored.id, field: 'hookSpecificity', score: 4, reason: 'Outside rubric', reviewer: 'operator' }));
 });
 
 test('topic discovery acquires a page image, extracts cited evidence and returns typed Jev labels', async t => {
@@ -114,10 +160,10 @@ test('topic discovery acquires a page image, extracts cited evidence and returns
   const exec = async (_command, args) => {
     assert.ok(args.includes('typesafe'));
     assert.ok(args.includes('/systemone'));
-    const body = JSON.parse(args[args.indexOf('-i') + 1]);
+    const body = JSON.parse(await readFile(args[args.indexOf('--input-file') + 1], 'utf8'));
     assert.equal(body.state.evidence.observations[0].region, 'center button');
     assert.equal(JSON.stringify(body).includes('vector'), false);
-    const answers = Object.fromEntries(Object.keys(body.questions).map(key => [key, { type: 'choice', choice: 'unknown', confidence: 0.5 }]));
+    const answers = Object.fromEntries(Object.entries(body.questions).map(([key,q]) => [key, q.type === 'score' ? { type: 'score', score: 1, confidence: 0.5 } : { type: 'choice', choice: 'unknown', confidence: 0.5 }]));
     return { stdout: JSON.stringify({ status: 'COMPLETED', runId: 'fixture-run', output: { model: 'jev-1.13.0', answers, usage: { input_tokens: 80 } } }) };
   };
   const app = research({ directory, env, fetch, exec });
