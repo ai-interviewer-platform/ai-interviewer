@@ -39,6 +39,7 @@ try {
   assert.equal(first.reply.text, "What should happen for an empty list?");
   assert.equal(first.reply.speaker, "interviewer");
   assert.equal(calls.at(-1).model, "@cf/moonshotai/kimi-k2.6");
+  assert.equal(calls.at(-1).reasoning_effort, "none");
   const [system, ...turns] = calls.at(-1).messages;
   assert.match(system.content, /return 0/, "the prompt includes the saved draft");
   assert.deepEqual(turns, [{ role: "user", content: "I will loop over the odd indexes." }]);
