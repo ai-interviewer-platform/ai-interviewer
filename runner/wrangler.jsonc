@@ -3,6 +3,8 @@
   "name": "ai-interviewer-python-runner",
   "main": "../src/python-runner-proxy.ts",
   "compatibility_date": "2026-09-09",
+  // The shared Runner contract imports node:util.
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "dev": { "ip": "127.0.0.1", "port": 8790, "inspector_port": 9231 }
 }

@@ -47,11 +47,16 @@ jobs:
         run: |
           npm run migrate:postgres
           npm run db:verify:target
-      - name: PostgreSQL review and security integration
+      - name: PostgreSQL integration
         run: |
+          node test/request-pipeline-integration.mjs
+          node test/attempt-timeline-integration.mjs
+          node test/attempt-lifecycle-integration.mjs
           node test/review-integration.mjs
           node test/security-integration.mjs
+          node test/voice-budget-integration.mjs
           node test/mvp-backend-integration.mjs
+          node test/account-deletion-integration.mjs
       - name: Real isolated Python runner
         run: |
           npm run runner:build

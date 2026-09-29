@@ -8,7 +8,7 @@ import { infrastructureResult } from "../scripts/python-runner/contract.mjs";
 // Exercise the real workerd service binding and proxy. Candidate execution is
 // deliberately simulated here; test:runner requires actual Docker execution.
 test("Worker service binding forwards only runner data and the controller token", async () => {
-  const bundle = await build({ entryPoints: ["src/python-runner-proxy.ts"], bundle: true, format: "esm", write: false });
+  const bundle = await build({ entryPoints: ["src/python-runner-proxy.ts"], bundle: true, format: "esm", platform: "node", write: false });
   let calls = 0;
   const runtime = new Miniflare(convertV4MiniflareOptions({ workers: [
     { name: "main", modules: true, compatibilityDate: "2026-09-09", script: 'export default { fetch(request, env) { return env.PYTHON_RUNNER.fetch(new Request("https://python-runner/run", request)); } };', serviceBindings: { PYTHON_RUNNER: "proxy" } },

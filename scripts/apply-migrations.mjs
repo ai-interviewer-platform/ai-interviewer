@@ -1,20 +1,10 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import pg from "pg";
+import { migrationFiles } from "./migrations.mjs";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("Set DATABASE_URL to the target PostgreSQL connection string.");
-
-const root = resolve(import.meta.dirname, "..");
-const authDirectory = resolve(root, "migrations", "auth");
-const applicationDirectory = resolve(root, "migrations");
-const authFiles = (await readdir(authDirectory)).filter((file) => file.endsWith(".sql")).sort();
-const applicationFiles = (await readdir(applicationDirectory)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
-const migrationPaths = [
-  ...authFiles.map((file) => resolve(authDirectory, file)),
-  ...applicationFiles.map((file) => resolve(applicationDirectory, file)),
-];
 
 const pool = new pg.Pool({ connectionString });
 try {
@@ -23,9 +13,8 @@ try {
     checksum text NOT NULL,
     applied_at timestamptz NOT NULL DEFAULT now()
   )`);
-  for (const path of migrationPaths) {
+  for (const { path, filename } of await migrationFiles()) {
     const sql = await readFile(path, "utf8");
-    const filename = path.slice(root.length + 1).replaceAll("\\", "/");
     const checksum = createHash("sha256").update(sql).digest("hex");
     const applied = await pool.query("SELECT checksum FROM app_schema_migrations WHERE filename = $1", [filename]);
     if (applied.rows[0]) {

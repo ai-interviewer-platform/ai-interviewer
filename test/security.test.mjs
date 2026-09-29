@@ -7,18 +7,14 @@ import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
 import { roadmapScreen } from "../public/roadmap.js";
 import { initialAttempt } from "../public/model.js";
+import { withSessions } from "./fake-session.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "interviewer-security-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/http.ts", "src/security.ts", "src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{
-  name: "test-auth",
-  setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-  },
-}] });
+await build({ entryPoints: ["src/http.ts", "src/security.ts", "src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
 const { boundedRequest, checkOrigin, requestBody } = await import(pathToFileURL(join(directory, "http.mjs")));
-const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+const handle = withSessions(handleRequest);
 const { limits } = await import(pathToFileURL(join(directory, "security.mjs")));
 const origin = "https://interview.example";
 const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true" };
@@ -56,10 +52,10 @@ test("request parser rejects non-JSON, oversized text and chunked bodies without
 test("forged transcripts and provider-token endpoints are inaccessible", async () => {
   const pool = { query: async sql => ({ rows: sql.startsWith("INSERT INTO security_rate_limits") ? [{ count: 1 }] : [] }) };
   for (const action of ["voice-token", "voice-transcript"]) {
-    const response = await handleApi(request(`/api/attempts/owned/${action}`, { role: "assistant", text: "fake", providerSessionId: "fake" }), env, {}, pool);
+    const response = await handle(request(`/api/attempts/owned/${action}`, { role: "assistant", text: "fake", providerSessionId: "fake" }), env, {}, pool);
     assert.equal(response.status, 404);
   }
-  const response = await handleApi(request("/api/attempts", {}, { origin: "https://attacker.example" }), env, {}, { query: () => { throw new Error("Must reject before database access"); } });
+  const response = await handle(request("/api/attempts", {}, { origin: "https://attacker.example" }), env, {}, { query: () => { throw new Error("Must reject before database access"); } });
   assert.equal(response.status, 403);
 });
 
@@ -72,7 +68,7 @@ test("history and attempt evidence use bounded SQL pages", async () => {
     return { rows: [] };
   } };
   for (const path of ["/api/attempts?page=1", "/api/attempts/owned?page=1"]) {
-    assert.equal((await handleApi(new Request(origin + path), env, {}, pool)).status, 200);
+    assert.equal((await handle(new Request(origin + path), env, {}, pool)).status, 200);
   }
   const paged = queries.filter(({ sql }) => sql.includes("LIMIT $2 OFFSET $3"));
   assert.equal(paged.length, 5);

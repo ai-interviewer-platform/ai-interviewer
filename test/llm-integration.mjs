@@ -1,17 +1,15 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
+import { withSessions } from "./fake-session.mjs";
 
 // Exercises text interviewer turns against real PostgreSQL with a fake Workers AI
 // binding. It never calls the real provider. Reviews: test/review-integration.mjs.
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-const schema = `llm_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("llm_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "llm-integration-"));
 const calls = [];
 let reply = () => ({ text: "unused" });
@@ -22,18 +20,12 @@ const AI = { calls, async run(model, input) {
 } };
 const outage = () => { throw new Error("3040: Capacity temporarily exceeded"); };
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
-  await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest);
   const origin = "https://app.example";
   const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", AI, REVIEW_QUEUE: { send: async () => {} } };
-  const post = (path, body) => handleApi(new Request(`${origin}/api/attempts/text/${path}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), env, {}, database);
+  const post = (path, body) => handle(new Request(`${origin}/api/attempts/text/${path}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), env, {}, database);
   const rows = async (sql, values = []) => (await database.query(sql, values)).rows;
 
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'Owner', 'owner@example.invalid')");
@@ -47,6 +39,7 @@ try {
   assert.equal(first.reply.text, "What should happen for an empty list?");
   assert.equal(first.reply.speaker, "interviewer");
   assert.equal(calls.at(-1).model, "@cf/moonshotai/kimi-k2.6");
+  assert.equal(calls.at(-1).reasoning_effort, "none");
   const [system, ...turns] = calls.at(-1).messages;
   assert.match(system.content, /return 0/, "the prompt includes the saved draft");
   assert.deepEqual(turns, [{ role: "user", content: "I will loop over the odd indexes." }]);
@@ -76,8 +69,6 @@ try {
   assert.deepEqual(await rows("SELECT delivered, content FROM assistance_events WHERE event_id = $1", [help.eventId]), [{ delivered: true, content: "Which indexes does the slice start from?" }]);
   console.log("Workers AI text replies, stored-reply reuse, provider failure and requested help passed.");
 } finally {
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }
