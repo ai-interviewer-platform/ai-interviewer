@@ -85,6 +85,8 @@ async function ownedAttempt(pool: Pool, attemptId: string, userId: string): Prom
   return result.rows[0] ?? null;
 }
 
+class AttemptClosedError extends Error {}
+
 async function addEvent(client: PoolClient, values: {
   attemptId: string;
   eventType: string;
@@ -94,7 +96,7 @@ async function addEvent(client: PoolClient, values: {
   payload: unknown;
 }): Promise<string> {
   const locked = await client.query("SELECT status FROM attempts WHERE id = $1 FOR UPDATE", [values.attemptId]);
-  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new Error("Attempt is closed.");
+  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new AttemptClosedError("Attempt is closed.");
   const existingEvent = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
   if (existingEvent.rows[0]) return existingEvent.rows[0].id;
   const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [values.attemptId]);
@@ -307,8 +309,10 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
       if (!saved.rows[0]) await client.query("INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)", [id(), attempt.id, eventId, speaker, text, occurrenceOffsetMs]);
       if (helpCategory) await client.query("UPDATE assistance_events SET delivered = true, content = $1 WHERE event_id = $2 AND delivered = false", [text, triggerEventId]);
     });
-  } catch {
-    return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+  } catch (error) {
+    if (error instanceof AttemptClosedError) return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+    logOperationalEvent("warn", "interviewer_reply_not_saved");
+    return { reply: null, replyError: "The reply could not be saved, so no reply was recorded." };
   }
   // A concurrent duplicate request may have stored its reply first; return the stored one.
   return { reply: await savedReply(pool, attempt.id, triggerEventId) };
