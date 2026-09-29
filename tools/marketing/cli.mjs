@@ -13,7 +13,12 @@ const library = collection({ directory: join(root, '.local/marketing/embeddings'
 const output = value => console.log(JSON.stringify(value, (key, item) => key === 'vector' ? undefined : item, 2));
 
 try {
-  if (command === 'smoke') {
+  if (command === 'serve') {
+    const { serve } = await import('./server.mjs');
+    const app = await serve({ directory: join(root, '.local/marketing/research') });
+    console.log(`Developer research: ${app.url}`);
+    process.once('SIGINT', () => { void app.close(); });
+  } else if (command === 'smoke') {
     // Synthetic valid PNG: no third-party creative or customer data leaves the machine.
     const inputs = [
       { modality: 'text', text: 'Python interview practice' },
@@ -32,7 +37,7 @@ try {
   } else if (command === 'list') {
     output(await library.list());
   } else {
-    console.log('Commands: smoke <gemini|tongyi> | add <provider> <source.json> | search <provider> <text> | list');
+    console.log('Commands: serve | smoke <gemini|tongyi> | add <provider> <source.json> | search <provider> <text> | list');
     process.exitCode = 1;
   }
 } catch (error) {

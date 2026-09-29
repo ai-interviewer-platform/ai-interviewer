@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Coursay research desk</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body><main>
+<header><p class="eyebrow">COURSAY / DEVELOPER TOOLS</p><h1>Research desk</h1><p>Discover related content. Inspect evidence. Keep judgments grounded.</p></header>
+<aside>Local developer workspace · Exa → Firecrawl → Qwen3.8-max → Jev through Monid. No scheduled runs. Provider calls may consume credits.</aside>
+<form id="search">
+<label for="context">Saved product / audience context</label><textarea id="context" required rows="3"></textarea>
+<label for="query">Topic <span>(optional; blank uses saved context)</span></label><input id="query" type="search" placeholder="e.g. explaining a Python interview solution">
+<div class="row"><div><label for="count">Source count</label><input id="count" type="number" min="1" step="1" required placeholder="Choose scope"></div><button type="submit">Discover sources</button></div>
+<p class="hint">Count is your requested search scope, not a dollar cap. Page captures do not prove full video access, spoken hooks or conversion performance.</p>
+</form>
+<p id="message" role="status" aria-live="polite"></p>
+<details><summary>Import an authorized public source</summary><form id="import"><label for="source-url">Original / direct media URL</label><input id="source-url" type="url" required><label for="source-kind">Source kind</label><select id="source-kind"><option value="page">Page capture</option><option value="image">Direct image</option><option value="video">Direct video</option></select><button type="submit">Import source</button></form></details>
+<section aria-labelledby="runs-title"><h2 id="runs-title">Research runs</h2><div id="history"></div></section>
+<section aria-labelledby="results-title"><h2 id="results-title">Evidence & judgments</h2><div class="row"><label>Sort by <select id="sort"><option value="title">Title</option><option value="status">Status</option><option value="hook">Hook</option></select></label><label>Hook filter <select id="filter"><option value="">All hooks</option></select></label></div><div id="results"></div></section>
+</main></body></html>
