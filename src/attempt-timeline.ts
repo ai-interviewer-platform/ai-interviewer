@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import type { AttemptRow } from "./api";
+import type { AttemptRow, RunnerResult } from "./api";
 import { nonnegativeSafeInteger } from "./http";
 import { limits } from "./security";
 
@@ -10,7 +10,12 @@ export type EventEnvelope = { sourceId?: unknown; sourceOrder?: unknown; occurre
 // coach from the Attempt Mode, so no caller picks it.
 export type EventDetail =
   | { transcript: { speaker: "candidate" | "interviewer"; text: string } }
-  | { helpRequest: { category: "clarification" | "hint" | "explanation" } };
+  | { helpRequest: { category: "clarification" | "hint" | "explanation" } }
+  // A Checkpoint freezes the Draft of the locked Attempt.
+  | { checkpoint: { type: "run" | "save" | "submission" | "retry_source" } }
+  | { run: { checkpointId: string; result: RunnerResult } };
+
+const detailTables = { transcript: "transcript_segments", helpRequest: "assistance_events", checkpoint: "code_checkpoints", run: "code_runs" } as const;
 
 export type RecordResult =
   | { status: "recorded"; eventId: string; detailId: string | null }
@@ -28,7 +33,7 @@ export interface AttemptTimeline {
 
 async function existingDetail(client: PoolClient, eventId: string, detail: EventDetail | undefined): Promise<string | null> {
   if (!detail) return null;
-  const table = "transcript" in detail ? "transcript_segments" : "assistance_events";
+  const table = detailTables[Object.keys(detail)[0] as keyof typeof detailTables];
   const result = await client.query<{ id: string }>(`SELECT id FROM ${table} WHERE event_id = $1`, [eventId]);
   return result.rows[0]?.id ?? null;
 }
@@ -65,10 +70,23 @@ export async function openTimeline(client: PoolClient, attemptId: string): Promi
         "INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)",
         [detailId, attempt.id, eventId, speaker, detail.transcript.text.trim(), occurrenceOffsetMs],
       );
-    } else {
+    } else if ("helpRequest" in detail) {
       await client.query(
         "INSERT INTO assistance_events (id, attempt_id, event_id, category, offered, accepted, delivered, content) VALUES ($1, $2, $3, $4, true, true, false, '')",
         [detailId, attempt.id, eventId, detail.helpRequest.category],
+      );
+    } else if ("checkpoint" in detail) {
+      await client.query(
+        "INSERT INTO code_checkpoints (id, attempt_id, event_id, source_code, checkpoint_type) VALUES ($1, $2, $3, $4, $5)",
+        [detailId, attempt.id, eventId, attempt.draft_source, detail.checkpoint.type],
+      );
+    } else {
+      const { checkpointId, result } = detail.run;
+      await client.query(
+        `INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'visible', $13, $14)`,
+        [detailId, attempt.id, checkpointId, eventId, result.status, result.testResults.filter((test) => test.outcome === "passed").length, result.testResults.filter((test) => test.outcome === "failed").length,
+          result.stdout, result.stderr, result.executionTimeMs ?? null, result.runnerError ?? null, JSON.stringify(result.testResults), result.runnerVersion, result.harnessVersion],
       );
     }
     return { status: "recorded", eventId, detailId };

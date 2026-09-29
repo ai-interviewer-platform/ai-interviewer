@@ -32,7 +32,7 @@ export type AttemptRow = {
   updated_at: string;
 };
 
-type RunnerResult = {
+export type RunnerResult = {
   status: "passed" | "failed" | "runner_error";
   testResults: Array<{ testId: string; outcome: "passed" | "failed" | "skipped"; actualOutput?: unknown; error?: string }>;
   stdout?: string;
@@ -98,53 +98,11 @@ function notRecorded(result: Exclude<TimelineResult, { status: "recorded" }>, in
   return json({ error: "This attempt reached its evidence limit. Nothing new was recorded." }, { status: 409 });
 }
 
-class AttemptClosedError extends Error {}
-
-async function addEvent(client: PoolClient, values: {
-  attemptId: string;
-  eventType: string;
-  sourceId: string;
-  sourceOrder: number;
-  occurrenceOffsetMs: number;
-  payload: unknown;
-}): Promise<string> {
-  const locked = await client.query("SELECT status FROM attempts WHERE id = $1 FOR UPDATE", [values.attemptId]);
-  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new AttemptClosedError("Attempt is closed.");
-  const existingEvent = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
-  if (existingEvent.rows[0]) return existingEvent.rows[0].id;
-  const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [values.attemptId]);
-  if (Number(count.rows[0].count) >= limits.eventsPerAttempt) throw new Error("Attempt evidence limit reached.");
-  const eventId = id();
-  const inserted = await client.query<{ id: string }>(
-    `INSERT INTO attempt_events (id, attempt_id, event_type, source_id, source_order, occurrence_offset_ms, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-     ON CONFLICT (attempt_id, source_id) DO NOTHING
-     RETURNING id`,
-    [eventId, values.attemptId, values.eventType, values.sourceId, values.sourceOrder, values.occurrenceOffsetMs, JSON.stringify(values.payload)],
-  );
-  if (inserted.rows[0]) return inserted.rows[0].id;
-  const existing = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
-  if (!existing.rows[0]) throw new Error("The event could not be persisted.");
-  return existing.rows[0].id;
-}
-
-async function createCheckpoint(client: PoolClient, attempt: AttemptRow, type: "run" | "save" | "submission" | "retry_source", sourceId: string, sourceOrder: number, occurrenceOffsetMs: number): Promise<{ checkpointId: string; eventId: string }> {
-  const eventId = await addEvent(client, {
-    attemptId: attempt.id,
-    eventType: "code_checkpoint",
-    sourceId,
-    sourceOrder,
-    occurrenceOffsetMs,
-    payload: { checkpointType: type, draftRevision: attempt.draft_revision },
-  });
-  const existing = await client.query<{ id: string }>("SELECT id FROM code_checkpoints WHERE event_id = $1", [eventId]);
-  if (existing.rows[0]) return { checkpointId: existing.rows[0].id, eventId };
-  const checkpointId = id();
-  await client.query(
-    "INSERT INTO code_checkpoints (id, attempt_id, event_id, source_code, checkpoint_type) VALUES ($1, $2, $3, $4, $5)",
-    [checkpointId, attempt.id, eventId, attempt.draft_source, type],
-  );
-  return { checkpointId, eventId };
+// Records the first Event of a new Attempt, in the transaction that inserted the Attempt.
+async function recordStart(client: PoolClient, attemptId: string, eventType: "attempt_started" | "retry_started", payload: unknown): Promise<void> {
+  const opened = await openTimeline(client, attemptId);
+  const recorded = opened.status === "open" ? await opened.timeline.record(eventType, { sourceId: `server:${eventType === "attempt_started" ? "start" : "retry"}:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0 }, payload) : opened;
+  if (recorded.status !== "recorded") throw new Error(`The ${eventType} Event was not recorded.`);
 }
 
 function parseRunnerResult(value: unknown, permittedTestIds: Set<string>): RunnerResult | null {
@@ -230,7 +188,7 @@ async function createAttempt(pool: Pool, env: Env, userId: string, body: Record<
        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8, now(), $9, $10, false)`,
       [attemptId, userId, problemId, mode, inputMode, problem.rows[0].starter_code, JSON.stringify(setupContext), familiarity, DISCLOSURE_VERSION, practiceGoal],
     );
-    await addEvent(client, { attemptId, eventType: "attempt_started", sourceId: `server:start:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { mode, inputMode, consented: true } });
+    await recordStart(client, attemptId, "attempt_started", { mode, inputMode, consented: true });
   });
   return json({ attemptId }, { status: 201 });
 }
@@ -345,38 +303,20 @@ async function appendCandidateMessage(pool: Pool, env: Env, attempt: AttemptRow,
 }
 
 export async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+  const invalid = "A Deepgram transcript and stable event metadata are required.";
   const text = string(body.text);
   const role = string(body.role);
   const providerSessionId = string(body.providerSessionId);
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice evidence.");
-  if (!text?.trim() || !isVoiceRole(role) || !providerSessionId || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) {
-    return badRequest("A Deepgram transcript and stable event metadata are required.");
-  }
-
-  const speaker = role === "user" ? "candidate" : attempt.mode === "coach" ? "coach" : "interviewer";
-  const eventId = await withTransaction(pool, async (client) => {
-    const eventId = await addEvent(client, {
-      attemptId: attempt.id,
-      eventType: role === "user" ? "candidate_voice" : "interviewer_voice",
-      sourceId,
-      sourceOrder,
-      occurrenceOffsetMs,
-      payload: { verified: true, inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
-    });
-    const existing = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
-    if (!existing.rows[0]) {
-      await client.query(
-        "INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)",
-        [id(), attempt.id, eventId, speaker, text.trim(), occurrenceOffsetMs],
-      );
-
-    }
-    return eventId;
-  });
-  return json({ eventId }, { status: 201 });
+  if (attempt.input_mode !== "voice") return badRequest("This attempt is not accepting voice evidence.");
+  if (text === null || !isVoiceRole(role) || !providerSessionId) return badRequest(invalid);
+  const recorded = await withTimeline(pool, attempt.id, (timeline) => timeline.record(
+    role === "user" ? "candidate_voice" : "interviewer_voice",
+    body,
+    { verified: true, inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
+    { transcript: { speaker: role === "user" ? "candidate" : "interviewer", text } },
+  ));
+  if (recorded.status !== "recorded") return notRecorded(recorded, invalid);
+  return json({ eventId: recorded.eventId }, { status: 201 });
 }
 
 async function requestHelp(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
@@ -430,13 +370,16 @@ async function saveDraft(pool: Pool, attempt: AttemptRow, body: Record<string, u
 }
 
 async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable run event metadata is required.");
+  const invalid = "Stable run event metadata is required.";
   const runner = pythonRunnerFor(env);
   if (!runner) return serverUnavailable("The isolated Python runner is not configured. Your draft remains available and this is not a code result.");
-  const checkpoint = await withTransaction(pool, (client) => createCheckpoint(client, attempt, "run", sourceId, sourceOrder, occurrenceOffsetMs));
+  const checkpoint = await withTimeline(pool, attempt.id, async (timeline) => ({
+    ...await timeline.record("code_checkpoint", body, { checkpointType: "run", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "run" } }),
+    sourceCode: timeline.attempt.draft_source,
+  }));
+  if (checkpoint.status !== "recorded") return notRecorded(checkpoint, invalid);
+  // A recorded Checkpoint Event always has its Checkpoint row.
+  const checkpointId = checkpoint.detailId!;
   const content = await pool.query<{ id: string; entry_point: string; test_contract: unknown; input_data: unknown; expected_output: unknown }>(
     `SELECT p.entry_point, p.test_contract, tc.id, tc.input_data, tc.expected_output
        FROM problems p JOIN test_cases tc ON tc.problem_id = p.id
@@ -448,7 +391,7 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
     response = await runner.fetch(new Request("https://python-runner/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ attemptId: attempt.id, checkpointId: checkpoint.checkpointId, sourceCode: attempt.draft_source, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
+      body: JSON.stringify({ attemptId: attempt.id, checkpointId, sourceCode: checkpoint.sourceCode, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
       signal: AbortSignal.timeout(95_000),
     }));
   } catch {
@@ -471,50 +414,42 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
   if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
   const passed = result.testResults.filter((test) => test.outcome === "passed").length;
   const failed = result.testResults.filter((test) => test.outcome === "failed").length;
-  const run = await withTransaction(pool, async (client) => {
-    const runEventId = await addEvent(client, { attemptId: attempt.id, eventType: "code_run", sourceId: `${sourceId}:result`, sourceOrder, occurrenceOffsetMs, payload: { checkpointId: checkpoint.checkpointId, runnerVersion: result.runnerVersion, harnessVersion: result.harnessVersion } });
-    const existing = await client.query<{ id: string }>("SELECT id FROM code_runs WHERE event_id = $1", [runEventId]);
-    if (existing.rows[0]) return existing.rows[0].id;
-    const runId = id();
-    await client.query(
-      `INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'visible', $13, $14)`,
-      [runId, attempt.id, checkpoint.checkpointId, runEventId, result.status, passed, failed, result.stdout, result.stderr, result.executionTimeMs ?? null, result.runnerError ?? null, JSON.stringify(result.testResults), result.runnerVersion, result.harnessVersion],
-    );
-    return runId;
-  });
-  return json({ runId: run, checkpointId: checkpoint.checkpointId, status: result.status, testsPassed: passed, testsFailed: failed, testResults: result.testResults });
+  const envelope = { sourceId: `${body.sourceId}:result`, sourceOrder: body.sourceOrder, occurrenceOffsetMs: body.occurrenceOffsetMs };
+  const run = await withTimeline(pool, attempt.id, (timeline) => timeline.record("code_run", envelope, { checkpointId, runnerVersion: result.runnerVersion, harnessVersion: result.harnessVersion }, { run: { checkpointId, result } }));
+  if (run.status !== "recorded") return notRecorded(run, invalid);
+  return json({ runId: run.detailId, checkpointId, status: result.status, testsPassed: passed, testsFailed: failed, testResults: result.testResults });
 }
 
 async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable finish event metadata is required.");
   if (!reviewProviderConfigured(env) || !env.REVIEW_QUEUE?.send) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
-  const finished = await withTransaction(pool, async (client) => {
-    const current = await client.query<AttemptRow>("SELECT * FROM attempts WHERE id = $1 AND user_id = $2 FOR UPDATE", [attempt.id, attempt.user_id]);
-    const locked = current.rows[0];
-    if (!locked) return null;
-    if (locked.status === "completed") {
-      const review = await client.query<{ id: string }>("SELECT id FROM reviews WHERE attempt_id = $1", [locked.id]);
-      return review.rows[0] ? { reviewId: review.rows[0].id, completed: true } : null;
-    }
-    const checkpoint = await createCheckpoint(client, locked, "submission", sourceId, sourceOrder, occurrenceOffsetMs);
-    await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [locked.id]);
+  // One transaction: the Submission, the Attempt completion, and the Review.
+  const finished = await withTimeline(pool, attempt.id, async (timeline, client) => {
+    const submission = await timeline.record("code_checkpoint", body, { checkpointType: "submission", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "submission" } });
+    if (submission.status !== "recorded") return submission;
+    await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [attempt.id]);
     const reviewId = id();
-    const manifest = { attemptId: locked.id, finalCheckpointId: checkpoint.checkpointId, frozenAt: new Date().toISOString() };
-    await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, locked.id, JSON.stringify(manifest)]);
-    return { reviewId, completed: false };
+    const manifest = { attemptId: attempt.id, finalCheckpointId: submission.detailId, frozenAt: new Date().toISOString() };
+    await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
+    return { status: "finished", reviewId } as const;
   });
-  if (!finished) return notFound();
-  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [finished.reviewId]);
+  let reviewId: string;
+  if (finished.status === "closed") {
+    // A finished Attempt: dispatch its Review again if the first dispatch was lost.
+    const review = await pool.query<{ id: string }>("SELECT id FROM reviews WHERE attempt_id = $1", [attempt.id]);
+    if (!review.rows[0]) return notFound();
+    reviewId = review.rows[0].id;
+  } else if (finished.status === "finished") {
+    reviewId = finished.reviewId;
+  } else {
+    return notRecorded(finished, "Stable finish event metadata is required.");
+  }
+  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [reviewId]);
   const dispatch = claim.rows.length ? "queued" : "already dispatched";
   if (claim.rows.length) {
-    try { await env.REVIEW_QUEUE.send({ reviewId: finished.reviewId }); }
-    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [finished.reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
+    try { await env.REVIEW_QUEUE.send({ reviewId }); }
+    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
   }
-  return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
+  return json({ reviewId, dispatch, recoveryDispatch: finished.status === "closed" });
 }
 
 async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
@@ -538,7 +473,7 @@ async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptR
        VALUES ($1, $2, $3, 'coach', $4, 'active', $5, $6, $7, $8::jsonb, 'unanswered', now(), $9, $10, false)`,
       [attemptId, userId, original.problem_id, original.input_mode, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, sourceAttemptId: original.id, throughOffsetMs: original.occurrence_offset_ms }), DISCLOSURE_VERSION, practiceGoal],
     );
-    await addEvent(client, { attemptId, eventType: "retry_started", sourceId: `server:retry:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { sourceAttemptId: original.id, sourceCheckpointId: checkpointId } });
+    await recordStart(client, attemptId, "retry_started", { sourceAttemptId: original.id, sourceCheckpointId: checkpointId });
   });
   return json({ attemptId }, { status: 201 });
 }
