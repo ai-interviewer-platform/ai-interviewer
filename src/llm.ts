@@ -34,8 +34,3 @@ export async function modelText(ai: Ai, model: string, input: ModelInput, option
     }
   }
 }
-
-// A short reason that is safe to store and show.
-export function providerFailure(error: unknown): string {
-  return (error instanceof Error ? error.message : "unknown provider failure").slice(0, 200);
-}
