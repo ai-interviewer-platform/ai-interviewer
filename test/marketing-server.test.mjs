@@ -51,10 +51,11 @@ test('local operator indexes research media and retrieves evidence with isolated
   const run=await post('/api/import',{url:'https://cdn.example.com/ad.png',kind:'image'});
   await (await fetch(app.url+'/api/events/'+run.body.id)).text();
   const source=(await (await fetch(app.url+'/api/runs')).json())[0].sources[0];
-  const indexed=await post('/api/library/index',{runId:run.body.id,sourceId:source.id,provider:'tongyi',modality:'image'});
+  const indexed=await post('/api/library/index',{runId:run.body.id,sourceId:source.id,provider:'tongyi',modality:'image',segmentId:'unrelated-video-chunk'});
   assert.equal(indexed.status,200);
   assert.equal(indexed.body.status,'ready');
   assert.equal(indexed.body.source.runId,run.body.id);
+  assert.equal(indexed.body.source.segmentId,'poster-or-image');
   const search=await post('/api/library/search',{provider:'tongyi',text:'practice',modality:'image'});
   assert.equal(search.body.matches[0].source.url,'https://cdn.example.com/ad.png');
   assert.equal(search.body.matches[0].source.evidence.observations[0].region,'center');

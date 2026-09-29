@@ -15,7 +15,7 @@ export function library({ research, directory, env, fetch = globalThis.fetch }) 
       const creative = run.sources.find(source => source.id === sourceId);
       if (!creative?.evidence) throw new Error('Source evidence required');
       const source = { id: creative.id, runId, url: creative.url, uploadId: creative.uploadId, title: creative.title,
-        segmentId: segmentId || (modality === 'image' ? 'poster-or-image' : creative.segmentId),
+        segmentId: modality === 'image' ? 'poster-or-image' : creative.segmentId,
         evidence: creative.evidence, labels: creative.classification, corrections: creative.corrections ?? [], provenance: creative.provenance,
         playback: creative.acquisition.playback ?? creative.acquisition.video, screenshot: creative.acquisition.screenshot };
       let input = { modality }, error;
@@ -35,7 +35,7 @@ export function library({ research, directory, env, fetch = globalThis.fetch }) 
         } else if (modality === 'video') {
           if (acquisition.localVideo) {
             if (provider === 'tongyi') throw new Error('Tongyi video requires a public URL; choose the local poster or Gemini video explicitly');
-            const chunk = acquisition.chunks.find(item => item.id === segmentId) ?? (acquisition.chunks.length === 1 ? acquisition.chunks[0] : null);
+            const chunk = acquisition.chunks.find(item => item.id === segmentId) ?? (!segmentId && acquisition.chunks.length === 1 ? acquisition.chunks[0] : null);
             if (!chunk) throw new Error('Choose a video segment');
             input = { modality, mimeType: 'video/mp4', data: (await readFile(mediaPath(directory, chunk.id, 'mp4'))).toString('base64') };
             Object.assign(source, { segmentId: chunk.id, startSeconds: chunk.startSeconds, endSeconds: chunk.endSeconds });

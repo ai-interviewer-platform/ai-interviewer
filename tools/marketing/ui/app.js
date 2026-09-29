@@ -221,6 +221,7 @@ async function refreshLibrary() {
   const source=current?.sources.find(item=>item.id===selected);
   el('index-source').textContent=source?.title ?? 'Select a creative in Analyze.';
   el('index-selected').disabled=!source?.evidence || current?.status==='running' || Boolean(libraryRequest);
+  el('index-segment').disabled=el('index-modality').value!=='video' || !source?.acquisition?.localVideo;
   el('index-segment').replaceChildren(new Option('Whole source',''),...(source?.acquisition?.chunks ?? []).map(chunk=>new Option(`${chunk.startSeconds.toFixed(1)}–${chunk.endSeconds.toFixed(1)}s`,chunk.id)));
   el('library-revisions').replaceChildren(...records.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(record=>node('p',`${record.source.title} · ${record.provider} · ${record.status} · ${record.createdAt}${record.error?` · ${record.error}`:''}`)));
 }
@@ -249,6 +250,7 @@ async function renderEvaluation() {
 el('view-analysis').onclick=()=>showView('analysis');el('view-library').onclick=()=>showView('library');el('view-evaluation').onclick=()=>showView('evaluation');
 el('library-cancel').onclick=()=>{libraryRequest?.abort();el('library-status').textContent='Cancelled locally; already submitted provider work may still consume quota.';};
 el('export-evaluation').onclick=()=>{if(evaluationReport)exportJSON(evaluationReport,`${evaluationReport.runId}-evaluation.json`);};
+el('index-modality').onchange=()=>{el('index-segment').disabled=el('index-modality').value!=='video' || !current?.sources.find(item=>item.id===selected)?.acquisition?.localVideo;};
 el('index-selected').onclick=async()=>{
   try{const result=await libraryCall('/api/library/index',{runId:current.id,sourceId:selected,provider:el('embedding-provider').value,modality:el('index-modality').value,segmentId:el('index-segment').value});el('library-status').textContent=`${result.status} · ${result.error ?? `${result.embedding.model} · ${result.embedding.dimensions} dimensions`}`;await refreshLibrary();}
   catch(e){el('library-status').textContent=e.name==='AbortError'?'Cancelled locally; inspect revisions before retrying.':e.message;}
