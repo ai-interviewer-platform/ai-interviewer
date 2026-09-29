@@ -6,7 +6,7 @@ frontend or paid provider call is required for the automated tests.
 
 ## Configuration
 
-`src/review-provider-factory.ts` selects the adapter. An explicit
+`src/review-provider.ts` selects the adapter. An explicit
 `REVIEW_PROVIDER` wins; otherwise Workers AI is used when the Worker has the `AI`
 binding (production and `wrangler dev`), and OpenAI Responses otherwise.
 

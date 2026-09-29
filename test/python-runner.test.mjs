@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createRunnerServer } from "../scripts/python-runner/server.mjs";
-import { candidateResult, infrastructureResult, limits, validateRequest } from "../scripts/python-runner/contract.mjs";
+import { candidateResult, deadlines, infrastructureResult, limits, validateRequest } from "../scripts/python-runner/contract.mjs";
 import { containerArgs, createDockerRunner } from "../scripts/python-runner/docker.mjs";
 import { fixture } from "./runner/fixtures.mjs";
+
+test("each outer Runner deadline is longer than the deadline inside it", () => {
+  const order = ["testMs", "sandboxRequestMs", "runMs", "transportMs", "requestMs"];
+  assert.deepEqual(Object.keys(deadlines).sort(), [...order].sort(), "every deadline has a place in the order");
+  for (let index = 1; index < order.length; index++) assert.ok(deadlines[order[index]] > deadlines[order[index - 1]], `${order[index]} must be longer than ${order[index - 1]}`);
+});
 
 test("runner validates IDs, size, entry points and authored invocation contract", () => {
   assert.equal(validateRequest(fixture()), true);

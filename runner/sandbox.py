@@ -15,6 +15,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 NOBODY = 65534
+# Mirrors deadlines.testMs in scripts/python-runner/contract.mjs.
 TIMEOUT = 5
 MAX_BYTES = 256 * 1024
 LIMITS = [(resource.RLIMIT_CPU, 2), (resource.RLIMIT_AS, 256 << 20), (resource.RLIMIT_NPROC, 32), (resource.RLIMIT_NOFILE, 64), (resource.RLIMIT_FSIZE, 64 << 10), (resource.RLIMIT_CORE, 0)]

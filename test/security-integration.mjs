@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
+import { withSessions } from "./fake-session.mjs";
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-const schema = `security_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("security_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "security-integration-"));
 const background = [];
 const originalFetch = globalThis.fetch;
@@ -38,21 +36,16 @@ globalThis.fetch = async (url, init) => {
 };
 globalThis.securityTestDatabase = () => ({ query: database.query.bind(database), connect: database.connect.bind(database), end: async () => {} });
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
-    const sql = (await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`);
-    await database.query(sql);
-  }
-  await build({ entryPoints: ["src/security.ts", "src/voice-session.ts", "src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "runtime", setup(plugin) {
-    plugin.onResolve({ filter: /^(cloudflare:workers|\.\/database|\.\/auth)$/ }, args => ({ path: args.path, namespace: "test" }));
+  await build({ entryPoints: ["src/security.ts", "src/voice-session.ts", "src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "runtime", setup(plugin) {
+    plugin.onResolve({ filter: /^(cloudflare:workers|\.\/database)$/ }, args => ({ path: args.path, namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "cloudflare:workers"
       ? "export class DurableObject { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }"
-      : args.path === "./auth" ? 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;'
       : "export const databaseForInvocation = () => globalThis.securityTestDatabase();" }));
   } }] });
   const { consumeRate, limits } = await import(pathToFileURL(join(directory, "security.mjs")));
   const { VoiceSession } = await import(pathToFileURL(join(directory, "voice-session.mjs")));
-  const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest);
   const decisions = await Promise.all(Array.from({ length: 20 }, () => consumeRate(database, "auth:test", 60, 3)));
   assert.equal(decisions.filter(result => result.allowed).length, 3, "concurrent requests must share the atomic bucket");
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'Fixture', 'fixture@example.invalid')");
@@ -99,7 +92,7 @@ try {
   assert.equal((await makeSession().fetch(upgrade())).status, 429);
   let dispatched = 0;
   env.REVIEW_QUEUE = { send: async () => { dispatched++; } };
-  const finish = () => handleApi(new Request("https://app.example/api/attempts/attempt/finish", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: "finish", sourceOrder: 1, occurrenceOffsetMs: 1 }) }), env, {}, database);
+  const finish = () => handle(new Request("https://app.example/api/attempts/attempt/finish", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: "finish", sourceOrder: 1, occurrenceOffsetMs: 1 }) }), env, {}, database);
   const finishes = await Promise.all([finish(), finish()]);
   assert.ok(finishes.every(response => response.status === 200));
   assert.equal(dispatched, 1, "concurrent finish only dispatches once");
@@ -111,8 +104,6 @@ try {
   socket?.close(); provider?.close();
   await Promise.all(background);
   globalThis.fetch = originalFetch; globalThis.Response = OriginalResponse;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

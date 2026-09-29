@@ -1,6 +1,6 @@
 // Hosted runner, reachable only through the PYTHON_RUNNER service binding. No app secrets or DB bindings.
 import { Container, getContainer } from "@cloudflare/containers";
-import { executionResult, runTests, validateRequest } from "../scripts/python-runner/contract.mjs";
+import { deadlines, executionResult, limits, runTests, validateRequest } from "../scripts/python-runner/contract.mjs";
 import { boundedRequest, json } from "./http";
 
 export class RunnerSandbox extends Container {
@@ -17,7 +17,7 @@ export default {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/run" || url.hostname !== "python-runner") return json({ error: "Not found" }, { status: 404 });
     if (request.headers.get("content-type")?.split(";")[0] !== "application/json") return json({ error: "Expected application/json" }, { status: 415 });
-    const bounded = await boundedRequest(request);
+    const bounded = await boundedRequest(request, limits.requestBytes);
     if (bounded instanceof Response) return bounded;
     let body: RunRequest;
     try { body = await bounded.json(); } catch { return json({ error: "Malformed JSON request" }, { status: 400 }); }
@@ -33,7 +33,7 @@ export default {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ sourceCode: body.sourceCode, entryPoint: body.entryPoint, args: test.inputData.args }),
           // Covers a cold start; the sandbox enforces the 5 s candidate wall time itself.
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(deadlines.sandboxRequestMs),
         }));
         if (!response.ok) throw new Error("Runner sandbox unavailable");
         return executionResult(test, await response.json());

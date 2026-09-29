@@ -1,7 +1,7 @@
 import type { Env } from "./env";
 import { deepgramVoiceEnabled } from "./deepgram";
-import { pythonRunnerConfigured } from "./python-runner-client";
-import { reviewProviderConfigured } from "./review-provider-factory";
+import { runnerConfigured } from "./runner";
+import { reviewProviderConfigured } from "./review-provider";
 import { configuredApplicationOrigin } from "./origin";
 
 export function runtimeCapabilities(env: Env) {
@@ -11,7 +11,7 @@ export function runtimeCapabilities(env: Env) {
     authConfigured: Boolean(env.BETTER_AUTH_SECRET?.trim()),
     databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString || env.DATABASE_URL?.trim()),
     voiceConfigured: deepgramVoiceEnabled(env),
-    runnerConfigured: pythonRunnerConfigured(env),
+    runnerConfigured: runnerConfigured(env),
     reviewConfigured: reviewProviderConfigured(env),
     reviewQueueConfigured: Boolean(env.REVIEW_QUEUE?.send),
   };

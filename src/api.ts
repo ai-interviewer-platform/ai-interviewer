@@ -1,17 +1,16 @@
 import type { Pool, PoolClient } from "pg";
 import { deleteAccount, exportAccount } from "./account";
-import { authenticatedUserId } from "./auth";
-import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
-import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
-import { consumeRate, limits } from "./security";
-import { pythonRunnerFor } from "./python-runner-client";
-import { reviewProviderConfigured } from "./review-provider-factory";
-import { configuredApplicationOrigin } from "./origin";
+import { withTransaction } from "./transaction";
+import { deepgramVoiceEnabled } from "./deepgram";
+import { consumeRate, limits, userRateLimitKey } from "./security";
+import { runnerFor, type RunOutcome } from "./runner";
+import { reviewProviderConfigured } from "./review-provider";
 import { logOperationalEvent } from "./observability";
-import { runtimeCapabilities } from "./runtime-config";
 import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";
-import { badRequest, boolean, boundedRequest, checkOrigin, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
+import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
+import type { SessionResolver } from "./request-handler";
+import { openTimeline, withTimeline, type TimelineResult } from "./attempt-timeline";
 
 const DISCLOSURE_VERSION = "pending-owner-data-policy";
 
@@ -34,17 +33,6 @@ export type AttemptRow = {
   updated_at: string;
 };
 
-type RunnerResult = {
-  status: "passed" | "failed" | "runner_error";
-  testResults: Array<{ testId: string; outcome: "passed" | "failed" | "skipped"; actualOutput?: unknown; error?: string }>;
-  stdout?: string;
-  stderr?: string;
-  executionTimeMs?: number;
-  runnerVersion: string;
-  harnessVersion: string;
-  runnerError?: string;
-};
-
 function id(): string {
   return crypto.randomUUID();
 }
@@ -61,112 +49,26 @@ function isFamiliarity(value: string | null): value is "unanswered" | "familiar"
   return value === "unanswered" || value === "familiar" || value === "not_recalled";
 }
 
-function isVoiceRole(value: string | null): value is "user" | "assistant" {
-  return value === "user" || value === "assistant";
-}
-
-export async function withTransaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await operation(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
 async function ownedAttempt(pool: Pool, attemptId: string, userId: string): Promise<AttemptRow | null> {
   const result = await pool.query<AttemptRow>("SELECT * FROM attempts WHERE id = $1 AND user_id = $2", [attemptId, userId]);
   return result.rows[0] ?? null;
 }
 
-class AttemptClosedError extends Error {}
-
-async function addEvent(client: PoolClient, values: {
-  attemptId: string;
-  eventType: string;
-  sourceId: string;
-  sourceOrder: number;
-  occurrenceOffsetMs: number;
-  payload: unknown;
-}): Promise<string> {
-  const locked = await client.query("SELECT status FROM attempts WHERE id = $1 FOR UPDATE", [values.attemptId]);
-  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new AttemptClosedError("Attempt is closed.");
-  const existingEvent = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
-  if (existingEvent.rows[0]) return existingEvent.rows[0].id;
-  const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [values.attemptId]);
-  if (Number(count.rows[0].count) >= limits.eventsPerAttempt) throw new Error("Attempt evidence limit reached.");
-  const eventId = id();
-  const inserted = await client.query<{ id: string }>(
-    `INSERT INTO attempt_events (id, attempt_id, event_type, source_id, source_order, occurrence_offset_ms, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-     ON CONFLICT (attempt_id, source_id) DO NOTHING
-     RETURNING id`,
-    [eventId, values.attemptId, values.eventType, values.sourceId, values.sourceOrder, values.occurrenceOffsetMs, JSON.stringify(values.payload)],
-  );
-  if (inserted.rows[0]) return inserted.rows[0].id;
-  const existing = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
-  if (!existing.rows[0]) throw new Error("The event could not be persisted.");
-  return existing.rows[0].id;
+// Maps a timeline write that was not recorded to the route response.
+function notRecorded(result: Exclude<TimelineResult, { status: "recorded" }>, invalidMessage: string): Response {
+  if (result.status === "invalid") return badRequest(invalidMessage);
+  if (result.status === "closed") return json({ error: "This attempt is finished. Nothing new was recorded." }, { status: 409 });
+  return json({ error: "This attempt reached its evidence limit. Nothing new was recorded." }, { status: 409 });
 }
 
-async function createCheckpoint(client: PoolClient, attempt: AttemptRow, type: "run" | "save" | "submission" | "retry_source", sourceId: string, sourceOrder: number, occurrenceOffsetMs: number): Promise<{ checkpointId: string; eventId: string }> {
-  const eventId = await addEvent(client, {
-    attemptId: attempt.id,
-    eventType: "code_checkpoint",
-    sourceId,
-    sourceOrder,
-    occurrenceOffsetMs,
-    payload: { checkpointType: type, draftRevision: attempt.draft_revision },
-  });
-  const existing = await client.query<{ id: string }>("SELECT id FROM code_checkpoints WHERE event_id = $1", [eventId]);
-  if (existing.rows[0]) return { checkpointId: existing.rows[0].id, eventId };
-  const checkpointId = id();
-  await client.query(
-    "INSERT INTO code_checkpoints (id, attempt_id, event_id, source_code, checkpoint_type) VALUES ($1, $2, $3, $4, $5)",
-    [checkpointId, attempt.id, eventId, attempt.draft_source, type],
-  );
-  return { checkpointId, eventId };
+// Records the first Event of a new Attempt, in the transaction that inserted the Attempt.
+async function recordStart(client: PoolClient, attemptId: string, eventType: "attempt_started" | "retry_started", payload: unknown): Promise<void> {
+  const opened = await openTimeline(client, attemptId);
+  const recorded = opened.status === "open" ? await opened.timeline.record(eventType, { sourceId: `server:${eventType === "attempt_started" ? "start" : "retry"}:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0 }, payload) : opened;
+  if (recorded.status !== "recorded") throw new Error(`The ${eventType} Event was not recorded.`);
 }
 
-function parseRunnerResult(value: unknown, permittedTestIds: Set<string>): RunnerResult | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const candidate = value as Record<string, unknown>;
-  const status = string(candidate.status);
-  const runnerVersion = string(candidate.runnerVersion);
-  const harnessVersion = string(candidate.harnessVersion);
-  if ((status !== "passed" && status !== "failed" && status !== "runner_error") || !runnerVersion || !harnessVersion || !Array.isArray(candidate.testResults)) return null;
-  const testResults: RunnerResult["testResults"] = [];
-  const receivedTestIds = new Set<string>();
-  for (const item of candidate.testResults) {
-    if (typeof item !== "object" || item === null || Array.isArray(item)) return null;
-    const result = item as Record<string, unknown>;
-    const testId = string(result.testId);
-    const outcome = string(result.outcome);
-    if (!testId || !permittedTestIds.has(testId) || receivedTestIds.has(testId) || (outcome !== "passed" && outcome !== "failed" && outcome !== "skipped")) return null;
-    receivedTestIds.add(testId);
-    testResults.push({ testId, outcome, actualOutput: result.actualOutput, error: string(result.error) ?? undefined });
-  }
-  if (receivedTestIds.size !== permittedTestIds.size) return null;
-  const executionTimeMs = typeof candidate.executionTimeMs === "number" && Number.isSafeInteger(candidate.executionTimeMs) && candidate.executionTimeMs >= 0 ? candidate.executionTimeMs : undefined;
-  return {
-    status,
-    testResults,
-    stdout: string(candidate.stdout) ?? "",
-    stderr: string(candidate.stderr) ?? "",
-    executionTimeMs,
-    runnerVersion,
-    harnessVersion,
-    runnerError: string(candidate.runnerError) ?? undefined,
-  };
-}
-
-async function catalog(pool: Pool): Promise<Response> {
+export async function catalog(pool: Pool): Promise<Response> {
   const result = await pool.query(
     `SELECT id, title, topic, difficulty, prompt, starter_code, entry_point, test_contract
        FROM problems
@@ -217,7 +119,7 @@ async function createAttempt(pool: Pool, env: Env, userId: string, body: Record<
        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8, now(), $9, $10, false)`,
       [attemptId, userId, problemId, mode, inputMode, problem.rows[0].starter_code, JSON.stringify(setupContext), familiarity, DISCLOSURE_VERSION, practiceGoal],
     );
-    await addEvent(client, { attemptId, eventType: "attempt_started", sourceId: `server:start:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { mode, inputMode, consented: true } });
+    await recordStart(client, attemptId, "attempt_started", { mode, inputMode, consented: true });
   });
   return json({ attemptId }, { status: 201 });
 }
@@ -280,7 +182,7 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
   if (!env.AI) return { reply: null, replyError: "The text interviewer is not configured, so no reply was generated." };
   const turns = await pool.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1 AND event_type = 'interviewer_text'", [attempt.id]);
   if (Number(turns.rows[0].count) >= limits.modelTurnsPerAttempt) return { reply: null, replyError: "This attempt reached its interviewer reply limit, so no reply was generated." };
-  if (!(await consumeRate(pool, `model:${attempt.user_id}`, 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
+  if (!(await consumeRate(pool, userRateLimitKey("model", attempt.user_id), 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
 
   const [problem, run, transcript] = await Promise.all([
     pool.query<{ title: string; prompt: string; clarification_guidance: string; help_guidance: string }>("SELECT title, prompt, clarification_guidance, help_guidance FROM problems WHERE id = $1", [attempt.problem_id]),
@@ -300,17 +202,19 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
   } catch {
     return { reply: null, replyError: "The interviewer could not respond, so no reply was generated." };
   }
-  const speaker = attempt.mode === "coach" ? "coach" : "interviewer";
   const occurrenceOffsetMs = Math.max(triggerOffsetMs + 1, Date.now() - new Date(attempt.created_at).getTime());
+  let saved: TimelineResult | null = null;
   try {
-    await withTransaction(pool, async (client) => {
-      const eventId = await addEvent(client, { attemptId: attempt.id, eventType: "interviewer_text", sourceId: `server:reply:${triggerEventId}`, sourceOrder: 0, occurrenceOffsetMs, payload: { inReplyTo: triggerEventId, model: INTERVIEWER_MODEL, helpCategory } });
-      const saved = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
-      if (!saved.rows[0]) await client.query("INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)", [id(), attempt.id, eventId, speaker, text, occurrenceOffsetMs]);
-      if (helpCategory) await client.query("UPDATE assistance_events SET delivered = true, content = $1 WHERE event_id = $2 AND delivered = false", [text, triggerEventId]);
+    saved = await withTimeline(pool, attempt.id, async (timeline, client) => {
+      const recorded = await timeline.record("interviewer_text", { sourceId: `server:reply:${triggerEventId}`, sourceOrder: 0, occurrenceOffsetMs }, { inReplyTo: triggerEventId, model: INTERVIEWER_MODEL, helpCategory }, { transcript: { speaker: "interviewer", text } });
+      if (recorded.status === "recorded" && helpCategory) await client.query("UPDATE assistance_events SET delivered = true, content = $1 WHERE event_id = $2 AND delivered = false", [text, triggerEventId]);
+      return recorded;
     });
-  } catch (error) {
-    if (error instanceof AttemptClosedError) return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+  } catch {
+    // Reported below as a reply that could not be saved.
+  }
+  if (saved?.status === "closed") return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+  if (saved?.status !== "recorded") {
     logOperationalEvent("warn", "interviewer_reply_not_saved");
     return { reply: null, replyError: "The reply could not be saved, so no reply was recorded." };
   }
@@ -319,74 +223,25 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
 }
 
 async function appendCandidateMessage(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+  const invalid = "A message and stable event metadata are required.";
   const text = string(body.text);
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (!text?.trim() || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("A message and stable event metadata are required.");
-  const eventId = await withTransaction(pool, async (client) => {
-    const eventId = await addEvent(client, { attemptId: attempt.id, eventType: "candidate_text", sourceId, sourceOrder, occurrenceOffsetMs, payload: { inputMode: "text" } });
-    const existing = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
-    if (!existing.rows[0]) {
-      await client.query("INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, 'candidate', $4, $5)", [id(), attempt.id, eventId, text.trim(), occurrenceOffsetMs]);
-    }
-    return eventId;
-  });
+  if (text === null) return badRequest(invalid);
+  const recorded = await withTimeline(pool, attempt.id, (timeline) => timeline.record("candidate_text", body, { inputMode: "text" }, { transcript: { speaker: "candidate", text } }));
+  if (recorded.status !== "recorded") return notRecorded(recorded, invalid);
+  const { eventId } = recorded;
   if (attempt.input_mode !== "text") return json({ eventId }, { status: 201 });
-  return json({ eventId, ...await interviewerReply(pool, env, attempt, eventId, occurrenceOffsetMs, null) }, { status: 201 });
-}
-
-export async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const text = string(body.text);
-  const role = string(body.role);
-  const providerSessionId = string(body.providerSessionId);
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice evidence.");
-  if (!text?.trim() || !isVoiceRole(role) || !providerSessionId || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) {
-    return badRequest("A Deepgram transcript and stable event metadata are required.");
-  }
-
-  const speaker = role === "user" ? "candidate" : attempt.mode === "coach" ? "coach" : "interviewer";
-  const eventId = await withTransaction(pool, async (client) => {
-    const eventId = await addEvent(client, {
-      attemptId: attempt.id,
-      eventType: role === "user" ? "candidate_voice" : "interviewer_voice",
-      sourceId,
-      sourceOrder,
-      occurrenceOffsetMs,
-      payload: { verified: true, inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
-    });
-    const existing = await client.query<{ id: string }>("SELECT id FROM transcript_segments WHERE event_id = $1", [eventId]);
-    if (!existing.rows[0]) {
-      await client.query(
-        "INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)",
-        [id(), attempt.id, eventId, speaker, text.trim(), occurrenceOffsetMs],
-      );
-
-    }
-    return eventId;
-  });
-  return json({ eventId }, { status: 201 });
+  return json({ eventId, ...await interviewerReply(pool, env, attempt, eventId, body.occurrenceOffsetMs as number, null) }, { status: 201 });
 }
 
 async function requestHelp(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+  const invalid = "A help category and stable event metadata are required.";
   const category = string(body.category);
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if ((category !== "clarification" && category !== "hint" && category !== "explanation") || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("A help category and stable event metadata are required.");
-  const eventId = await withTransaction(pool, async (client) => {
-    const eventId = await addEvent(client, { attemptId: attempt.id, eventType: "help_requested", sourceId, sourceOrder, occurrenceOffsetMs, payload: { category } });
-    const existing = await client.query<{ id: string }>("SELECT id FROM assistance_events WHERE event_id = $1", [eventId]);
-    if (!existing.rows[0]) {
-      await client.query("INSERT INTO assistance_events (id, attempt_id, event_id, category, offered, accepted, delivered, content) VALUES ($1, $2, $3, $4, true, true, false, '')", [id(), attempt.id, eventId, category]);
-    }
-    return eventId;
-  });
+  if (category !== "clarification" && category !== "hint" && category !== "explanation") return badRequest(invalid);
+  const recorded = await withTimeline(pool, attempt.id, (timeline) => timeline.record("help_requested", body, { category }, { helpRequest: { category } }));
+  if (recorded.status !== "recorded") return notRecorded(recorded, invalid);
+  const { eventId } = recorded;
   if (attempt.input_mode === "text") {
-    const { reply, replyError } = await interviewerReply(pool, env, attempt, eventId, occurrenceOffsetMs, category);
+    const { reply, replyError } = await interviewerReply(pool, env, attempt, eventId, body.occurrenceOffsetMs as number, category);
     return json({
       eventId,
       delivered: reply !== null,
@@ -407,114 +262,93 @@ async function requestHelp(pool: Pool, env: Env, attempt: AttemptRow, body: Reco
 }
 
 async function saveDraft(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
+  const invalid = "A draft, expected revision, and stable event metadata are required.";
   const source = string(body.source);
   const expectedRevision = body.expectedRevision;
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (source === null || !nonnegativeSafeInteger(expectedRevision) || !sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("A draft, expected revision, and stable event metadata are required.");
-  const updated = await withTransaction(pool, async (client) => {
+  if (source === null || !nonnegativeSafeInteger(expectedRevision)) return badRequest(invalid);
+  const saved = await withTimeline(pool, attempt.id, async (timeline, client) => {
+    // The timeline holds the Attempt lock, so the revision cannot change before the update.
+    if (timeline.attempt.draft_revision !== expectedRevision) return { status: "conflict" } as const;
+    const recorded = await timeline.record("draft_saved", body, { draftRevision: expectedRevision + 1 });
+    if (recorded.status !== "recorded") return recorded;
     const result = await client.query<AttemptRow>(
       `UPDATE attempts SET draft_source = $1, draft_revision = draft_revision + 1, updated_at = now(), status = CASE WHEN status = 'setup' THEN 'active' ELSE status END
-        WHERE id = $2 AND user_id = $3 AND status <> 'completed' AND draft_revision = $4
-        RETURNING *`,
-      [source, attempt.id, attempt.user_id, expectedRevision],
+        WHERE id = $2 RETURNING *`,
+      [source, attempt.id],
     );
-    const next = result.rows[0];
-    if (!next) return null;
-    await addEvent(client, { attemptId: attempt.id, eventType: "draft_saved", sourceId, sourceOrder, occurrenceOffsetMs, payload: { draftRevision: next.draft_revision } });
-    return next;
+    return { status: "saved", attempt: result.rows[0] } as const;
   });
-  if (!updated) return json({ error: "The draft changed elsewhere. Reload before saving again." }, { status: 409 });
-  return json({ draftRevision: updated.draft_revision, updatedAt: updated.updated_at });
+  if (saved.status === "conflict") return json({ error: "The draft changed elsewhere. Reload before saving again." }, { status: 409 });
+  if (saved.status !== "saved") return notRecorded(saved, invalid);
+  return json({ draftRevision: saved.attempt.draft_revision, updatedAt: saved.attempt.updated_at });
 }
 
+// The candidate-facing message for each reason the Runner gives no result.
+const runnerUnavailable: Record<Extract<RunOutcome, { status: "unavailable" }>["reason"], string> = {
+  "unreachable": "The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.",
+  "http failure": "The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.",
+  "too large": "The runner result exceeded the response limit.",
+  "invalid result": "The isolated Python runner returned an invalid result. No test verdict was recorded.",
+};
+
 async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable run event metadata is required.");
-  const runner = pythonRunnerFor(env);
+  const invalid = "Stable run event metadata is required.";
+  const runner = runnerFor(env);
   if (!runner) return serverUnavailable("The isolated Python runner is not configured. Your draft remains available and this is not a code result.");
-  const checkpoint = await withTransaction(pool, (client) => createCheckpoint(client, attempt, "run", sourceId, sourceOrder, occurrenceOffsetMs));
+  const checkpoint = await withTimeline(pool, attempt.id, async (timeline) => ({
+    ...await timeline.record("code_checkpoint", body, { checkpointType: "run", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "run" } }),
+    sourceCode: timeline.attempt.draft_source,
+  }));
+  if (checkpoint.status !== "recorded") return notRecorded(checkpoint, invalid);
+  // A recorded Checkpoint Event always has its Checkpoint row.
+  const checkpointId = checkpoint.detailId!;
   const content = await pool.query<{ id: string; entry_point: string; test_contract: unknown; input_data: unknown; expected_output: unknown }>(
     `SELECT p.entry_point, p.test_contract, tc.id, tc.input_data, tc.expected_output
        FROM problems p JOIN test_cases tc ON tc.problem_id = p.id
       WHERE p.id = $1 AND tc.visibility = 'visible'`,
     [attempt.problem_id],
   );
-  let response: Response;
-  try {
-    response = await runner.fetch(new Request("https://python-runner/run", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ attemptId: attempt.id, checkpointId: checkpoint.checkpointId, sourceCode: attempt.draft_source, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
-      signal: AbortSignal.timeout(95_000),
-    }));
-  } catch {
-    logOperationalEvent("warn", "runner_unreachable");
-    return serverUnavailable("The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
-  }
-  if (!response.ok) {
-    logOperationalEvent("warn", "runner_http_failure", { status: response.status });
-    return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
-  }
-  let result: RunnerResult | null;
-  try {
-    const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
-    if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
-    result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
-  } catch {
-    logOperationalEvent("warn", "runner_invalid_result");
-    return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
-  }
-  if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
+  const outcome = await runner.run({ attemptId: attempt.id, checkpointId, sourceCode: checkpoint.sourceCode, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) });
+  if (outcome.status === "unavailable") return serverUnavailable(runnerUnavailable[outcome.reason]);
+  const { result } = outcome;
   const passed = result.testResults.filter((test) => test.outcome === "passed").length;
   const failed = result.testResults.filter((test) => test.outcome === "failed").length;
-  const run = await withTransaction(pool, async (client) => {
-    const runEventId = await addEvent(client, { attemptId: attempt.id, eventType: "code_run", sourceId: `${sourceId}:result`, sourceOrder, occurrenceOffsetMs, payload: { checkpointId: checkpoint.checkpointId, runnerVersion: result.runnerVersion, harnessVersion: result.harnessVersion } });
-    const existing = await client.query<{ id: string }>("SELECT id FROM code_runs WHERE event_id = $1", [runEventId]);
-    if (existing.rows[0]) return existing.rows[0].id;
-    const runId = id();
-    await client.query(
-      `INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'visible', $13, $14)`,
-      [runId, attempt.id, checkpoint.checkpointId, runEventId, result.status, passed, failed, result.stdout, result.stderr, result.executionTimeMs ?? null, result.runnerError ?? null, JSON.stringify(result.testResults), result.runnerVersion, result.harnessVersion],
-    );
-    return runId;
-  });
-  return json({ runId: run, checkpointId: checkpoint.checkpointId, status: result.status, testsPassed: passed, testsFailed: failed, testResults: result.testResults });
+  const envelope = { sourceId: `${body.sourceId}:result`, sourceOrder: body.sourceOrder, occurrenceOffsetMs: body.occurrenceOffsetMs };
+  const run = await withTimeline(pool, attempt.id, (timeline) => timeline.record("code_run", envelope, { checkpointId, runnerVersion: result.runnerVersion, harnessVersion: result.harnessVersion }, { run: { checkpointId, result } }));
+  if (run.status !== "recorded") return notRecorded(run, invalid);
+  return json({ runId: run.detailId, checkpointId, status: result.status, testsPassed: passed, testsFailed: failed, testResults: result.testResults });
 }
 
 async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const sourceId = string(body.sourceId);
-  const sourceOrder = body.sourceOrder;
-  const occurrenceOffsetMs = body.occurrenceOffsetMs;
-  if (!sourceId || !nonnegativeSafeInteger(sourceOrder) || !nonnegativeSafeInteger(occurrenceOffsetMs)) return badRequest("Stable finish event metadata is required.");
   if (!reviewProviderConfigured(env) || !env.REVIEW_QUEUE?.send) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
-  const finished = await withTransaction(pool, async (client) => {
-    const current = await client.query<AttemptRow>("SELECT * FROM attempts WHERE id = $1 AND user_id = $2 FOR UPDATE", [attempt.id, attempt.user_id]);
-    const locked = current.rows[0];
-    if (!locked) return null;
-    if (locked.status === "completed") {
-      const review = await client.query<{ id: string }>("SELECT id FROM reviews WHERE attempt_id = $1", [locked.id]);
-      return review.rows[0] ? { reviewId: review.rows[0].id, completed: true } : null;
-    }
-    const checkpoint = await createCheckpoint(client, locked, "submission", sourceId, sourceOrder, occurrenceOffsetMs);
-    await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [locked.id]);
+  // One transaction: the Submission, the Attempt completion, and the Review.
+  const finished = await withTimeline(pool, attempt.id, async (timeline, client) => {
+    const submission = await timeline.record("code_checkpoint", body, { checkpointType: "submission", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "submission" } });
+    if (submission.status !== "recorded") return submission;
+    await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [attempt.id]);
     const reviewId = id();
-    const manifest = { attemptId: locked.id, finalCheckpointId: checkpoint.checkpointId, frozenAt: new Date().toISOString() };
-    await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, locked.id, JSON.stringify(manifest)]);
-    return { reviewId, completed: false };
+    const manifest = { attemptId: attempt.id, finalCheckpointId: submission.detailId, frozenAt: new Date().toISOString() };
+    await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
+    return { status: "finished", reviewId } as const;
   });
-  if (!finished) return notFound();
-  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [finished.reviewId]);
+  let reviewId: string;
+  if (finished.status === "closed") {
+    // A finished Attempt: dispatch its Review again if the first dispatch was lost.
+    const review = await pool.query<{ id: string }>("SELECT id FROM reviews WHERE attempt_id = $1", [attempt.id]);
+    if (!review.rows[0]) return notFound();
+    reviewId = review.rows[0].id;
+  } else if (finished.status === "finished") {
+    reviewId = finished.reviewId;
+  } else {
+    return notRecorded(finished, "Stable finish event metadata is required.");
+  }
+  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [reviewId]);
   const dispatch = claim.rows.length ? "queued" : "already dispatched";
   if (claim.rows.length) {
-    try { await env.REVIEW_QUEUE.send({ reviewId: finished.reviewId }); }
-    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [finished.reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
+    try { await env.REVIEW_QUEUE.send({ reviewId }); }
+    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
   }
-  return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
+  return json({ reviewId, dispatch, recoveryDispatch: finished.status === "closed" });
 }
 
 async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
@@ -538,7 +372,7 @@ async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptR
        VALUES ($1, $2, $3, 'coach', $4, 'active', $5, $6, $7, $8::jsonb, 'unanswered', now(), $9, $10, false)`,
       [attemptId, userId, original.problem_id, original.input_mode, original.id, checkpointId, original.checkpoint_code, JSON.stringify({ sourceCheckpointId: checkpointId, sourceAttemptId: original.id, throughOffsetMs: original.occurrence_offset_ms }), DISCLOSURE_VERSION, practiceGoal],
     );
-    await addEvent(client, { attemptId, eventType: "retry_started", sourceId: `server:retry:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0, payload: { sourceAttemptId: original.id, sourceCheckpointId: checkpointId } });
+    await recordStart(client, attemptId, "retry_started", { sourceAttemptId: original.id, sourceCheckpointId: checkpointId });
   });
   return json({ attemptId }, { status: 201 });
 }
@@ -583,37 +417,15 @@ async function relatedProblems(pool: Pool, userId: string, attempt: AttemptRow):
   return json({ relatedProblems: result.rows });
 }
 
-export async function handleApi(request: Request, env: Env, _ctx: ExecutionContext, pool: Pool): Promise<Response> {
+// Routing only. The request pipeline (request-handler.ts) has already applied the
+// collection gate, origin check, body size limit, session, and rate limit.
+export async function routeApi(request: Request, env: Env, _ctx: ExecutionContext, { pool, userId, sessions }: { pool: Pool; userId: string; sessions: SessionResolver }): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
   const page = Number(url.searchParams.get("page") ?? 0);
   if (!Number.isSafeInteger(page) || page < 0 || !Number.isSafeInteger(page * limits.pageSize)) return badRequest("Invalid page.");
-  if (path === "/api/health" && request.method === "GET") return json({ status: "ok" });
-  if (path === "/api/personal-availability" && request.method === "GET") {
-    const capabilities = runtimeCapabilities(env);
-    return json({
-      collectionEnabled: personalCollectionEnabled(env),
-      voiceEnabled: deepgramVoiceEnabled(env),
-      voiceProvider: DEEPGRAM_VOICE_PROVIDER,
-      thinkingModel: DEEPGRAM_THINKING_MODEL,
-      mvpReady: capabilities.mvpReady,
-      services: {
-        database: capabilities.databaseConfigured,
-        voice: capabilities.voiceConfigured,
-        runner: capabilities.runnerConfigured,
-        review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
-      },
-    });
-  }
-  if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
-  const originError = checkOrigin(request, env.BETTER_AUTH_URL);
-  if (originError) return originError;
-  if (path === "/api/catalog" && request.method === "GET") return catalog(pool);
-  const userId = await authenticatedUserId(request, env, pool);
-  if (!userId) return unauthorized();
-  if (!(await consumeRate(pool, `api:${userId}`, 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
   if (path === "/api/me" && request.method === "GET") return json({ userId });
-  if (path === "/api/me" && request.method === "DELETE") return deleteAccount(request, env, pool, userId);
+  if (path === "/api/me" && request.method === "DELETE") return deleteAccount(request, sessions, pool, userId);
   if (path === "/api/me/export" && request.method === "GET") return exportAccount(pool, userId);
   if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId, page);
   if (path === "/api/attempts" && request.method === "POST") {
@@ -639,9 +451,6 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
     return body ? appendCandidateMessage(pool, env, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "voice" && request.method === "GET") {
-    const origin = configuredApplicationOrigin(env.BETTER_AUTH_URL);
-    if (!origin) return serverUnavailable("The application origin is not configured safely.");
-    if (request.headers.get("origin") !== origin) return forbidden();
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return badRequest("WebSocket required.");
     if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice input.");
     const headers = new Headers(request.headers);

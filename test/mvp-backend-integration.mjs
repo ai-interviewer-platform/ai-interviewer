@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
+import { fakeSessions, withSessions } from "./fake-session.mjs";
 
 // Node requires duplex for streamed Request bodies; the Worker runtime does not.
 const NativeRequest = globalThis.Request;
@@ -12,23 +13,17 @@ globalThis.Request = class extends NativeRequest {
   constructor(input, init) { super(input, init?.body instanceof ReadableStream ? { ...init, duplex: "half" } : init); }
 };
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable PostgreSQL instance.");
-const schema = `mvp_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
-  await build({ entryPoints: ["src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async request => request.headers.get("x-test-user") ?? "owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { appendVoiceTranscript, handleApi, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/attempt-timeline.ts", "src/voice-context.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest, fakeSessions({ userId: request => request.headers.get("x-test-user") ?? "owner" }));
+  const { processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  const { withTimeline } = await import(pathToFileURL(join(directory, "attempt-timeline.mjs")));
   const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));
+  const { inMemoryRunner } = await import(pathToFileURL(join(directory, "runner.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'MVP Fixture', 'mvp@example.invalid'), ('other', 'Other Fixture', 'other-mvp@example.invalid')");
   let dispatchedReviewId;
   const env = {
@@ -39,19 +34,18 @@ try {
     REVIEW_PROVIDER_API_KEY: "fictional-review-key",
     REVIEW_PROVIDER_MODEL: "fixture-model",
     REVIEW_QUEUE: { send: async ({ reviewId }) => { dispatchedReviewId = reviewId; } },
-    PYTHON_RUNNER: { fetch: async request => {
-      const input = await request.json();
+    PYTHON_RUNNER: inMemoryRunner(input => {
       const correct = !input.sourceCode.includes("return -1");
-      return Response.json({
+      return {
         status: correct ? "passed" : "failed",
         testResults: input.tests.map(testCase => ({ testId: testCase.testId, outcome: correct ? "passed" : "failed", actualOutput: correct ? testCase.expectedOutput : -1 })),
         stdout: "", stderr: "", executionTimeMs: 1, runnerVersion: "fictional-hosted-v1", harnessVersion: "json-positional-v1",
-      });
-    } },
+      };
+    }),
   };
   let order = 0;
   const call = async (method, path, body, user = "owner") => {
-    const response = await handleApi(new Request(`https://app.example${path}`, {
+    const response = await handle(new Request(`https://app.example${path}`, {
       method,
       headers: { origin: "https://app.example", "x-test-user": user, ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -78,9 +72,9 @@ try {
     assert.equal(run.status, 200, await run.clone().text());
     assert.equal((await run.json()).status, expected);
   }
-  const attempt = (await database.query("SELECT * FROM attempts WHERE id = $1", [attemptId])).rows[0];
-  const transcript = await appendVoiceTranscript(database, attempt, { role: "user", text: "I changed the index selection.", providerSessionId: "fictional-provider-session", ...metadata("voice") });
-  assert.equal(transcript.status, 201);
+  // A verified voice Transcript segment, as the Voice session records it.
+  const transcript = await withTimeline(database, attemptId, (timeline) => timeline.record("candidate_voice", metadata("voice"), { verified: true, inputMode: "voice", provider: "deepgram", providerSessionId: "fictional-provider-session", role: "user" }, { transcript: { speaker: "candidate", text: "I changed the index selection." } }));
+  assert.equal(transcript.status, "recorded");
   const help = await call("POST", `${path}/help`, { category: "hint", ...metadata("help") });
   assert.equal(help.status, 202);
   const context = JSON.parse(await loadVoiceCodingContext(database, attemptId, "owner"));
@@ -107,7 +101,7 @@ try {
       const spoken = evidence.find(item => item.transcript?.speaker === "candidate");
       assert.ok(submission && passingRun && spoken);
       assert.ok([submission.id, passingRun.id, spoken.id].every(id => allowedEvidenceIds.has(id)));
-      return [{ observation: "The final saved solution passed the visible cases after an earlier failed run.", interpretation: null, limitations: "Visible cases do not establish correctness for all inputs.", suggested_action: "Explain why the slice selects odd indexes.", criterion: "Correctness", evidence_status: "reproducible_observation", evidenceIds: [submission.id, passingRun.id, spoken.id] }];
+      return { findings: [{ observation: "The final saved solution passed the visible cases after an earlier failed run.", interpretation: null, limitations: "Visible cases do not establish correctness for all inputs.", suggested_action: "Explain why the slice selects odd indexes.", criterion: "Correctness", evidence_status: "reproducible_observation", evidenceIds: [submission.id, passingRun.id, spoken.id] }] };
     },
   });
   const review = await call("GET", `${path}/review`);
@@ -127,8 +121,6 @@ try {
   console.log("MVP backend integration passed: voice evidence, failed/passed runs, bounded context, finish, evidence-backed review, retrieval, and voice retry.");
 } finally {
   globalThis.Request = NativeRequest;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

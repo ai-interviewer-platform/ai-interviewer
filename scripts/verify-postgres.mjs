@@ -1,22 +1,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import pg from "pg";
+import { migrationFiles } from "./migrations.mjs";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("Set DATABASE_URL to the target PostgreSQL connection string.");
 
 const client = new pg.Client({ connectionString });
-const root = resolve(import.meta.dirname, "..");
 
 async function expectedMigrations() {
-  const authDirectory = resolve(root, "migrations", "auth");
-  const applicationDirectory = resolve(root, "migrations");
-  const auth = (await readdir(authDirectory)).filter(file => file.endsWith(".sql")).sort().map(file => resolve(authDirectory, file));
-  const application = (await readdir(applicationDirectory)).filter(file => /^\d+_.+\.sql$/.test(file)).sort().map(file => resolve(applicationDirectory, file));
-  return Promise.all([...auth, ...application].map(async path => ({
-    filename: path.slice(root.length + 1).replaceAll("\\", "/"),
+  return Promise.all((await migrationFiles()).map(async ({ path, filename }) => ({
+    filename,
     checksum: createHash("sha256").update(await readFile(path, "utf8")).digest("hex"),
   })));
 }

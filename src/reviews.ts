@@ -2,10 +2,9 @@ import type { Pool, PoolClient } from "pg";
 import type { Env } from "./env";
 import { isRecord } from "./http";
 import { personalCollectionEnabled } from "./data-policy";
-import { PermanentReviewError, reviewLimits, TransientReviewError, validateFindings, type ReviewProvider } from "./review-provider";
-import { reviewProviderFor } from "./review-provider-factory";
+import { PermanentReviewError, reviewLimits, reviewProviderFor, reviewTransactionIdleTimeoutMs, TransientReviewError, validateFindings, type ReviewProvider } from "./review-provider";
 import { logOperationalEvent } from "./observability";
-import { limits, takeRate } from "./security";
+import { limits, takeRate, userRateLimitKey } from "./security";
 
 type Evidence = {
   id: string; type: string; occurrenceOffsetMs: number;
@@ -79,7 +78,7 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout = '2s'");
     await client.query("SET LOCAL statement_timeout = '10s'");
-    await client.query("SET LOCAL idle_in_transaction_session_timeout = '60s'");
+    await client.query(`SET LOCAL idle_in_transaction_session_timeout = '${reviewTransactionIdleTimeoutMs}ms'`);
     const review = (await client.query<Review>("SELECT id, attempt_id, status, evidence_manifest FROM reviews WHERE id = $1 FOR UPDATE", [reviewId])).rows[0];
     if (!review || review.status !== "pending") { await client.query("COMMIT"); return; }
     // Keep the row lock through the bounded request and publication. Concurrent
@@ -88,17 +87,16 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
       // Each review is a paid model call; cap them per account per day. The token
       // is spent on this transaction, so a transient failure and queue retry refund it.
       const owner = (await client.query<{ user_id: string }>("SELECT user_id FROM attempts WHERE id = $1", [review.attempt_id])).rows[0];
-      if (owner && !(await takeRate(client, `review:${owner.user_id}`, 24 * 60 * 60, limits.accountReviewsPerDay)).allowed) {
+      if (owner && !(await takeRate(client, userRateLimitKey("review", owner.user_id), 24 * 60 * 60, limits.accountReviewsPerDay)).allowed) {
         throw new PermanentReviewError("The daily review limit for this account was reached; no findings were generated.");
       }
       const provider = configuredProvider ?? reviewProviderFor(env);
       const { payload, byId, canRetry } = await loadEvidence(client, review);
       await client.query("UPDATE reviews SET started_at = now(), evaluator_version = $2, updated_at = now() WHERE id = $1", [reviewId, provider.evaluatorVersion]);
       const allowedEvidenceIds = new Set(byId.keys());
-      const generated = await provider.generate({ payload, allowedEvidenceIds });
-      // Provider adapters normalize transport envelopes, but remain an untrusted
-      // boundary. Revalidate every adapter's output immediately before writes.
-      const findings = validateFindings({ findings: generated }, allowedEvidenceIds);
+      // Provider adapters normalize transport envelopes only. The Finding checks run
+      // here, once, on the output of every adapter immediately before writes.
+      const findings = validateFindings(await provider.generate({ payload, allowedEvidenceIds }), allowedEvidenceIds);
       for (const finding of findings) {
         const findingId = crypto.randomUUID();
         const cited = finding.evidenceIds.map(id => byId.get(id)!);

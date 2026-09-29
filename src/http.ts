@@ -57,31 +57,41 @@ export async function requestBody(request: Request): Promise<Record<string, unkn
   }
 }
 
-export async function boundedRequest(request: Request): Promise<Request | Response> {
-  if (!request.body) return request;
-  const reader = request.body.getReader();
+// Reads a body up to maxBytes; null when the body is larger.
+export async function boundedBytes(body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!body) return new Uint8Array();
+  const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > limits.requestBytes) {
+    if (length > maxBytes) {
       await reader.cancel();
-      return json({ error: "Request exceeds 256 KiB." }, { status: 413 });
+      return null;
     }
     chunks.push(value);
   }
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  return bytes;
+}
+
+export async function boundedRequest(request: Request, maxBytes: number = limits.requestBytes): Promise<Request | Response> {
+  if (!request.body) return request;
+  const bytes = await boundedBytes(request.body, maxBytes);
+  if (!bytes) return json({ error: `Request exceeds ${maxBytes / 1024} KiB.` }, { status: 413 });
   // The body guard above excludes bodyless GET and HEAD requests.
   // eslint-disable-next-line unicorn/no-invalid-fetch-options
   return new Request(request, { method: request.method, body: bytes });
 }
 
+// Unsafe methods and every WebSocket upgrade must come from the application origin.
 export function checkOrigin(request: Request, baseURL: string): Response | null {
-  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return null;
+  const upgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method) && !upgrade) return null;
   const origin = configuredApplicationOrigin(baseURL);
   if (!origin) return serverUnavailable("The application origin is not configured safely.");
   if (request.headers.get("origin") !== origin) {

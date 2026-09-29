@@ -19,14 +19,36 @@ export const limits = {
   accountReviewsPerDay: 20,
 };
 
-export async function consumeRate(pool: Pool, key: string, window: number, max: number) {
+// Every rate-limit prefix that is keyed by a user ID. Account deletion removes the
+// row of each one, so a user-keyed limit must use a prefix from this list.
+export const userRateLimitPrefixes = ["api", "account-delete", "model", "review"] as const;
+
+// A key made only by the functions below, so no code can add a user-keyed prefix
+// that account deletion does not know.
+declare const rateLimitKeyBrand: unique symbol;
+export type RateLimitKey = string & { readonly [rateLimitKeyBrand]: true };
+
+export function userRateLimitKey(prefix: typeof userRateLimitPrefixes[number], userId: string): RateLimitKey {
+  return `${prefix}:${userId}` as RateLimitKey;
+}
+
+export function userRateLimitKeys(userId: string): RateLimitKey[] {
+  return userRateLimitPrefixes.map((prefix) => userRateLimitKey(prefix, userId));
+}
+
+// better-auth keys its limits by IP address and path, not by a user ID.
+export function authRateLimitKey(key: string): RateLimitKey {
+  return `auth:${key}` as RateLimitKey;
+}
+
+export async function consumeRate(pool: Pool, key: RateLimitKey, window: number, max: number) {
   await pool.query("DELETE FROM security_rate_limits WHERE expires_at <= now()");
   return takeRate(pool, key, window, max);
 }
 
 // Takes one token without the expiry sweep, so a caller can spend it inside its
 // own transaction: a rollback refunds the token, and no other key is locked.
-export async function takeRate(db: Pick<Pool, "query">, key: string, window: number, max: number) {
+export async function takeRate(db: Pick<Pool, "query">, key: RateLimitKey, window: number, max: number) {
   const result = await db.query<{ count: number }>(
     `INSERT INTO security_rate_limits (key, count, expires_at) VALUES ($1, 1, now() + $2 * interval '1 second')
      ON CONFLICT (key) DO UPDATE SET

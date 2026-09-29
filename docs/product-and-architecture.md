@@ -38,7 +38,7 @@ fail closed when collection is unavailable.
   reduced-motion behavior.
 
 Retained audio remains incomplete. Evidence-backed review processing runs behind a
-provider adapter (`src/review-provider-factory.ts`): Workers AI (the `AI` binding,
+provider adapter (`src/review-provider.ts`): Workers AI (the `AI` binding,
 no provider key, `@cf/moonshotai/kimi-k2.6`) by default, or OpenAI Responses when
 `REVIEW_PROVIDER=openai-responses` with its key and model. Text-mode interviewer
 replies use Workers AI `@cf/moonshotai/kimi-k2.6`; the model IDs are constants in
@@ -93,7 +93,7 @@ lineage. The queue moves review work; it does not become the source of truth.
 | `src/voice-context.ts` | Bounded, owner-scoped coding context for the voice agent |
 | `src/review-provider.ts` | Provider-independent review request/result contract |
 | `src/review-providers/` | Vendor-specific review transport adapters |
-| `src/python-runner-client.ts` | Service-binding or authenticated HTTPS runner transport |
+| `src/runner.ts` | Runner request, transport (service binding or authenticated HTTPS), deadline, size limit, and result check |
 
 ## Data and evidence contract
 
