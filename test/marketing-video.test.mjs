@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { serve } from '../tools/marketing/server.mjs';
+import { launchBrowser } from './browser/launch.mjs';
+
+test('uploaded video survives restart, has timed evidence and supports playback byte ranges', { skip: !process.env.FFMPEG_PATH }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'marketing-upload-'));
+  const file = join(directory, 'test.mp4');
+  await promisify(execFile)(process.env.FFMPEG_PATH, ['-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x240:d=2', '-c:v', 'libx264', file]);
+  let app = await serve({ directory, env: { FFMPEG_PATH: process.env.FFMPEG_PATH, QWEN_COVERED_USAGE_CONFIRMED: 'true', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com' }, fetch: async (_url, options) => {
+    assert.match(JSON.parse(options.body).messages[1].content[0].video_url.url, /^data:video\/mp4;base64,/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ advertiser: 'Fixture Brand', observations: [{ description: 'Blue frame', startSeconds: 1, endSeconds: 2 }], gaps: [] }) } }] });
+  } });
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const response = await fetch(`${app.url}/api/upload?name=demo.mp4`, { method: 'POST', headers: { Origin: app.url, 'Content-Type': 'video/mp4' }, body: await readFile(file) });
+  assert.equal(response.status, 202);
+  const { id } = await response.json();
+  const events = await (await fetch(`${app.url}/api/events/${id}`)).text();
+  const run = JSON.parse(events.trim().split('\n\n').at(-1).slice(6));
+  const source = run.sources[0];
+  assert.equal(source.evidence.coverage, 'video-frames');
+  assert.equal(source.evidence.observations[0].startSeconds, 1);
+  assert.equal(source.evidence.advertiser, 'Fixture Brand');
+  assert.equal(source.acquisition.durationSeconds, 2);
+  assert.equal(JSON.stringify(run).includes('base64,'), false);
+  await app.close(); app = await serve({ directory });
+  assert.equal((await (await fetch(app.url+'/api/runs')).json())[0].sources[0].evidence.observations[0].startSeconds, 1);
+  const media = await fetch(app.url + source.acquisition.playback, { headers: { Range: 'bytes=0-31' } });
+  assert.equal(media.status, 206);
+  assert.equal((await media.arrayBuffer()).byteLength, 32);
+  assert.equal((await fetch(`${app.url}/api/media/../../.env.marketing.local`)).status, 404);
+  const browser = await launchBrowser({ headless: true }); t.after(()=>browser.close());
+  const page=await browser.newPage(); await page.goto(app.url);
+  await page.getByRole('button',{name:'Research controls'}).click();
+  await page.getByRole('button',{name:'Inspect',exact:true}).click();
+  await page.getByRole('button',{name:'Evidence & review'}).click();
+  await page.getByRole('button',{name:'1.0–2.0s · Blue frame'}).click();
+  await page.waitForFunction(()=>document.querySelector('video')?.currentTime >= 1);
+  assert.equal(await page.locator('#brands').textContent(),'1');
+});

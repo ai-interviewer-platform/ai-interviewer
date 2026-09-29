@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "marketing": "node tools/marketing/cli.mjs",
     "build:voice": "esbuild src/browser/voice-agent.js --bundle --format=esm --target=es2022 --outfile=public/voice-agent.js",
     "predev": "npm run build:voice",
     "dev": "wrangler dev",
