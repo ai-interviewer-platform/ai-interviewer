@@ -513,7 +513,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
   return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
 }
 
-async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<string, unknown>): Promise<Response> {
+async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const checkpointId = string(body.checkpointId);
   const practiceGoal = string(body.practiceGoal);
   if (!checkpointId || !practiceGoal) return badRequest("A supported checkpoint and practice goal are required.");
@@ -522,8 +522,8 @@ async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<stri
        FROM code_checkpoints c
        JOIN attempts a ON a.id = c.attempt_id
        JOIN attempt_events e ON e.id = c.event_id
-      WHERE c.id = $1 AND a.user_id = $2 AND a.source_attempt_id IS NULL AND c.checkpoint_type IN ('run', 'submission')`,
-    [checkpointId, userId],
+      WHERE c.id = $1 AND a.user_id = $2 AND a.id = $3 AND a.source_attempt_id IS NULL AND c.checkpoint_type IN ('run', 'submission')`,
+    [checkpointId, userId, attempt.id],
   );
   const original = source.rows[0];
   if (!original) return forbidden();
@@ -655,7 +655,7 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   }
   if (action === "retry" && request.method === "POST") {
     const body = await requestBody(request);
-    return body ? retryFromCheckpoint(pool, userId, body) : badRequest("Expected a JSON request body.");
+    return body ? retryFromCheckpoint(pool, userId, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "review" && request.method === "GET") return reviewDetail(pool, attempt);
   if (action === "related" && request.method === "GET") return relatedProblems(pool, userId, attempt);
