@@ -1,7 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 import { deleteAccount, exportAccount } from "./account";
+import { withTransaction } from "./transaction";
 import { DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
-import { consumeRate, limits } from "./security";
+import { consumeRate, limits, userRateLimitKey } from "./security";
 import { pythonRunnerFor } from "./python-runner-client";
 import { reviewProviderConfigured } from "./review-provider";
 import { logOperationalEvent } from "./observability";
@@ -61,21 +62,6 @@ function isFamiliarity(value: string | null): value is "unanswered" | "familiar"
 
 function isVoiceRole(value: string | null): value is "user" | "assistant" {
   return value === "user" || value === "assistant";
-}
-
-export async function withTransaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await operation(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 async function ownedAttempt(pool: Pool, attemptId: string, userId: string): Promise<AttemptRow | null> {
@@ -251,7 +237,7 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
   if (!env.AI) return { reply: null, replyError: "The text interviewer is not configured, so no reply was generated." };
   const turns = await pool.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1 AND event_type = 'interviewer_text'", [attempt.id]);
   if (Number(turns.rows[0].count) >= limits.modelTurnsPerAttempt) return { reply: null, replyError: "This attempt reached its interviewer reply limit, so no reply was generated." };
-  if (!(await consumeRate(pool, `model:${attempt.user_id}`, 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
+  if (!(await consumeRate(pool, userRateLimitKey("model", attempt.user_id), 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
 
   const [problem, run, transcript] = await Promise.all([
     pool.query<{ title: string; prompt: string; clarification_guidance: string; help_guidance: string }>("SELECT title, prompt, clarification_guidance, help_guidance FROM problems WHERE id = $1", [attempt.problem_id]),

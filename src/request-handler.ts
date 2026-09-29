@@ -7,7 +7,7 @@ import type { Env } from "./env";
 import { boundedRequest, checkOrigin, json, serverUnavailable, unauthorized } from "./http";
 import { logOperationalEvent } from "./observability";
 import { runtimeCapabilities } from "./runtime-config";
-import { consumeRate } from "./security";
+import { consumeRate, userRateLimitKey } from "./security";
 
 // The signed-in user of a request. Production uses better-auth; tests pass a fake.
 export interface SessionResolver {
@@ -63,7 +63,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
     if (url.pathname === "/api/catalog" && request.method === "GET") return await catalog(pool);
     const userId = await sessions.userId(bounded);
     if (!userId) return unauthorized();
-    if (!(await consumeRate(pool, `api:${userId}`, 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
+    if (!(await consumeRate(pool, userRateLimitKey("api", userId), 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
     return await routeApi(bounded, env, ctx, { pool, userId, sessions });
   } catch (error) {
     if (isExpectedServiceError(error)) {

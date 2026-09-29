@@ -7,7 +7,7 @@ import type { Env } from "./env";
 import type { SessionResolver } from "./request-handler";
 import * as schema from "./db/generated-auth";
 import { emailConfigured, passwordResetText, sendEmail, verificationText } from "./email";
-import { consumeRate } from "./security";
+import { authRateLimitKey, consumeRate } from "./security";
 
 type AuthInstance = ReturnType<typeof betterAuth>;
 
@@ -26,7 +26,7 @@ function authOptions(pool: Pool, env: Env): BetterAuthOptions {
     advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
     rateLimit: {
       enabled: true,
-      customStorage: { consume: (key, rule) => consumeRate(pool, `auth:${key}`, rule.window, rule.max) },
+      customStorage: { consume: (key, rule) => consumeRate(pool, authRateLimitKey(key), rule.window, rule.max) },
     },
     emailAndPassword: {
       enabled: true,

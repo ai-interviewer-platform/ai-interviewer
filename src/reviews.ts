@@ -4,7 +4,7 @@ import { isRecord } from "./http";
 import { personalCollectionEnabled } from "./data-policy";
 import { PermanentReviewError, reviewLimits, reviewProviderFor, reviewTransactionIdleTimeoutMs, TransientReviewError, validateFindings, type ReviewProvider } from "./review-provider";
 import { logOperationalEvent } from "./observability";
-import { limits, takeRate } from "./security";
+import { limits, takeRate, userRateLimitKey } from "./security";
 
 type Evidence = {
   id: string; type: string; occurrenceOffsetMs: number;
@@ -87,7 +87,7 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
       // Each review is a paid model call; cap them per account per day. The token
       // is spent on this transaction, so a transient failure and queue retry refund it.
       const owner = (await client.query<{ user_id: string }>("SELECT user_id FROM attempts WHERE id = $1", [review.attempt_id])).rows[0];
-      if (owner && !(await takeRate(client, `review:${owner.user_id}`, 24 * 60 * 60, limits.accountReviewsPerDay)).allowed) {
+      if (owner && !(await takeRate(client, userRateLimitKey("review", owner.user_id), 24 * 60 * 60, limits.accountReviewsPerDay)).allowed) {
         throw new PermanentReviewError("The daily review limit for this account was reached; no findings were generated.");
       }
       const provider = configuredProvider ?? reviewProviderFor(env);
