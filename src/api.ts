@@ -1,17 +1,14 @@
 import type { Pool, PoolClient } from "pg";
 import { deleteAccount, exportAccount } from "./account";
-import { authenticatedUserId } from "./auth";
-import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
-import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
+import { DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits } from "./security";
 import { pythonRunnerFor } from "./python-runner-client";
 import { reviewProviderConfigured } from "./review-provider-factory";
-import { configuredApplicationOrigin } from "./origin";
 import { logOperationalEvent } from "./observability";
-import { runtimeCapabilities } from "./runtime-config";
 import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";
-import { badRequest, boolean, boundedRequest, checkOrigin, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string, unauthorized } from "./http";
+import { badRequest, boolean, boundedRequest, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
+import type { SessionResolver } from "./request-handler";
 
 const DISCLOSURE_VERSION = "pending-owner-data-policy";
 
@@ -166,7 +163,7 @@ function parseRunnerResult(value: unknown, permittedTestIds: Set<string>): Runne
   };
 }
 
-async function catalog(pool: Pool): Promise<Response> {
+export async function catalog(pool: Pool): Promise<Response> {
   const result = await pool.query(
     `SELECT id, title, topic, difficulty, prompt, starter_code, entry_point, test_contract
        FROM problems
@@ -583,37 +580,15 @@ async function relatedProblems(pool: Pool, userId: string, attempt: AttemptRow):
   return json({ relatedProblems: result.rows });
 }
 
-export async function handleApi(request: Request, env: Env, _ctx: ExecutionContext, pool: Pool): Promise<Response> {
+// Routing only. The request pipeline (request-handler.ts) has already applied the
+// collection gate, origin check, body size limit, session, and rate limit.
+export async function routeApi(request: Request, env: Env, _ctx: ExecutionContext, { pool, userId, sessions }: { pool: Pool; userId: string; sessions: SessionResolver }): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
   const page = Number(url.searchParams.get("page") ?? 0);
   if (!Number.isSafeInteger(page) || page < 0 || !Number.isSafeInteger(page * limits.pageSize)) return badRequest("Invalid page.");
-  if (path === "/api/health" && request.method === "GET") return json({ status: "ok" });
-  if (path === "/api/personal-availability" && request.method === "GET") {
-    const capabilities = runtimeCapabilities(env);
-    return json({
-      collectionEnabled: personalCollectionEnabled(env),
-      voiceEnabled: deepgramVoiceEnabled(env),
-      voiceProvider: DEEPGRAM_VOICE_PROVIDER,
-      thinkingModel: DEEPGRAM_THINKING_MODEL,
-      mvpReady: capabilities.mvpReady,
-      services: {
-        database: capabilities.databaseConfigured,
-        voice: capabilities.voiceConfigured,
-        runner: capabilities.runnerConfigured,
-        review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
-      },
-    });
-  }
-  if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
-  const originError = checkOrigin(request, env.BETTER_AUTH_URL);
-  if (originError) return originError;
-  if (path === "/api/catalog" && request.method === "GET") return catalog(pool);
-  const userId = await authenticatedUserId(request, env, pool);
-  if (!userId) return unauthorized();
-  if (!(await consumeRate(pool, `api:${userId}`, 60, 120)).allowed) return json({ error: "Too many requests." }, { status: 429 });
   if (path === "/api/me" && request.method === "GET") return json({ userId });
-  if (path === "/api/me" && request.method === "DELETE") return deleteAccount(request, env, pool, userId);
+  if (path === "/api/me" && request.method === "DELETE") return deleteAccount(request, sessions, pool, userId);
   if (path === "/api/me/export" && request.method === "GET") return exportAccount(pool, userId);
   if (path === "/api/attempts" && request.method === "GET") return listAttempts(pool, userId, page);
   if (path === "/api/attempts" && request.method === "POST") {
@@ -639,9 +614,6 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
     return body ? appendCandidateMessage(pool, env, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "voice" && request.method === "GET") {
-    const origin = configuredApplicationOrigin(env.BETTER_AUTH_URL);
-    if (!origin) return serverUnavailable("The application origin is not configured safely.");
-    if (request.headers.get("origin") !== origin) return forbidden();
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return badRequest("WebSocket required.");
     if (attempt.input_mode !== "voice" || attempt.status === "completed") return badRequest("This attempt is not accepting voice input.");
     const headers = new Headers(request.headers);

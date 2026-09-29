@@ -80,8 +80,10 @@ export async function boundedRequest(request: Request): Promise<Request | Respon
   return new Request(request, { method: request.method, body: bytes });
 }
 
+// Unsafe methods and every WebSocket upgrade must come from the application origin.
 export function checkOrigin(request: Request, baseURL: string): Response | null {
-  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return null;
+  const upgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method) && !upgrade) return null;
   const origin = configuredApplicationOrigin(baseURL);
   if (!origin) return serverUnavailable("The application origin is not configured safely.");
   if (request.headers.get("origin") !== origin) {

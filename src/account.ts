@@ -1,15 +1,14 @@
 import type { Pool } from "pg";
-import { passwordMatches } from "./auth";
-import type { Env } from "./env";
 import { badRequest, json, requestBody, string } from "./http";
+import type { SessionResolver } from "./request-handler";
 import { consumeRate } from "./security";
 
-export async function deleteAccount(request: Request, env: Env, pool: Pool, userId: string): Promise<Response> {
+export async function deleteAccount(request: Request, sessions: SessionResolver, pool: Pool, userId: string): Promise<Response> {
   const body = await requestBody(request);
   const password = body ? string(body.password) : null;
   if (!password) return badRequest("Enter your password to delete your account.");
   if (!(await consumeRate(pool, `account-delete:${userId}`, 600, 5)).allowed) return json({ error: "Too many attempts. Try again later." }, { status: 429 });
-  if (!(await passwordMatches(request, env, pool, password))) return json({ error: "The password is incorrect. Nothing was deleted." }, { status: 403 });
+  if (!(await sessions.passwordMatches(request, password))) return json({ error: "The password is incorrect. Nothing was deleted." }, { status: 403 });
   // One statement, so the database removes everything or nothing (migrations/0007_account_deletion.sql).
   await pool.query("SELECT delete_user_account($1)", [userId]);
   return json({ deleted: true });

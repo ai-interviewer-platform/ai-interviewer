@@ -1,19 +1,11 @@
-import { handleApi } from "./api";
-import { authFor } from "./auth";
+import type { Pool } from "pg";
+import { betterAuthSessions } from "./auth";
 import { databaseForInvocation } from "./database";
-import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
-import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
-import { emailConfigured } from "./email";
 import type { Env } from "./env";
-import { boundedRequest, checkOrigin, json, serverUnavailable } from "./http";
-import { runtimeCapabilities } from "./runtime-config";
 import { logOperationalEvent } from "./observability";
+import { handleRequest } from "./request-handler";
 import { processReview } from "./reviews";
 export { VoiceSession } from "./voice-session";
-
-function isExpectedServiceError(error: unknown): boolean {
-  return error instanceof Error && /connect|database|ECONNREFUSED|timeout/i.test(error.message);
-}
 
 function hasReviewId(value: unknown): value is { reviewId: string } {
   return typeof value === "object" && value !== null && !Array.isArray(value) && "reviewId" in value && typeof value.reviewId === "string";
@@ -21,46 +13,13 @@ function hasReviewId(value: unknown): value is { reviewId: string } {
 
 export default {
   async fetch(request, env, ctx): Promise<Response> {
-    const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
-    if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
-    if (url.pathname === "/api/personal-availability" && request.method === "GET") {
-      const capabilities = runtimeCapabilities(env);
-      return json({
-        collectionEnabled: personalCollectionEnabled(env),
-        emailEnabled: emailConfigured(env),
-        voiceEnabled: deepgramVoiceEnabled(env),
-        voiceProvider: DEEPGRAM_VOICE_PROVIDER,
-        thinkingModel: DEEPGRAM_THINKING_MODEL,
-        mvpReady: capabilities.mvpReady,
-        services: {
-          database: capabilities.databaseConfigured,
-          voice: capabilities.voiceConfigured,
-          runner: capabilities.runnerConfigured,
-          review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
-        },
-      });
-    }
-    if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
-    const originError = checkOrigin(request, env.BETTER_AUTH_URL);
-    if (originError) return originError;
-    const bounded = await boundedRequest(request);
-    if (bounded instanceof Response) return bounded;
-
-    let pool: ReturnType<typeof databaseForInvocation> | undefined;
+    if (!new URL(request.url).pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    let pool: Pool | undefined;
     try {
-      pool = databaseForInvocation(env);
-      if (url.pathname.startsWith("/api/auth/")) {
-        return await authFor(env, pool).handler(bounded);
-      }
-      return await handleApi(bounded, env, ctx, pool);
-    } catch (error) {
-      if (isExpectedServiceError(error)) {
-        logOperationalEvent("warn", "database_unavailable");
-        return serverUnavailable("The data service is unavailable. Nothing was recorded.");
-      }
-      logOperationalEvent("error", "request_failed");
-      return json({ error: "The request could not be completed. Nothing new was published." }, { status: 500 });
+      return await handleRequest(request, env, ctx, {
+        database: () => (pool ??= databaseForInvocation(env)),
+        sessions: (database) => betterAuthSessions(env, database),
+      });
     } finally {
       await pool?.end();
     }
