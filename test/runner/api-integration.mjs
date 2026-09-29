@@ -1,22 +1,16 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseEnv } from "node:util";
-import pg from "pg";
 import { createDockerRunner, prepareDocker } from "../../scripts/python-runner/docker.mjs";
 import { createRunnerServer } from "../../scripts/python-runner/server.mjs";
+import { testDatabase } from "../postgres-harness.mjs";
 import { correct } from "./fixtures.mjs";
 
-const connectionString = process.env.DATABASE_URL ?? parseEnv(await readFile(".dev.vars", "utf8")).DATABASE_URL;
-assert.ok(connectionString, "Set DATABASE_URL for local PostgreSQL");
-assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(connectionString).hostname), "Use only local fictional data");
 const image = await prepareDocker();
-const schema = `runner_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString });
-const database = new pg.Pool({ connectionString, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("runner_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "runner-postgres-"));
 const server = createRunnerServer(createDockerRunner(image), "fictional-integration-token");
 const NativeRequest = globalThis.Request;
@@ -24,10 +18,6 @@ globalThis.Request = class extends NativeRequest {
   constructor(input, init) { super(input, init?.body instanceof ReadableStream ? { ...init, duplex: "half" } : init); }
 };
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "fictional-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "fictional-runner-owner"; export const passwordMatches = async () => false;' }));
@@ -72,8 +62,6 @@ try {
 } finally {
   await new Promise(resolve => server.close(resolve));
   globalThis.Request = NativeRequest;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }
