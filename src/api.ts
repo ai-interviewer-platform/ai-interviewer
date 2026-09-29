@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { deleteAccount, exportAccount } from "./account";
 import { withTransaction } from "./transaction";
-import { DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
+import { deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits, userRateLimitKey } from "./security";
 import { runnerFor, type RunOutcome } from "./runner";
 import { reviewProviderConfigured } from "./review-provider";
@@ -10,7 +10,7 @@ import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
 import type { SessionResolver } from "./request-handler";
-import { openTimeline, type AttemptTimeline, type TimelineResult } from "./attempt-timeline";
+import { openTimeline, withTimeline, type TimelineResult } from "./attempt-timeline";
 
 const DISCLOSURE_VERSION = "pending-owner-data-policy";
 
@@ -49,21 +49,9 @@ function isFamiliarity(value: string | null): value is "unanswered" | "familiar"
   return value === "unanswered" || value === "familiar" || value === "not_recalled";
 }
 
-function isVoiceRole(value: string | null): value is "user" | "assistant" {
-  return value === "user" || value === "assistant";
-}
-
 async function ownedAttempt(pool: Pool, attemptId: string, userId: string): Promise<AttemptRow | null> {
   const result = await pool.query<AttemptRow>("SELECT * FROM attempts WHERE id = $1 AND user_id = $2", [attemptId, userId]);
   return result.rows[0] ?? null;
-}
-
-// Opens the Attempt timeline in a new transaction; a thrown error rolls back every write.
-async function withTimeline<T>(pool: Pool, attemptId: string, write: (timeline: AttemptTimeline, client: PoolClient) => Promise<T>): Promise<T | { status: "closed" }> {
-  return withTransaction(pool, async (client) => {
-    const opened = await openTimeline(client, attemptId);
-    return opened.status === "closed" ? opened : write(opened.timeline, client);
-  });
 }
 
 // Maps a timeline write that was not recorded to the route response.
@@ -243,23 +231,6 @@ async function appendCandidateMessage(pool: Pool, env: Env, attempt: AttemptRow,
   const { eventId } = recorded;
   if (attempt.input_mode !== "text") return json({ eventId }, { status: 201 });
   return json({ eventId, ...await interviewerReply(pool, env, attempt, eventId, body.occurrenceOffsetMs as number, null) }, { status: 201 });
-}
-
-export async function appendVoiceTranscript(pool: Pool, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  const invalid = "A Deepgram transcript and stable event metadata are required.";
-  const text = string(body.text);
-  const role = string(body.role);
-  const providerSessionId = string(body.providerSessionId);
-  if (attempt.input_mode !== "voice") return badRequest("This attempt is not accepting voice evidence.");
-  if (text === null || !isVoiceRole(role) || !providerSessionId) return badRequest(invalid);
-  const recorded = await withTimeline(pool, attempt.id, (timeline) => timeline.record(
-    role === "user" ? "candidate_voice" : "interviewer_voice",
-    body,
-    { verified: true, inputMode: "voice", provider: DEEPGRAM_VOICE_PROVIDER, providerSessionId, role },
-    { transcript: { speaker: role === "user" ? "candidate" : "interviewer", text } },
-  ));
-  if (recorded.status !== "recorded") return notRecorded(recorded, invalid);
-  return json({ eventId: recorded.eventId }, { status: 201 });
 }
 
 async function requestHelp(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {

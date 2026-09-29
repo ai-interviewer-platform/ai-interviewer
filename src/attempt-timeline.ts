@@ -1,8 +1,9 @@
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { AttemptRow } from "./api";
 import type { RunnerResult } from "./runner";
 import { nonnegativeSafeInteger } from "./http";
 import { limits } from "./security";
+import { withTransaction } from "./transaction";
 
 // The stable identity of an Event, sent by its writer. Unchecked: record() checks it.
 export type EventEnvelope = { sourceId?: unknown; sourceOrder?: unknown; occurrenceOffsetMs?: unknown };
@@ -94,4 +95,12 @@ export async function openTimeline(client: PoolClient, attemptId: string): Promi
   }
 
   return { status: "open", timeline: { attempt, record } };
+}
+
+// Opens the Attempt timeline in a new transaction; a thrown error rolls back every write.
+export async function withTimeline<T>(pool: Pool, attemptId: string, write: (timeline: AttemptTimeline, client: PoolClient) => Promise<T>): Promise<T | { status: "closed" }> {
+  return withTransaction(pool, async (client) => {
+    const opened = await openTimeline(client, attemptId);
+    return opened.status === "closed" ? opened : write(opened.timeline, client);
+  });
 }
