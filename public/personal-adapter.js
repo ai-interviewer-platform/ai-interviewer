@@ -1,6 +1,7 @@
 import { accountMenu } from './account-menu.js';
 import { brandWordmark, beginBrandLoading, setBrandVoice } from './brand.js';
 import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
+import { createAttemptSession } from "./attempt-session.js";
 
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
@@ -20,20 +21,6 @@ async function api(path, options = {}) {
   } finally {
     finishLoading();
   }
-}
-
-// Offsets share the server's clock origin (attempt creation), like voice
-// events, so the timeline orders text, runs, help, and voice consistently.
-// They never decrease within a page, even if the local clock is adjusted.
-function sourceMetadata(state, name) {
-  state.sourceOrder += 1;
-  const elapsed = Date.now() - Date.parse(state.attempt.attempt.created_at);
-  state.lastOffsetMs = Math.max(state.lastOffsetMs ?? 0, Number.isFinite(elapsed) ? Math.round(elapsed) : 0);
-  return {
-    sourceId: `${name}:${crypto.randomUUID()}`,
-    sourceOrder: state.sourceOrder,
-    occurrenceOffsetMs: state.lastOffsetMs,
-  };
 }
 
 function authForm(state) {
@@ -131,7 +118,7 @@ function accountMarkup(state) {
 }
 
 export function mountPersonal(root) {
-  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", sourceOrder: 0, lastOffsetMs: 0, selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
+  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
   const requestedPage = new URLSearchParams(location.hash.split('?')[1] ?? '').get('page');
   if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
   let disposed = false;
@@ -214,30 +201,19 @@ export function mountPersonal(root) {
     state.catalog = catalog.problems;
     state.attempts = attempts.attempts; state.historyPage = attempts.page; state.historyMore = attempts.hasMore;
   };
+  const session = createAttemptSession({ api, attempt: () => state.attempt?.attempt ?? null, editorSource: () => root.querySelector("#personal-code")?.value });
   const openAttempt = async (attemptId) => {
     stopVoice();
-    if (state.attempt?.attempt.id !== attemptId) state.lastOffsetMs = 0;
-    state.attempt = await api(`/api/attempts/${encodeURIComponent(attemptId)}`);
+    state.attempt = await session.detail(attemptId);
     if (disposed) return;
-    state.review = state.attempt.review ? await api(`/api/attempts/${encodeURIComponent(attemptId)}/review`).catch(() => null) : null;
+    state.review = state.attempt.review ? await session.review(attemptId).catch(() => null) : null;
     state.related = [];
     state.page = "workspace";
     state.selectedProblemId = null;
     render();
   };
-  const saveDraft = async () => {
-    const source = root.querySelector("#personal-code")?.value;
-    if (typeof source !== "string" || !state.attempt) return;
-    const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/draft`, { method: "PATCH", body: { source, expectedRevision: state.attempt.attempt.draft_revision, ...sourceMetadata(state, "draft") } });
-    state.attempt.attempt.draft_source = source;
-    state.attempt.attempt.draft_revision = result.draftRevision;
-  };
-  // Interviewers in both input modes read the saved draft, never the editor.
-  const saveIfChanged = async () => {
-    if (root.querySelector("#personal-code")?.value !== state.attempt.attempt.draft_source) await saveDraft();
-  };
   const navigate = async (page) => {
-    if (state.attempt && state.attempt.attempt.status !== 'completed') await saveDraft();
+    await session.saveChangedDraft();
     await reload();
     if (disposed) return;
     state.page = page; state.attempt = null; state.selectedProblemId = null;
@@ -253,7 +229,7 @@ export function mountPersonal(root) {
         const href = anchor.getAttribute('href');
         if (href?.startsWith('#personal?page=')) await navigate(new URLSearchParams(href.split('?')[1]).get('page'));
         else {
-          if (state.attempt && state.attempt.attempt.status !== 'completed') await saveDraft();
+          await session.saveChangedDraft();
           if (!disposed) location.href = anchor.href;
         }
       } catch (error) { showError(error.message); }
@@ -285,23 +261,22 @@ export function mountPersonal(root) {
         state.attempts.push(...page.attempts); state.historyPage = page.page; state.historyMore = page.hasMore; render();
       }
       else if (control.hasAttribute("data-more-evidence")) {
-        const page = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}?page=${state.attempt.page + 1}`);
+        const page = await session.detail(state.attempt.attempt.id, state.attempt.page + 1);
         for (const key of ["events", "transcripts", "checkpoints", "runs"]) state.attempt[key].push(...page[key]);
         state.attempt.page = page.page; state.attempt.hasMore = page.hasMore; render();
       }
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
       else if (control.hasAttribute("data-open-review")) { state.page = "review"; render(); }
-      else if (control.hasAttribute("data-open-related")) { state.related = (await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/related`)).relatedProblems; state.page = "related"; render(); }
+      else if (control.hasAttribute("data-open-related")) { state.related = (await session.related()).relatedProblems; state.page = "related"; render(); }
       else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
-      else if (control.dataset.retryCheckpoint) { const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/retry`, { method: "POST", body: { checkpointId: control.dataset.retryCheckpoint, practiceGoal: "Focused retry" } }); await openAttempt(result.attemptId); }
-      else if (control.hasAttribute("data-sign-out")) { if (state.attempt && state.attempt.attempt.status !== "completed") await saveDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
+      else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); await openAttempt(result.attemptId); }
+      else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
       else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
       else if (control.hasAttribute("data-run")) {
         control.disabled = true; control.textContent = "Running…";
         try {
-          await saveDraft();
-          const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/run`, { method: "POST", body: sourceMetadata(state, "run") });
+          const result = await session.run();
           await openAttempt(state.attempt.attempt.id);
           showError(`Run recorded: ${result.testsPassed} passed, ${result.testsFailed} failed.`);
           root.querySelector(".tests-pane")?.scrollIntoView({ block: "nearest" });
@@ -310,13 +285,12 @@ export function mountPersonal(root) {
       else if (control.hasAttribute("data-finish")) {
         control.disabled = true;
         try {
-          await saveDraft();
-          const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/finish`, { method: "POST", body: sourceMetadata(state, "finish") });
+          const result = await session.finish();
           await openAttempt(state.attempt.attempt.id);
           showError(`Attempt completed. Review dispatch: ${result.dispatch}.`);
         } finally { control.disabled = false; }
       }
-      else if (control.hasAttribute("data-help")) { await saveIfChanged(); const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/help`, { method: "POST", body: { category: "hint", ...sourceMetadata(state, "help") } }); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
+      else if (control.hasAttribute("data-help")) { const result = await session.help("hint"); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
   root.addEventListener("change", (event) => {
@@ -358,12 +332,11 @@ export function mountPersonal(root) {
         if (typeof message !== "string" || !message.trim()) return;
         if (state.attempt.attempt.input_mode === "voice") {
           if (!voiceSession?.active) throw new Error("Start voice before sending a typed message to the live interviewer.");
-          await saveIfChanged();
+          await session.saveChangedDraft();
           voiceSession.sendText(message.trim());
           form.reset();
         } else {
-          await saveIfChanged();
-          const result = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/messages`, { method: "POST", body: { text: message, ...sourceMetadata(state, "message") } });
+          const result = await session.message(message);
           // The reply is stored as a transcript segment, so the reload renders it as escaped text.
           await openAttempt(state.attempt.attempt.id);
           if (result.replyError) showError(`Message saved. ${result.replyError}`);
@@ -374,8 +347,8 @@ export function mountPersonal(root) {
         root.innerHTML = authMarkup(state, "Your account and all of its records were deleted.");
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
-        await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/review/findings/${encodeURIComponent(form.dataset.findingId)}/corrections`, { method: "POST", body: { reason } });
-        state.review = await api(`/api/attempts/${encodeURIComponent(state.attempt.attempt.id)}/review`);
+        await session.correctFinding(form.dataset.findingId, reason);
+        state.review = await session.review(state.attempt.attempt.id);
         render();
       }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
