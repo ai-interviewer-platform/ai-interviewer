@@ -9,8 +9,10 @@ import AxeBuilder from '@axe-core/playwright';
 
 test('developer browser discovers from saved context, inspects evidence and records a correction', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'research-browser-'));
-  const env = { EXA_API_KEY: 'fixture', FIRECRAWL_API_KEY: 'fixture', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true', MONID_CLI_PATH: 'fixture-cli.js' };
+  const env = { EXA_API_KEY: 'fixture', FIRECRAWL_API_KEY: 'fixture', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true', MONID_CLI_PATH: 'fixture-cli.js', DASHSCOPE_COVERED_USAGE_CONFIRMED: 'true' };
   const app = await serve({ directory, env, fetch: async (url, options) => {
+    if (url.includes('multimodal-embedding')) return Response.json({output:{embeddings:[{index:0,embedding:[1,0]}]}});
+    if (url.includes('cdn.example.com')) return new Response(new Uint8Array([137,80,78,71]),{headers:{'Content-Type':'image/png'}});
     if (url.includes('exa.ai')) { assert.equal(JSON.parse(options.body).query, 'Python ads for new graduates'); return Response.json({ results: [{ url: 'https://example.com/ad', title: 'Practice demo' }] }); }
     if (url.includes('firecrawl')) return Response.json({ success: true, data: { markdown: 'Try practice', screenshot: 'https://cdn.example.com/ad.png' } });
     return Response.json({ choices: [{ message: { content: '{"observations":[{"description":"Try practice button","region":"bottom center"}],"gaps":["Audio not available"]}' } }], usage: { total_tokens: 30 } });
@@ -48,13 +50,38 @@ test('developer browser discovers from saved context, inspects evidence and reco
   await page.getByRole('button', { name: 'Save human judgment' }).click();
   await page.waitForFunction(()=>document.querySelector('#results').textContent.includes('3.0 / 3'));
   await page.getByRole('button', { name: 'Close evidence', exact: true }).click();
+  await page.getByRole('button', {name:'Library & search',exact:true}).click();
+  await page.getByLabel('Embedding provider').selectOption('tongyi');
+  await page.getByRole('button', {name:'Index selected creative',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('library-status').textContent.includes('ready'));
+  await page.getByLabel('Search the collection').fill('practice demo');
+  await page.getByRole('button', {name:'Find related creatives',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('.library-result').length===1);
+  assert.match(await page.locator('#library-results').innerText(),/Semantic similarity/);
+  await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState==='finished'));
+  await page.screenshot({path:'.local/marketing/library-desktop.png',fullPage:true});
+  await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState==='finished'));
+  assert.deepEqual((await new AxeBuilder({page}).analyze()).violations.map(item=>item.id),[]);
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'.local/marketing/library-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1920,height:1080});
+  await page.getByRole('button', {name:'Open evidence',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('.judgment').length===12);
+  await page.getByRole('button', {name:'Coverage & evaluation',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('evaluation-report').textContent.includes('2 disagreements'));
+  await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState==='finished'));
+  assert.deepEqual((await new AxeBuilder({page}).analyze()).violations.map(item=>item.id),[]);
+  await page.screenshot({path:'.local/marketing/evaluation-desktop.png',fullPage:true});
+  await page.getByRole('button', {name:'Analyze',exact:true}).click();
+
   assert.equal(await page.locator('#read').evaluate(element=>getComputedStyle(element.firstElementChild).fontSize===getComputedStyle(element).fontSize),true);
   await mkdir('.local/marketing', { recursive: true });
   await page.screenshot({ path: '.local/marketing/browser-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: '.local/marketing/browser-mobile.png', fullPage: true });
+  await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState==='finished'));
   assert.deepEqual((await new AxeBuilder({page}).analyze()).violations.map(item=>({id:item.id,nodes:item.nodes.map(node=>({target:node.target,summary:node.failureSummary}))})),[]);
   await page.setViewportSize({width:1920,height:1080});
   await page.getByRole('button',{name:'Category summary',exact:true}).click();
@@ -69,4 +96,22 @@ test('developer browser discovers from saved context, inspects evidence and reco
   await page.getByRole('button',{name:'Research controls'}).click();
   await page.getByRole('button',{name:'Inspect',exact:true}).click();
   assert.equal(await page.locator('.judgment').count(),12);
+});
+
+test('topic discovery shows provider failure and resumes saved acquisition in the browser', async t => {
+  const directory=await mkdtemp(join(tmpdir(),'research-browser-failure-'));let recovered=false;
+  const app=await serve({directory,env:{EXA_API_KEY:'fixture',FIRECRAWL_API_KEY:'fixture',DASHSCOPE_API_KEY:'fixture',DASHSCOPE_BASE_URL:'https://dashscope-intl.aliyuncs.com',QWEN_COVERED_USAGE_CONFIRMED:'true',MONID_CLI_PATH:'fixture'},fetch:async(url,options)=>{
+    if(url.includes('exa.ai')){assert.equal(JSON.parse(options.body).query,'specific interview topic');assert.equal(recovered,false);return Response.json({results:[{url:'https://example.com/topic',title:'Topic creative'}]});}
+    if(url.includes('firecrawl'))return Response.json({success:true,data:{screenshot:'https://cdn.example.com/creative.png'}});
+    if(!recovered)return Response.json({}, {status:429});
+    return Response.json({choices:[{message:{content:'{"observations":[],"gaps":["Text illegible"]}'}}]});
+  },exec:async(_cmd,args)=>{const body=JSON.parse(await readFile(args[args.indexOf('--input-file')+1],'utf8'));return {stdout:JSON.stringify({status:'COMPLETED',runId:'fixture',output:{model:'jev-1.13.0',answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='score'?{type:'score',score:1,confidence:1}:{type:'choice',choice:'unknown',confidence:1}]))}})};}});
+  const browser=await launchBrowser({headless:true});t.after(async()=>{await browser.close();await app.close();await rm(directory,{recursive:true,force:true});});
+  const page=await browser.newPage();await page.emulateMedia({reducedMotion:'reduce'});await page.route('https://cdn.example.com/**',route=>route.abort());await page.goto(app.url);
+  await page.getByRole('button',{name:'Research controls'}).click();await page.locator('#query').fill('specific interview topic');await page.locator('#count').fill('1');await page.getByRole('button',{name:'Discover sources'}).click();
+  await page.waitForFunction(()=>document.getElementById('message').textContent.startsWith('partial'));
+  assert.match(await page.locator('#results').innerText(),/Qwen HTTP 429/);
+  recovered=true;await page.getByRole('button',{name:'Resume failed stages'}).click();
+  await page.waitForFunction(()=>document.getElementById('message').textContent.startsWith('complete'));
+  await page.getByRole('button',{name:'Back to the evidence'}).click();assert.equal(await page.locator('#read').innerText(),'1');
 });

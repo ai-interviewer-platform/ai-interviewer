@@ -10,7 +10,7 @@ Twelve judgments: hook archetype, format, offer, CTA intent, awareness, driver, 
 
 Video: Firecrawl media/links, platform-specific yt-dlp fallback for public social posts, direct-video URLs, local uploads. Local uploads become H.264 playback files and posters. Measured encoded size and duration determine segmentation against Alibaba's <10 MB base64 and ≤2-hour limits; each segment retains original timeline offsets. Qwen3.8-max reads sampled visual frames; no audio/transcript claim. Successful segments persist for resume. No credentials/cookies are passed to social extractors. Originals remain local.
 
-Limits: protected/deleted/DRM videos can fail; signed URLs expire. No private ad-library access, performance proof, speech transcription, or embedding retrieval UI is implied. Existing embedding adapters remain separate. Reference's 724 ads/37 brands, speed and cost are demonstration data and are never copied into results.
+Limits: protected/deleted/DRM videos can fail; signed URLs expire. No private ad-library access or performance proof is implied. Available public captions are separate speech evidence; the local Library view now connects both embedding adapters to source evidence. Reference's 724 ads/37 brands, speed and cost are demonstration data and are never copied into results.
 
 Technical sources: [Qwen media limits](https://www.alibabacloud.com/help/en/model-studio/vision), [Jev types](https://docs.typesafe.ai/api), [Firecrawl formats](https://docs.firecrawl.dev/api-reference/endpoint/scrape), [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 

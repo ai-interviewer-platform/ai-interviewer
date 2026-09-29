@@ -177,3 +177,28 @@ test('topic discovery acquires a page image, extracts cited evidence and returns
   assert.equal(source.classification.answers.hook.choice, 'unknown');
   assert.equal(source.segmentId, 'page-screenshot');
 });
+
+test('available captions retain timed spoken evidence through discovery and Jev classification', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'research-captions-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const app = research({ directory, env: { EXA_API_KEY: 'fixture', FIRECRAWL_API_KEY: 'fixture', YTDLP_PYTHON: 'fixture-python', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true', MONID_CLI_PATH: 'fixture-cli' },
+    fetch: async url => {
+      if (url.includes('exa.ai')) return Response.json({ results: [{ url: 'https://www.youtube.com/watch?v=fixture' }] });
+      if (url.includes('firecrawl')) return Response.json({ success: true, data: { video: 'https://cdn.example.com/ad.mp4' } });
+      if (url.includes('captions.example.com')) return Response.json({ events: [{ tStartMs: 0, dDurationMs: 2000, segs: [{ utf8: 'Practice your next interview.' }] }] });
+      return Response.json({ choices: [{ message: { content: '{"observations":[{"description":"Practice button","startSeconds":0,"endSeconds":2}],"gaps":[]}' } }] });
+    }, exec: async (command, args) => {
+      if (command === 'fixture-python') return { stdout: JSON.stringify({ language: 'en', subtitles: { en: [{ ext: 'json3', url: 'https://captions.example.com/en.json' }] }, view_count: 15, webpage_url: 'https://www.youtube.com/watch?v=fixture' }) };
+      const body = JSON.parse(await readFile(args[args.indexOf('--input-file') + 1], 'utf8'));
+      assert.equal(body.state.evidence.speech.cues[0].text, 'Practice your next interview.');
+      return { stdout: JSON.stringify({ status: 'COMPLETED', runId: 'fixture', output: { model: 'jev-1.13.0', answers: Object.fromEntries(Object.entries(body.questions).map(([key, q]) => [key, q.type === 'score' ? { type: 'score', score: 1, confidence: 1 } : { type: 'choice', choice: 'unknown', confidence: 1 }])) } }) };
+    } });
+  const job = await app.start({ query: 'practice ad', numResults: 1 }); await job.finished;
+  const source = app.get(job.id).sources[0];
+  assert.equal(source.status, 'complete');
+  assert.equal(source.evidence.speech.status, 'available');
+  assert.equal(source.evidence.speech.cues[0].startSeconds, 0);
+  assert.equal(source.evidence.speech.cues[0].endSeconds, 2);
+  assert.equal(source.evidence.speech.kind, 'publisher-captions');
+  assert.equal(source.observedMetrics.views, 15);
+});

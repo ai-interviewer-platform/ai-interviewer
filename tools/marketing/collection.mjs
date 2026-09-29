@@ -23,13 +23,14 @@ export function collection({ directory, env = process.env, fetch = globalThis.fe
   }
   return {
     list,
-    async add({ provider, source, input, signal }) {
-      if (!source?.id || !source?.segmentId || !source?.url) throw new Error('Source id, segmentId and original URL required');
+    async add({ provider, source, input, signal, error }) {
+      if (!source?.id || !source?.segmentId || (!source?.url && !source?.uploadId)) throw new Error('Source id, segmentId and original URL required');
       const record = {
         id: randomUUID(), source, provider, createdAt: new Date().toISOString(),
         inputHash: createHash('sha256').update(JSON.stringify(input)).digest('hex'),
       };
       try {
+        if (error) throw new Error(error);
         record.embedding = await embed({ provider, input, env, fetch, signal });
         record.status = 'ready';
       } catch (error) {

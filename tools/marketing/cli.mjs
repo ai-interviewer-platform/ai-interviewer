@@ -9,7 +9,7 @@ try { process.loadEnvFile(join(root, '.env.marketing.local')); } catch (error) {
 const [command, provider, ...args] = process.argv.slice(2);
 const controller = new AbortController();
 process.once('SIGINT', () => controller.abort());
-const library = collection({ directory: join(root, '.local/marketing/embeddings') });
+const library = collection({ directory: join(root, '.local/marketing/research/embeddings') });
 const output = value => console.log(JSON.stringify(value, (key, item) => key === 'vector' ? undefined : item, 2));
 
 try {

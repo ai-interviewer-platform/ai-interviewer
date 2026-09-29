@@ -12,7 +12,8 @@ test('uploaded video survives restart, has timed evidence and supports playback 
   const directory = await mkdtemp(join(tmpdir(), 'marketing-upload-'));
   const file = join(directory, 'test.mp4');
   await promisify(execFile)(process.env.FFMPEG_PATH, ['-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x240:d=2', '-c:v', 'libx264', file]);
-  let app = await serve({ directory, env: { FFMPEG_PATH: process.env.FFMPEG_PATH, QWEN_COVERED_USAGE_CONFIRMED: 'true', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com' }, fetch: async (_url, options) => {
+  let app = await serve({ directory, env: { FFMPEG_PATH: process.env.FFMPEG_PATH, GEMINI_API_KEY: 'fixture', GEMINI_COVERED_USAGE_CONFIRMED: 'true', QWEN_COVERED_USAGE_CONFIRMED: 'true', DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com' }, fetch: async (_url, options) => {
+    if(_url.includes('generativelanguage')) { assert.equal(JSON.parse(options.body).content.parts[0].inline_data.mime_type,'video/mp4'); return Response.json({embedding:{values:[1,0]}}); }
     assert.match(JSON.parse(options.body).messages[1].content[0].video_url.url, /^data:video\/mp4;base64,/);
     return Response.json({ choices: [{ message: { content: JSON.stringify({ advertiser: 'Fixture Brand', observations: [{ description: 'Blue frame', startSeconds: 1, endSeconds: 2 }], gaps: [] }) } }] });
   } });
@@ -28,6 +29,10 @@ test('uploaded video survives restart, has timed evidence and supports playback 
   assert.equal(source.evidence.advertiser, 'Fixture Brand');
   assert.equal(source.acquisition.durationSeconds, 2);
   assert.equal(JSON.stringify(run).includes('base64,'), false);
+  const index=await fetch(app.url+'/api/library/index',{method:'POST',headers:{Origin:app.url,'Content-Type':'application/json'},body:JSON.stringify({runId:id,sourceId:source.id,provider:'gemini',modality:'video'})});
+  const record=await index.json();assert.equal(record.status,'ready');assert.equal(record.embedding.modality,'video');assert.equal(record.source.startSeconds,0);assert.equal(record.source.endSeconds,2);assert.equal(record.source.uploadId,source.id);
+  const unsupported=await fetch(app.url+'/api/library/index',{method:'POST',headers:{Origin:app.url,'Content-Type':'application/json'},body:JSON.stringify({runId:id,sourceId:source.id,provider:'tongyi',modality:'video'})});
+  assert.match((await unsupported.json()).error,/public URL/);
   await app.close(); app = await serve({ directory });
   assert.equal((await (await fetch(app.url+'/api/runs')).json())[0].sources[0].evidence.observations[0].startSeconds, 1);
   const media = await fetch(app.url + source.acquisition.playback, { headers: { Range: 'bytes=0-31' } });
