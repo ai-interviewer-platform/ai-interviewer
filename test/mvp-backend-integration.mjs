@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 
 // Node requires duplex for streamed Request bodies; the Worker runtime does not.
 const NativeRequest = globalThis.Request;
@@ -12,17 +12,10 @@ globalThis.Request = class extends NativeRequest {
   constructor(input, init) { super(input, init?.body instanceof ReadableStream ? { ...init, duplex: "half" } : init); }
 };
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable PostgreSQL instance.");
-const schema = `mvp_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
   await build({ entryPoints: ["src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async request => request.headers.get("x-test-user") ?? "owner"; export const passwordMatches = async () => false;' }));
@@ -127,8 +120,6 @@ try {
   console.log("MVP backend integration passed: voice evidence, failed/passed runs, bounded context, finish, evidence-backed review, retrieval, and voice retry.");
 } finally {
   globalThis.Request = NativeRequest;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

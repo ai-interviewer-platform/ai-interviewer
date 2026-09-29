@@ -1,17 +1,14 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 
 // Exercises text interviewer turns against real PostgreSQL with a fake Workers AI
 // binding. It never calls the real provider. Reviews: test/review-integration.mjs.
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-const schema = `llm_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("llm_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "llm-integration-"));
 const calls = [];
 let reply = () => ({ text: "unused" });
@@ -22,10 +19,6 @@ const AI = { calls, async run(model, input) {
 } };
 const outage = () => { throw new Error("3040: Capacity temporarily exceeded"); };
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
@@ -76,8 +69,6 @@ try {
   assert.deepEqual(await rows("SELECT delivered, content FROM assistance_events WHERE event_id = $1", [help.eventId]), [{ delivered: true, content: "Which indexes does the slice start from?" }]);
   console.log("Workers AI text replies, stored-reply reuse, provider failure and requested help passed.");
 } finally {
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

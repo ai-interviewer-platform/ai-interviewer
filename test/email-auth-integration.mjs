@@ -3,16 +3,12 @@
 // DATABASE_URL=<local database> node test/email-auth-integration.mjs
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-assert.match(new URL(process.env.DATABASE_URL).hostname, /^(localhost|127\.0\.0\.1)$/, "Use a local database only");
-const schema = `email_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("email_test", { problemBank: false });
 // Inside the repository (ignored output/) so external packages resolve from node_modules.
 await mkdir("output", { recursive: true });
 const directory = resolve(await mkdtemp(join("output", "email-auth-")));
@@ -25,10 +21,6 @@ globalThis.fetch = async (url, init) => {
 };
 
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
   await build({ entryPoints: ["src/auth.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, packages: "external", format: "esm", platform: "node" });
   const { authFor } = await import(pathToFileURL(join(directory, "auth.mjs")));
   const origin = "http://localhost:8795";
@@ -81,8 +73,6 @@ try {
   console.log("Passed: without RESEND_API_KEY and EMAIL_FROM, no verification is required and reset is off");
 } finally {
   globalThis.fetch = originalFetch;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

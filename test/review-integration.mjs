@@ -1,26 +1,18 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseEnv } from "node:util";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 import { env as providerEnv, finding, envelope } from "./reviews/fixtures.mjs";
 
-const connectionString = process.env.DATABASE_URL ?? parseEnv(await readFile(".dev.vars", "utf8")).DATABASE_URL;
-assert.ok(connectionString, "Set DATABASE_URL to local PostgreSQL");
-assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(connectionString).hostname), "Only local fictional data is allowed");
-const schema = `review_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString });
-const database = new pg.Pool({ connectionString, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("review_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "review-postgres-"));
 const originalFetch = globalThis.fetch;
 let dispatched = [];
 const env = { ...providerEnv, BETTER_AUTH_URL: "https://app.example", REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
@@ -104,8 +96,6 @@ try {
   console.log("PASS transient retry recovery and missing configuration fail-closed behavior");
 } finally {
   globalThis.fetch = originalFetch;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

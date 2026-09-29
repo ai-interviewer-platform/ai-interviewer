@@ -2,17 +2,13 @@
 // DATABASE_URL=<local database> node test/account-deletion-integration.mjs
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-assert.match(new URL(process.env.DATABASE_URL).hostname, /^(localhost|127\.0\.0\.1)$/, "Use a local database only");
-const schema = `account_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("account_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "account-deletion-"));
 const tables = ["users", "auth_accounts", "auth_sessions", "auth_verifications", "security_rate_limits", "attempts", "attempt_events", "transcript_segments", "code_checkpoints", "code_runs", "assistance_events", "attempt_audio", "reviews", "review_findings", "finding_evidence", "finding_corrections", "voice_reservations"];
 
@@ -58,10 +54,6 @@ async function fixture(user) {
 }
 
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0007_account_deletion.sql", "migrations/0008_account_deletion_rate_limits.sql"]) {
-    await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
-  }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
     plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async (_request, _env, _pool, password) => password === "correct password";' }));
@@ -102,8 +94,6 @@ try {
   await rejects("DELETE FROM attempt_events WHERE id = 'other-run-event'");
   console.log("Passed: account deletion removes every row of the user and none of another user");
 } finally {
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }

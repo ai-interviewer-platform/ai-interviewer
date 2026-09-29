@@ -1,15 +1,12 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg from "pg";
+import { testDatabase } from "./postgres-harness.mjs";
 
-if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL to a disposable local PostgreSQL instance.");
-const schema = `security_test_${crypto.randomUUID().replaceAll("-", "")}`;
-const admin = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema}` });
+const { pool: database, drop } = await testDatabase("security_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "security-integration-"));
 const background = [];
 const originalFetch = globalThis.fetch;
@@ -38,11 +35,6 @@ globalThis.fetch = async (url, init) => {
 };
 globalThis.securityTestDatabase = () => ({ query: database.query.bind(database), connect: database.connect.bind(database), end: async () => {} });
 try {
-  await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0004_mvp_content_foundation.sql"]) {
-    const sql = (await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`);
-    await database.query(sql);
-  }
   await build({ entryPoints: ["src/security.ts", "src/voice-session.ts", "src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "runtime", setup(plugin) {
     plugin.onResolve({ filter: /^(cloudflare:workers|\.\/database|\.\/auth)$/ }, args => ({ path: args.path, namespace: "test" }));
     plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "cloudflare:workers"
@@ -111,8 +103,6 @@ try {
   socket?.close(); provider?.close();
   await Promise.all(background);
   globalThis.fetch = originalFetch; globalThis.Response = OriginalResponse;
-  await database.end();
-  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-  await admin.end();
+  await drop();
   await rm(directory, { recursive: true, force: true });
 }
