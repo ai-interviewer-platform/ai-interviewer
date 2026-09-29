@@ -1,4 +1,3 @@
-import type { Env } from "../env";
 import { isRecord } from "../http";
 import {
   PermanentReviewError,
@@ -6,8 +5,6 @@ import {
   reviewLimits,
   reviewOutputSchema,
   TransientReviewError,
-  validateFindings,
-  type Finding,
   type ReviewGenerationRequest,
   type ReviewProvider,
 } from "../review-provider";
@@ -35,7 +32,7 @@ async function boundedText(response: Response): Promise<string> {
   return new TextDecoder().decode(bytes);
 }
 
-function normalizeEnvelope(raw: string, allowed: Set<string>): Finding[] {
+function normalizeEnvelope(raw: string): unknown {
   let envelope: unknown;
   try { envelope = JSON.parse(raw); } catch { throw new PermanentReviewError("Review provider returned malformed JSON."); }
   if (!isRecord(envelope) || envelope.status !== "completed" || !Array.isArray(envelope.output)) throw new PermanentReviewError("Review provider did not return a completed structured response.");
@@ -50,9 +47,7 @@ function normalizeEnvelope(raw: string, allowed: Set<string>): Finding[] {
     }
   }
   if (texts.length !== 1) throw new PermanentReviewError("Review provider did not return one structured result.");
-  let value: unknown;
-  try { value = JSON.parse(texts[0]); } catch { throw new PermanentReviewError("Review findings were not valid JSON."); }
-  return validateFindings(value, allowed);
+  try { return JSON.parse(texts[0]); } catch { throw new PermanentReviewError("Review findings were not valid JSON."); }
 }
 
 export class OpenAIResponsesReviewProvider implements ReviewProvider {
@@ -62,7 +57,7 @@ export class OpenAIResponsesReviewProvider implements ReviewProvider {
     this.evaluatorVersion = `openai-responses/evidence-v1/${model}`;
   }
 
-  async generate({ payload, allowedEvidenceIds }: ReviewGenerationRequest): Promise<Finding[]> {
+  async generate({ payload }: ReviewGenerationRequest): Promise<unknown> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
@@ -82,17 +77,11 @@ export class OpenAIResponsesReviewProvider implements ReviewProvider {
           if ([408, 409, 429].includes(response.status) || response.status >= 500) throw new TransientReviewError("Review provider is temporarily unavailable.");
           throw new PermanentReviewError("Review provider rejected the request; check server credentials, model access, and structured-output support.");
         }
-        return normalizeEnvelope(await boundedText(response), allowedEvidenceIds);
+        return normalizeEnvelope(await boundedText(response));
       })()]);
     } catch (error) {
       if (error instanceof PermanentReviewError || error instanceof TransientReviewError) throw error;
       throw new TransientReviewError("Review provider connection failed.");
     } finally { clearTimeout(timer); }
   }
-}
-
-export function openAIResponsesProvider(env: Env): ReviewProvider {
-  if (!env.REVIEW_PROVIDER_API_KEY?.trim() || !env.REVIEW_PROVIDER_MODEL?.trim()) throw new PermanentReviewError("Review provider is not configured; no findings were generated.");
-  if (env.REVIEW_PROVIDER_MODEL.length > 200) throw new PermanentReviewError("Review model configuration is invalid.");
-  return new OpenAIResponsesReviewProvider(env.REVIEW_PROVIDER_API_KEY, env.REVIEW_PROVIDER_MODEL);
 }

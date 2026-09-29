@@ -3,7 +3,7 @@ import { deleteAccount, exportAccount } from "./account";
 import { DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits } from "./security";
 import { pythonRunnerFor } from "./python-runner-client";
-import { reviewProviderConfigured } from "./review-provider-factory";
+import { reviewProviderConfigured } from "./review-provider";
 import { logOperationalEvent } from "./observability";
 import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";

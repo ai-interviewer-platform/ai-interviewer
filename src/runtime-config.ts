@@ -1,7 +1,7 @@
 import type { Env } from "./env";
 import { deepgramVoiceEnabled } from "./deepgram";
 import { pythonRunnerConfigured } from "./python-runner-client";
-import { reviewProviderConfigured } from "./review-provider-factory";
+import { reviewProviderConfigured } from "./review-provider";
 import { configuredApplicationOrigin } from "./origin";
 
 export function runtimeCapabilities(env: Env) {
