@@ -1,5 +1,5 @@
 // Checkpoints, Runs, finish, and Retry through the request handler and the Attempt timeline.
-// The Runner is a fake transport; no container or Python process starts.
+// The Runner uses its in-memory adapter; no container or Python process starts.
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -18,16 +18,14 @@ globalThis.Request = class extends NativeRequest {
 const { pool: database, drop } = await testDatabase("lifecycle_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "attempt-lifecycle-"));
 try {
-  await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  await build({ entryPoints: ["src/request-handler.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
   const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const { inMemoryRunner } = await import(pathToFileURL(join(directory, "runner.mjs")));
   const handle = withSessions(handleRequest);
   const origin = "https://app.example";
-  let runner = async (request) => {
-    const input = await request.json();
-    return Response.json({ status: "passed", testResults: input.tests.map(test => ({ testId: test.testId, outcome: "passed", actualOutput: test.expectedOutput })), stdout: "printed", stderr: "warning", executionTimeMs: 2, runnerVersion: "fixture", harnessVersion: "fixture" });
-  };
+  let respond = (input) => ({ status: "passed", testResults: input.tests.map(test => ({ testId: test.testId, outcome: "passed", actualOutput: test.expectedOutput })), stdout: "printed", stderr: "warning", executionTimeMs: 2, runnerVersion: "fixture", harnessVersion: "fixture" });
   const dispatched = [];
-  const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: { fetch: request => runner(request) }, REVIEW_PROVIDER_API_KEY: "fictional-key", REVIEW_PROVIDER_MODEL: "fixture-model", REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
+  const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: inMemoryRunner(input => respond(input)), REVIEW_PROVIDER_API_KEY: "fictional-key", REVIEW_PROVIDER_MODEL: "fixture-model", REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
   let order = 0;
   const envelope = (name) => ({ sourceId: `${name}:${++order}`, sourceOrder: order, occurrenceOffsetMs: order });
   const post = (attempt, action, body, overrides = env) => handle(new Request(`${origin}/api/attempts/${attempt}/${action}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), overrides, {}, database);
@@ -51,25 +49,30 @@ try {
   assert.deepEqual([repeated.runId, repeated.checkpointId], [run.runId, run.checkpointId], "a repeated Run returns the first Checkpoint and Run");
   console.log("PASS Run records a Checkpoint and its Run once");
 
-  // Invalid Runner results keep the Checkpoint and record no Run.
+  // Each reason for no result keeps the Checkpoint, records no Run, and keeps its message.
+  const unavailable = async (reason, message) => {
+    const before = { checkpoints: await count("code_checkpoints"), runs: await count("code_runs") };
+    const failed = await post("run", "run", envelope(reason));
+    assert.equal(failed.status, 503);
+    assert.equal((await failed.json()).error, message, reason);
+    assert.deepEqual({ checkpoints: await count("code_checkpoints"), runs: await count("code_runs") }, { checkpoints: before.checkpoints + 1, runs: before.runs });
+  };
   const verdict = (testResults) => JSON.stringify({ status: "passed", testResults, runnerVersion: "fixture", harnessVersion: "fixture" });
   const passing = visible.map(({ id }) => ({ testId: id, outcome: "passed" }));
-  for (const body of ["{", verdict(passing.slice(1)), verdict([passing[0], passing[0], ...passing.slice(2)]), verdict([{ testId: "forged", outcome: "passed" }, ...passing.slice(1)]), "x".repeat(256 * 1024 + 1)]) {
-    runner = async () => new Response(body);
-    const before = { checkpoints: await count("code_checkpoints"), runs: await count("code_runs") };
-    assert.equal((await post("run", "run", envelope("invalid"))).status, 503);
-    assert.deepEqual({ checkpoints: await count("code_checkpoints"), runs: await count("code_runs") }, { checkpoints: before.checkpoints + 1, runs: before.runs });
+  for (const body of ["{", verdict(passing.slice(1)), verdict([passing[0], passing[0], ...passing.slice(2)]), verdict([{ testId: "forged", outcome: "passed" }, ...passing.slice(1)])]) {
+    respond = () => new Response(body);
+    await unavailable("invalid", "The isolated Python runner returned an invalid result. No test verdict was recorded.");
   }
-  for (const failure of [async () => { throw new Error("offline"); }, async () => new Response("offline", { status: 503 })]) {
-    runner = failure;
-    const runs = await count("code_runs");
-    assert.equal((await post("run", "run", envelope("unreachable"))).status, 503);
-    assert.equal(await count("code_runs"), runs);
-  }
+  respond = () => new Response("x".repeat(256 * 1024 + 1));
+  await unavailable("large", "The runner result exceeded the response limit.");
+  respond = () => { throw new Error("offline"); };
+  await unavailable("unreachable", "The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
+  respond = () => new Response("offline", { status: 503 });
+  await unavailable("http", "The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
   const checkpoints = await count("code_checkpoints");
   assert.equal((await post("run", "run", envelope("unconfigured"), { ...env, PYTHON_RUNNER: undefined })).status, 503);
   assert.equal(await count("code_checkpoints"), checkpoints, "no Runner, no Checkpoint");
-  runner = async (request) => Response.json(infrastructureResult(await request.json(), "Fictional infrastructure failure"));
+  respond = (input) => infrastructureResult(input, "Fictional infrastructure failure");
   const infrastructure = await post("run", "run", envelope("infrastructure"));
   assert.equal(infrastructure.status, 200);
   assert.equal((await infrastructure.json()).status, "runner_error", "a Runner infrastructure result is recorded");

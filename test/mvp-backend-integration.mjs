@@ -17,11 +17,12 @@ const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/voice-context.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
   const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
   const handle = withSessions(handleRequest, fakeSessions({ userId: request => request.headers.get("x-test-user") ?? "owner" }));
   const { appendVoiceTranscript, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));
+  const { inMemoryRunner } = await import(pathToFileURL(join(directory, "runner.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'MVP Fixture', 'mvp@example.invalid'), ('other', 'Other Fixture', 'other-mvp@example.invalid')");
   let dispatchedReviewId;
   const env = {
@@ -32,15 +33,14 @@ try {
     REVIEW_PROVIDER_API_KEY: "fictional-review-key",
     REVIEW_PROVIDER_MODEL: "fixture-model",
     REVIEW_QUEUE: { send: async ({ reviewId }) => { dispatchedReviewId = reviewId; } },
-    PYTHON_RUNNER: { fetch: async request => {
-      const input = await request.json();
+    PYTHON_RUNNER: inMemoryRunner(input => {
       const correct = !input.sourceCode.includes("return -1");
-      return Response.json({
+      return {
         status: correct ? "passed" : "failed",
         testResults: input.tests.map(testCase => ({ testId: testCase.testId, outcome: correct ? "passed" : "failed", actualOutput: correct ? testCase.expectedOutput : -1 })),
         stdout: "", stderr: "", executionTimeMs: 1, runnerVersion: "fictional-hosted-v1", harnessVersion: "json-positional-v1",
-      });
-    } },
+      };
+    }),
   };
   let order = 0;
   const call = async (method, path, body, user = "owner") => {

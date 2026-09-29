@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
-import { limits } from "../scripts/python-runner/contract.mjs";
+import { deadlines, limits } from "../scripts/python-runner/contract.mjs";
 import { fixture } from "./runner/fixtures.mjs";
 
 // The real hosted Worker with @cloudflare/containers replaced by a fake container.
@@ -63,7 +63,7 @@ test("tests after the 60 s run deadline are skipped", async () => {
   let clock = 0;
   performance.now = () => clock;
   try {
-    const { body } = await hosted(fixture(), () => { clock += limits.runMs; return Response.json(ok(0)); });
+    const { body } = await hosted(fixture(), () => { clock += deadlines.runMs; return Response.json(ok(0)); });
     assert.deepEqual(body.testResults.map(item => item.outcome), ["passed", "skipped"]);
     assert.equal(body.testResults[1].error, "Run deadline exceeded");
     assert.equal(body.status, "failed");
