@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 
-export const limits = Object.freeze({ requestBytes: 256 * 1024, sourceBytes: 64 * 1024, outputBytes: 8192, tests: 16, arguments: 16, testMs: 5000, runMs: 60_000 });
+export const limits = Object.freeze({ requestBytes: 256 * 1024, sourceBytes: 64 * 1024, outputBytes: 8192, tests: 16, arguments: 16 });
+// Every Runner deadline, from the innermost to the outermost. Each one must be longer
+// than the one before it, so an inner timeout never looks like an outer failure:
+// one candidate test, one hosted sandbox request (cold start), the whole run, the
+// transport from the app to the runner, and the app request to the transport.
+export const deadlines = Object.freeze({ testMs: 5000, sandboxRequestMs: 30_000, runMs: 60_000, transportMs: 90_000, requestMs: 95_000 });
 export const versions = Object.freeze({ runnerVersion: "docker-python-local-v1", harnessVersion: "json-positional-v1" });
 const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const identifier = value => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value) && !value.startsWith("__");
@@ -46,14 +51,14 @@ export async function runTests(request, execute, runnerVersion = versions.runner
   const start = performance.now();
   const result = { ...versions, runnerVersion, status: "passed", testResults: [], stdout: "", stderr: "", executionTimeMs: 0 };
   for (const test of request.tests) {
-    if (result.runnerError || performance.now() - start >= limits.runMs) {
+    if (result.runnerError || performance.now() - start >= deadlines.runMs) {
       result.status = result.runnerError ? "runner_error" : "failed";
       result.testResults.push({ testId: test.testId, outcome: "skipped", error: result.runnerError ?? "Run deadline exceeded" });
       continue;
     }
     let outcome;
     let output;
-    try { ({ outcome, output } = await execute(test, Math.min(limits.testMs, Math.max(1, limits.runMs - (performance.now() - start))))); }
+    try { ({ outcome, output } = await execute(test, Math.min(deadlines.testMs, Math.max(1, deadlines.runMs - (performance.now() - start))))); }
     catch (error) {
       result.runnerError = error?.runnerError ?? "Runner infrastructure failed; this is not a code verdict.";
       outcome = { testId: test.testId, outcome: "skipped", error: result.runnerError };

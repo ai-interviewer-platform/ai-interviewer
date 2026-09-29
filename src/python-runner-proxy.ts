@@ -1,4 +1,6 @@
 // Local-only transport. This Worker never executes Python and has no app bindings.
+import { deadlines } from "../scripts/python-runner/contract.mjs";
+
 export default {
   async fetch(request, env): Promise<Response> {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run" || new URL(request.url).hostname !== "python-runner") {
@@ -13,7 +15,7 @@ export default {
         // workerd supports manual/follow only. Never follow a redirect with
         // the controller token; the API treats non-2xx responses as unavailable.
         redirect: "manual",
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(deadlines.transportMs),
       });
     } catch {
       return new Response("Local runner unavailable", { status: 503 });
