@@ -1,0 +1,93 @@
+# Coursay
+
+Coursay records a candidate's Python interview practice and reviews it only against what was recorded.
+
+## Language
+
+### Practice
+
+**Problem**:
+An authored Python exercise with a prompt, starter code, and visible and hidden test cases.
+_Avoid_: question, task
+
+**Candidate**:
+The person who practices a Problem.
+_Avoid_: student, user (outside account matters)
+
+**Attempt**:
+One candidate's practice on one Problem, from setup to completion.
+_Avoid_: session (a sign-in session is a different thing)
+
+**Interviewer**:
+The AI that talks with the candidate during an Attempt, in either Mode.
+_Avoid_: bot, agent, coach (coach is a Mode, not a role)
+
+**Mode**:
+How the Interviewer behaves in an Attempt: **mock** (interview conditions) or **coach** (guided practice).
+
+**Input mode**:
+How the candidate talks to the Interviewer in an Attempt: **text** or **voice**.
+
+**Draft**:
+The editable code of an Attempt. It changes until the Attempt completes, and the Interviewer sees only its saved version.
+_Avoid_: current code, buffer
+
+**Checkpoint**:
+A frozen copy of the Draft, made for a run, a save, a submission, or a retry source.
+_Avoid_: snapshot, version
+
+**Submission**:
+The Checkpoint made when the candidate finishes an Attempt.
+
+**Run**:
+The outcome of the visible test cases against one Checkpoint.
+_Avoid_: execution, test result
+
+**Help request**:
+A candidate's request for a clarification, a hint, or an explanation during an Attempt.
+_Avoid_: assistance
+
+**Retry**:
+A new coach Attempt that starts from a Checkpoint of an earlier Attempt.
+
+### Record
+
+**Attempt timeline**:
+The ordered, append-only record of an Attempt, made of Events.
+_Avoid_: history, log
+
+**Event**:
+One entry in an Attempt timeline.
+_Avoid_: action, log entry
+
+**Transcript segment**:
+One utterance by the candidate or the Interviewer in an Attempt.
+
+**Evidence**:
+The Events of a completed Attempt that a Review may cite. Evidence never changes after the Attempt completes.
+_Avoid_: data, logs
+
+### Review
+
+**Review**:
+An AI evaluation of the Evidence of one completed Attempt.
+_Avoid_: grade, score
+
+**Finding**:
+One claim in a Review that cites Evidence.
+_Avoid_: feedback item
+
+**Correction**:
+A candidate's dispute of a Finding.
+_Avoid_: appeal
+
+### Voice
+
+**Voice reservation**:
+A budget of voice seconds held for one voice connection to an Attempt.
+
+### Surfaces
+
+**Sample**:
+The fictional practice flow that needs no account and records nothing.
+_Avoid_: prototype, demo

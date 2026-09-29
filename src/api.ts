@@ -85,6 +85,8 @@ async function ownedAttempt(pool: Pool, attemptId: string, userId: string): Prom
   return result.rows[0] ?? null;
 }
 
+class AttemptClosedError extends Error {}
+
 async function addEvent(client: PoolClient, values: {
   attemptId: string;
   eventType: string;
@@ -94,7 +96,7 @@ async function addEvent(client: PoolClient, values: {
   payload: unknown;
 }): Promise<string> {
   const locked = await client.query("SELECT status FROM attempts WHERE id = $1 FOR UPDATE", [values.attemptId]);
-  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new Error("Attempt is closed.");
+  if (!locked.rows[0] || locked.rows[0].status === "completed") throw new AttemptClosedError("Attempt is closed.");
   const existingEvent = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [values.attemptId, values.sourceId]);
   if (existingEvent.rows[0]) return existingEvent.rows[0].id;
   const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [values.attemptId]);
@@ -307,8 +309,10 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
       if (!saved.rows[0]) await client.query("INSERT INTO transcript_segments (id, attempt_id, event_id, speaker, text, end_offset_ms) VALUES ($1, $2, $3, $4, $5, $6)", [id(), attempt.id, eventId, speaker, text, occurrenceOffsetMs]);
       if (helpCategory) await client.query("UPDATE assistance_events SET delivered = true, content = $1 WHERE event_id = $2 AND delivered = false", [text, triggerEventId]);
     });
-  } catch {
-    return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+  } catch (error) {
+    if (error instanceof AttemptClosedError) return { reply: null, replyError: "The attempt closed before the reply was saved, so no reply was recorded." };
+    logOperationalEvent("warn", "interviewer_reply_not_saved");
+    return { reply: null, replyError: "The reply could not be saved, so no reply was recorded." };
   }
   // A concurrent duplicate request may have stored its reply first; return the stored one.
   return { reply: await savedReply(pool, attempt.id, triggerEventId) };
@@ -513,7 +517,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
   return json({ reviewId: finished.reviewId, dispatch, recoveryDispatch: finished.completed });
 }
 
-async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<string, unknown>): Promise<Response> {
+async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const checkpointId = string(body.checkpointId);
   const practiceGoal = string(body.practiceGoal);
   if (!checkpointId || !practiceGoal) return badRequest("A supported checkpoint and practice goal are required.");
@@ -522,8 +526,8 @@ async function retryFromCheckpoint(pool: Pool, userId: string, body: Record<stri
        FROM code_checkpoints c
        JOIN attempts a ON a.id = c.attempt_id
        JOIN attempt_events e ON e.id = c.event_id
-      WHERE c.id = $1 AND a.user_id = $2 AND a.source_attempt_id IS NULL AND c.checkpoint_type IN ('run', 'submission')`,
-    [checkpointId, userId],
+      WHERE c.id = $1 AND a.user_id = $2 AND a.id = $3 AND a.source_attempt_id IS NULL AND c.checkpoint_type IN ('run', 'submission')`,
+    [checkpointId, userId, attempt.id],
   );
   const original = source.rows[0];
   if (!original) return forbidden();
@@ -655,7 +659,7 @@ export async function handleApi(request: Request, env: Env, _ctx: ExecutionConte
   }
   if (action === "retry" && request.method === "POST") {
     const body = await requestBody(request);
-    return body ? retryFromCheckpoint(pool, userId, body) : badRequest("Expected a JSON request body.");
+    return body ? retryFromCheckpoint(pool, userId, attempt, body) : badRequest("Expected a JSON request body.");
   }
   if (action === "review" && request.method === "GET") return reviewDetail(pool, attempt);
   if (action === "related" && request.method === "GET") return relatedProblems(pool, userId, attempt);

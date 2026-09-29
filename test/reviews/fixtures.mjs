@@ -7,10 +7,14 @@ export const evidence = [
 ];
 export const envelope = (value = { findings: [finding] }) => ({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: typeof value === "string" ? value : JSON.stringify(value) }] }] });
 export function fakeDatabase({ status = "pending", failCitation = false, rows = evidence, manifest = { attemptId: "attempt", finalCheckpointId: "final", frozenAt: "2026-09-22T00:00:00Z" } } = {}) {
-  let saved = { status, findings: [], citations: [], reason: null };
+  let saved = { status, findings: [], citations: [], reason: null, reviewTokens: 0 };
   let working;
+  let tokensOutsideTransaction = 0;
   const queries = [];
-  const pool = { queries, get saved() { return saved; }, release() {}, async connect() { return pool; }, async query(sql, values = []) {
+  // The client holds the transaction; the pool is autocommit, as in pg.
+  const client = { release() {}, query: (sql, values) => run(sql, values, true) };
+  const pool = { queries, get saved() { return saved; }, get reviewTokens() { return saved.reviewTokens + tokensOutsideTransaction; }, async connect() { return client; }, query: (sql, values) => run(sql, values, false) };
+  async function run(sql, values = [], inTransaction) {
     queries.push({ sql, values });
     if (sql === "BEGIN") working = structuredClone(saved);
     else if (sql === "COMMIT") saved = working;
@@ -19,7 +23,7 @@ export function fakeDatabase({ status = "pending", failCitation = false, rows = 
     // The daily review cap: owner lookup, then the rate bucket (always allowed here).
     else if (sql.startsWith("SELECT user_id FROM attempts")) return { rows: [{ user_id: "owner" }] };
     else if (sql.startsWith("DELETE FROM security_rate_limits")) return { rows: [] };
-    else if (sql.includes("INSERT INTO security_rate_limits")) return { rows: [{ count: 1 }] };
+    else if (sql.includes("INSERT INTO security_rate_limits")) { if (inTransaction) working.reviewTokens++; else tokensOutsideTransaction++; return { rows: [{ count: 1 }] }; }
     else if (sql.startsWith("SELECT id, attempt_id")) return { rows: [{ id: "review", attempt_id: "attempt", status: saved.status, evidence_manifest: manifest }] };
     else if (sql.includes("FROM attempts a JOIN problems")) { if (values[0] !== "attempt") throw new Error("Wrong scope"); return { rows: [{ status: "completed", source_attempt_id: null, prompt: "Sum odd indexes", mode: "mock", input_mode: "text" }] }; }
     else if (sql.includes("WITH selected")) { if (values[0] !== "attempt") throw new Error("Wrong scope"); return { rows: rows.map(evidence => ({ evidence })) }; }
@@ -29,6 +33,6 @@ export function fakeDatabase({ status = "pending", failCitation = false, rows = 
     else if (sql.includes("status = 'failed'")) { working.status = "failed"; working.reason = values[1]; }
     else if (!sql.includes("SET started_at")) throw new Error(`Unexpected SQL: ${sql}`);
     return { rows: [] };
-  } };
+  }
   return pool;
 }

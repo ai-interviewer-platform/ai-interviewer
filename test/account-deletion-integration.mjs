@@ -39,7 +39,7 @@ async function fixture(user) {
   await q("INSERT INTO auth_accounts (id, account_id, provider_id, user_id, password, updated_at) VALUES ($1 || '-account', $1, 'credential', $1, 'hash', now())", [user]);
   await q("INSERT INTO auth_sessions (id, expires_at, token, updated_at, user_id) VALUES ($1 || '-session', now() + interval '1 day', $1 || '-token', now(), $1)", [user]);
   await q("INSERT INTO auth_verifications (id, identifier, value, expires_at) VALUES ($1 || '-reset', 'reset-password:' || $1 || '-reset-token', $1, now() + interval '1 hour')", [user]);
-  await q("INSERT INTO security_rate_limits (key, count, expires_at) VALUES ('api:' || $1, 1, now() + interval '1 minute')", [user]);
+  for (const prefix of ["api:", "model:", "review:"]) await q("INSERT INTO security_rate_limits (key, count, expires_at) VALUES ($2 || $1, 1, now() + interval '1 minute')", [user, prefix]);
   await q("INSERT INTO attempts (id, user_id, problem_id, mode, input_mode, status, setup_context, consent_at, disclosure_version, practice_goal) VALUES ($1 || '-attempt', $1, 'sum-odd-positions-v1', 'mock', 'text', 'active', '{}', now(), 'test', 'Practice')", [user]);
   for (const [suffix, type] of [["checkpoint-event", "code_checkpoint"], ["run-event", "code_run"], ["text-event", "candidate_text"], ["help-event", "help_requested"]]) {
     await q("INSERT INTO attempt_events (id, attempt_id, event_type, source_id, source_order, occurrence_offset_ms) VALUES ($1 || '-' || $2::text, $1 || '-attempt', $3, $2::text, 0, 0)", [user, suffix, type]);
@@ -59,7 +59,7 @@ async function fixture(user) {
 
 try {
   await admin.query(`CREATE SCHEMA ${schema}`);
-  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0007_account_deletion.sql"]) {
+  for (const path of ["migrations/auth/0000_colorful_vindicator.sql", "migrations/0002_application.sql", "migrations/0003_security.sql", "migrations/0007_account_deletion.sql", "migrations/0008_account_deletion_rate_limits.sql"]) {
     await database.query((await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
   }
   await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
