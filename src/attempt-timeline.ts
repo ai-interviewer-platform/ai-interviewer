@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
-import type { AttemptRow, RunnerResult } from "./api";
+import type { AttemptRow } from "./api";
+import type { RunnerResult } from "./runner";
 import { nonnegativeSafeInteger } from "./http";
 import { limits } from "./security";
 

@@ -3,12 +3,12 @@ import { deleteAccount, exportAccount } from "./account";
 import { withTransaction } from "./transaction";
 import { DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { consumeRate, limits, userRateLimitKey } from "./security";
-import { pythonRunnerFor } from "./python-runner-client";
+import { runnerFor, type RunOutcome } from "./runner";
 import { reviewProviderConfigured } from "./review-provider";
 import { logOperationalEvent } from "./observability";
 import { INTERVIEWER_MODEL, modelText } from "./llm";
 import type { Env } from "./env";
-import { badRequest, boolean, boundedRequest, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
+import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
 import type { SessionResolver } from "./request-handler";
 import { openTimeline, type AttemptTimeline, type TimelineResult } from "./attempt-timeline";
 
@@ -31,17 +31,6 @@ export type AttemptRow = {
   practice_goal: string;
   created_at: string;
   updated_at: string;
-};
-
-export type RunnerResult = {
-  status: "passed" | "failed" | "runner_error";
-  testResults: Array<{ testId: string; outcome: "passed" | "failed" | "skipped"; actualOutput?: unknown; error?: string }>;
-  stdout?: string;
-  stderr?: string;
-  executionTimeMs?: number;
-  runnerVersion: string;
-  harnessVersion: string;
-  runnerError?: string;
 };
 
 function id(): string {
@@ -89,38 +78,6 @@ async function recordStart(client: PoolClient, attemptId: string, eventType: "at
   const opened = await openTimeline(client, attemptId);
   const recorded = opened.status === "open" ? await opened.timeline.record(eventType, { sourceId: `server:${eventType === "attempt_started" ? "start" : "retry"}:${attemptId}`, sourceOrder: 0, occurrenceOffsetMs: 0 }, payload) : opened;
   if (recorded.status !== "recorded") throw new Error(`The ${eventType} Event was not recorded.`);
-}
-
-function parseRunnerResult(value: unknown, permittedTestIds: Set<string>): RunnerResult | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const candidate = value as Record<string, unknown>;
-  const status = string(candidate.status);
-  const runnerVersion = string(candidate.runnerVersion);
-  const harnessVersion = string(candidate.harnessVersion);
-  if ((status !== "passed" && status !== "failed" && status !== "runner_error") || !runnerVersion || !harnessVersion || !Array.isArray(candidate.testResults)) return null;
-  const testResults: RunnerResult["testResults"] = [];
-  const receivedTestIds = new Set<string>();
-  for (const item of candidate.testResults) {
-    if (typeof item !== "object" || item === null || Array.isArray(item)) return null;
-    const result = item as Record<string, unknown>;
-    const testId = string(result.testId);
-    const outcome = string(result.outcome);
-    if (!testId || !permittedTestIds.has(testId) || receivedTestIds.has(testId) || (outcome !== "passed" && outcome !== "failed" && outcome !== "skipped")) return null;
-    receivedTestIds.add(testId);
-    testResults.push({ testId, outcome, actualOutput: result.actualOutput, error: string(result.error) ?? undefined });
-  }
-  if (receivedTestIds.size !== permittedTestIds.size) return null;
-  const executionTimeMs = typeof candidate.executionTimeMs === "number" && Number.isSafeInteger(candidate.executionTimeMs) && candidate.executionTimeMs >= 0 ? candidate.executionTimeMs : undefined;
-  return {
-    status,
-    testResults,
-    stdout: string(candidate.stdout) ?? "",
-    stderr: string(candidate.stderr) ?? "",
-    executionTimeMs,
-    runnerVersion,
-    harnessVersion,
-    runnerError: string(candidate.runnerError) ?? undefined,
-  };
 }
 
 export async function catalog(pool: Pool): Promise<Response> {
@@ -355,9 +312,17 @@ async function saveDraft(pool: Pool, attempt: AttemptRow, body: Record<string, u
   return json({ draftRevision: saved.attempt.draft_revision, updatedAt: saved.attempt.updated_at });
 }
 
+// The candidate-facing message for each reason the Runner gives no result.
+const runnerUnavailable: Record<Extract<RunOutcome, { status: "unavailable" }>["reason"], string> = {
+  "unreachable": "The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.",
+  "http failure": "The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.",
+  "too large": "The runner result exceeded the response limit.",
+  "invalid result": "The isolated Python runner returned an invalid result. No test verdict was recorded.",
+};
+
 async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   const invalid = "Stable run event metadata is required.";
-  const runner = pythonRunnerFor(env);
+  const runner = runnerFor(env);
   if (!runner) return serverUnavailable("The isolated Python runner is not configured. Your draft remains available and this is not a code result.");
   const checkpoint = await withTimeline(pool, attempt.id, async (timeline) => ({
     ...await timeline.record("code_checkpoint", body, { checkpointType: "run", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "run" } }),
@@ -372,32 +337,9 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
       WHERE p.id = $1 AND tc.visibility = 'visible'`,
     [attempt.problem_id],
   );
-  let response: Response;
-  try {
-    response = await runner.fetch(new Request("https://python-runner/run", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ attemptId: attempt.id, checkpointId, sourceCode: checkpoint.sourceCode, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) }),
-      signal: AbortSignal.timeout(95_000),
-    }));
-  } catch {
-    logOperationalEvent("warn", "runner_unreachable");
-    return serverUnavailable("The isolated Python runner could not be reached. Your saved checkpoint is intact and this is not a code result.");
-  }
-  if (!response.ok) {
-    logOperationalEvent("warn", "runner_http_failure", { status: response.status });
-    return serverUnavailable("The isolated Python runner reported an infrastructure failure. Your saved checkpoint is intact and this is not a code result.");
-  }
-  let result: RunnerResult | null;
-  try {
-    const bounded = await boundedRequest(new Request("https://python-runner/result", { method: "POST", body: response.body }));
-    if (bounded instanceof Response) return serverUnavailable("The runner result exceeded the response limit.");
-    result = parseRunnerResult(await bounded.json(), new Set(content.rows.map((item) => item.id)));
-  } catch {
-    logOperationalEvent("warn", "runner_invalid_result");
-    return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
-  }
-  if (!result) return serverUnavailable("The isolated Python runner returned an invalid result. No test verdict was recorded.");
+  const outcome = await runner.run({ attemptId: attempt.id, checkpointId, sourceCode: checkpoint.sourceCode, entryPoint: content.rows[0]?.entry_point, testContract: content.rows[0]?.test_contract, tests: content.rows.map(({ id: testId, input_data: inputData, expected_output: expectedOutput }) => ({ testId, inputData, expectedOutput })) });
+  if (outcome.status === "unavailable") return serverUnavailable(runnerUnavailable[outcome.reason]);
+  const { result } = outcome;
   const passed = result.testResults.filter((test) => test.outcome === "passed").length;
   const failed = result.testResults.filter((test) => test.outcome === "failed").length;
   const envelope = { sourceId: `${body.sourceId}:result`, sourceOrder: body.sourceOrder, occurrenceOffsetMs: body.occurrenceOffsetMs };
