@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { testDatabase } from "./postgres-harness.mjs";
 import { env as providerEnv, finding, envelope } from "./reviews/fixtures.mjs";
+import { withSessions } from "./fake-session.mjs";
 
 const { pool: database, drop } = await testDatabase("review_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "review-postgres-"));
@@ -13,11 +14,10 @@ const originalFetch = globalThis.fetch;
 let dispatched = [];
 const env = { ...providerEnv, BETTER_AUTH_URL: "https://app.example", REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
 try {
-  await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { handleApi, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest);
+  const { processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner','Fixture','owner@example.invalid'), ('other','Other','other@example.invalid')");
   async function seed(name, owner = "owner") {
     await database.query("INSERT INTO attempts (id,user_id,problem_id,mode,input_mode,status,setup_context,consent_at,disclosure_version,practice_goal,draft_source) VALUES ($1,$2,'sum-odd-positions-v1','mock','text','active','{}',now(),'test','Do not send this private goal','def sum_odd_positions(values): return sum(values[1::2])')", [name, owner]);
@@ -28,7 +28,7 @@ try {
     for (const kind of ["visible", "submission"]) await database.query("INSERT INTO code_runs (id,attempt_id,checkpoint_id,event_id,status,tests_passed,test_results,run_kind,runner_version,harness_version) VALUES ($1,$2,$3,$4,'passed',1,$5,$6,'fixture','fixture')", [`${name}-${kind}`, name, `${name}-code`, `${name}-${kind === "visible" ? "run" : "hidden"}`, JSON.stringify([{ testId: kind === "visible" ? "sum-odd-empty-v1" : "HIDDEN_DO_NOT_SEND", outcome: "passed", actualOutput: 0 }]), kind]);
     await database.query("INSERT INTO assistance_events (id,attempt_id,event_id,category,offered,accepted,delivered,content) VALUES ($1,$2,$3,'hint',true,true,false,'')", [`${name}-help-record`, name, `${name}-help`]);
     if (owner !== "owner") return;
-    const response = await handleApi(new Request(`https://app.example/api/attempts/${name}/finish`, { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: "finish", sourceOrder: 1, occurrenceOffsetMs: 5 }) }), env, {}, database);
+    const response = await handle(new Request(`https://app.example/api/attempts/${name}/finish`, { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: "finish", sourceOrder: 1, occurrenceOffsetMs: 5 }) }), env, {}, database);
     assert.equal(response.status, 200, await response.clone().text());
     return (await response.json()).reviewId;
   }
@@ -56,7 +56,7 @@ try {
   await processReview(review, env, database);
   assert.equal(calls, 1);
   assert.deepEqual(await state(review), { status: "ready", failure_reason: null, findings: 1, citations: 3 });
-  const apiReview = await handleApi(new Request("https://app.example/api/attempts/valid/review"), env, {}, database);
+  const apiReview = await handle(new Request("https://app.example/api/attempts/valid/review"), env, {}, database);
   const detail = await apiReview.json();
   assert.equal(detail.review.status, "ready");
   assert.ok(detail.findings[0].evidence.some(item => item.locator.transcriptId === "valid-text-segment"));

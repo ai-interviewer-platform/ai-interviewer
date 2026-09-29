@@ -5,16 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
+import { withSessions } from "./fake-session.mjs";
 
 // Text-mode interviewer turns with Workers AI faked. Reviews are covered by
 // test/reviews.test.mjs; `test/llm-integration.mjs` runs these flows against real PostgreSQL.
 const directory = await mkdtemp(join(tmpdir(), "llm-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
-  plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-  plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-} }] });
-const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+const handle = withSessions(handleRequest);
 
 const calls = [];
 const env = { BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true" };
@@ -44,7 +43,7 @@ function database() {
   } };
   return pool;
 }
-const sendMessage = (pool) => handleApi(new Request("https://app.example/api/attempts/a1/messages", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ text: "Hello", sourceId: "m1", sourceOrder: 1, occurrenceOffsetMs: 1 }) }), env, {}, pool);
+const sendMessage = (pool) => handle(new Request("https://app.example/api/attempts/a1/messages", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ text: "Hello", sourceId: "m1", sourceOrder: 1, occurrenceOffsetMs: 1 }) }), env, {}, pool);
 
 test("a text message returns and stores the interviewer reply", async () => {
   provider(() => message("Why?"));

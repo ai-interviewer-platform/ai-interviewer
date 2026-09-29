@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { testDatabase } from "./postgres-harness.mjs";
+import { withSessions } from "./fake-session.mjs";
 
 const { pool: database, drop } = await testDatabase("account_test", { problemBank: false });
 const directory = await mkdtemp(join(tmpdir(), "account-deletion-"));
@@ -54,17 +55,15 @@ async function fixture(user) {
 }
 
 try {
-  await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async (_request, _env, _pool, password) => password === "correct password";' }));
-  } }] });
-  const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest);
   const origin = "https://app.example";
   const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true" };
   await fixture("owner");
   await fixture("other");
 
-  const exported = await (await handleApi(new Request(`${origin}/api/me/export`), env, {}, database)).json();
+  const exported = await (await handle(new Request(`${origin}/api/me/export`), env, {}, database)).json();
   const text = JSON.stringify(exported);
   assert.equal(exported.user.id, "owner");
   assert.equal(exported.attempts.length, 2);
@@ -80,7 +79,7 @@ try {
   console.log("Passed: completed evidence stays immutable outside account deletion");
 
   const before = { owner: await rowsMentioning("owner"), other: await rowsMentioning("other") };
-  const remove = (password, headers = {}) => handleApi(new Request(`${origin}/api/me`, { method: "DELETE", headers: { origin, "content-type": "application/json", ...headers }, body: JSON.stringify({ password }) }), env, {}, database);
+  const remove = (password, headers = {}) => handle(new Request(`${origin}/api/me`, { method: "DELETE", headers: { origin, "content-type": "application/json", ...headers }, body: JSON.stringify({ password }) }), env, {}, database);
   assert.equal((await remove("correct password", { origin: "https://attacker.example" })).status, 403);
   assert.equal((await remove("wrong")).status, 403);
   assert.deepEqual(await rowsMentioning("owner"), { ...before.owner, security_rate_limits: before.owner.security_rate_limits + 1 }, "a rejected request deletes nothing");

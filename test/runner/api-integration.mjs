@@ -8,6 +8,7 @@ import { createDockerRunner, prepareDocker } from "../../scripts/python-runner/d
 import { createRunnerServer } from "../../scripts/python-runner/server.mjs";
 import { testDatabase } from "../postgres-harness.mjs";
 import { correct } from "./fixtures.mjs";
+import { fakeSessions, withSessions } from "../fake-session.mjs";
 
 const image = await prepareDocker();
 const { pool: database, drop } = await testDatabase("runner_test", { problemBank: false });
@@ -18,11 +19,9 @@ globalThis.Request = class extends NativeRequest {
   constructor(input, init) { super(input, init?.body instanceof ReadableStream ? { ...init, duplex: "half" } : init); }
 };
 try {
-  await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "fictional-auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "fictional-runner-owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest, fakeSessions({ userId: "fictional-runner-owner" }));
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const runnerUrl = `http://127.0.0.1:${server.address().port}/run`;
   const env = { BETTER_AUTH_URL: "https://app.example", PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: { fetch: async request => fetch(runnerUrl, { method: "POST", headers: { authorization: "Bearer fictional-integration-token", "content-type": "application/json" }, body: await request.text() }) } };
@@ -35,7 +34,7 @@ try {
     assert.ok(method === "POST" || method === "PATCH");
     // The helper only sends POST/PATCH; it never sends a GET body.
     // eslint-disable-next-line unicorn/no-invalid-fetch-options
-    const response = await handleApi(new Request(`https://app.example/api/attempts/fictional-attempt/${action}`, { method, headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ ...body, sourceId: crypto.randomUUID(), sourceOrder: ++order, occurrenceOffsetMs: order }) }), env, {}, database);
+    const response = await handle(new Request(`https://app.example/api/attempts/fictional-attempt/${action}`, { method, headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ ...body, sourceId: crypto.randomUUID(), sourceOrder: ++order, occurrenceOffsetMs: order }) }), env, {}, database);
     assert.equal(response.status, 200, await response.clone().text());
     return response.json();
   }
@@ -55,7 +54,7 @@ try {
   }
   const before = Number((await database.query("SELECT count(*) FROM code_runs")).rows[0].count);
   env.PYTHON_RUNNER = { fetch: async () => new Response("{broken") };
-  const rejected = await handleApi(new Request("https://app.example/api/attempts/fictional-attempt/run", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: crypto.randomUUID(), sourceOrder: ++order, occurrenceOffsetMs: order }) }), env, {}, database);
+  const rejected = await handle(new Request("https://app.example/api/attempts/fictional-attempt/run", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: crypto.randomUUID(), sourceOrder: ++order, occurrenceOffsetMs: order }) }), env, {}, database);
   assert.equal(rejected.status, 503);
   assert.equal(Number((await database.query("SELECT count(*) FROM code_runs")).rows[0].count), before);
   console.log("PASS malformed runner result preserves checkpoint without recording a verdict");

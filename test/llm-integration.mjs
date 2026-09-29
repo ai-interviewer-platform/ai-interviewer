@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { testDatabase } from "./postgres-harness.mjs";
+import { withSessions } from "./fake-session.mjs";
 
 // Exercises text interviewer turns against real PostgreSQL with a fake Workers AI
 // binding. It never calls the real provider. Reviews: test/review-integration.mjs.
@@ -19,14 +20,12 @@ const AI = { calls, async run(model, input) {
 } };
 const outage = () => { throw new Error("3040: Capacity temporarily exceeded"); };
 try {
-  await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest);
   const origin = "https://app.example";
   const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", AI, REVIEW_QUEUE: { send: async () => {} } };
-  const post = (path, body) => handleApi(new Request(`${origin}/api/attempts/text/${path}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), env, {}, database);
+  const post = (path, body) => handle(new Request(`${origin}/api/attempts/text/${path}`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) }), env, {}, database);
   const rows = async (sql, values = []) => (await database.query(sql, values)).rows;
 
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'Owner', 'owner@example.invalid')");

@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
 import { infrastructureResult } from "../scripts/python-runner/contract.mjs";
 import { fixture } from "./runner/fixtures.mjs";
+import { withSessions } from "./fake-session.mjs";
 
 // Node requires duplex for a streamed Request body; workerd does not.
 const NativeRequest = globalThis.Request;
@@ -17,11 +18,9 @@ after(() => { globalThis.Request = NativeRequest; });
 
 const directory = await mkdtemp(join(tmpdir(), "runner-api-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/api.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-  plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-  plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => "owner"; export const passwordMatches = async () => false;' }));
-} }] });
-const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+await build({ entryPoints: ["src/request-handler.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+const handle = withSessions(handleRequest);
 const origin = "https://app.example";
 const input = fixture();
 const attempt = { id: input.attemptId, user_id: "owner", problem_id: "p", draft_source: input.sourceCode, draft_revision: 4, status: "active" };
@@ -40,7 +39,7 @@ function database() {
   return pool;
 }
 async function request(binding, pool) {
-  return handleApi(new Request(`${origin}/api/attempts/${attempt.id}/run`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify({ sourceId: "fictional-run", sourceOrder: 1, occurrenceOffsetMs: 0 }) }), { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: binding }, {}, pool);
+  return handle(new Request(`${origin}/api/attempts/${attempt.id}/run`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify({ sourceId: "fictional-run", sourceOrder: 1, occurrenceOffsetMs: 0 }) }), { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true", PYTHON_RUNNER: binding }, {}, pool);
 }
 
 test("API sends stored source/visible tests and persists checkpoint, event and full result", async () => {

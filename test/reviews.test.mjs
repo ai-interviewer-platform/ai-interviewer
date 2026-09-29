@@ -9,9 +9,9 @@ import { env, finding, evidence, envelope, fakeDatabase } from "./reviews/fixtur
 
 const directory = await mkdtemp(join(tmpdir(), "reviews-unit-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/reviews.ts", "src/review-provider.ts", "src/review-provider-factory.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "queue-runtime", setup(plugin) {
-  plugin.onResolve({ filter: /^\.\/(database|auth|voice-session)$/ }, args => ({ path: args.path, namespace: "test" }));
-  plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "./database" ? "export const databaseForInvocation = () => globalThis.reviewTestDatabase;" : args.path === "./auth" ? "export const authenticatedUserId = async () => 'owner'; export const passwordMatches = async () => false; export const authFor = () => ({});" : "export class VoiceSession {}" }));
+await build({ entryPoints: ["src/reviews.ts", "src/review-provider.ts", "src/review-provider-factory.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", banner: { js: "import { createRequire } from \"node:module\"; const require = createRequire(import.meta.url);" }, plugins: [{ name: "queue-runtime", setup(plugin) {
+  plugin.onResolve({ filter: /^\.\/(database|voice-session)$/ }, args => ({ path: args.path, namespace: "test" }));
+  plugin.onLoad({ filter: /.*/, namespace: "test" }, args => ({ contents: args.path === "./database" ? "export const databaseForInvocation = () => globalThis.reviewTestDatabase;" : "export class VoiceSession {}" }));
 } }] });
 const { processReview } = await import(pathToFileURL(join(directory, "reviews.mjs")));
 const { validateFindings } = await import(pathToFileURL(join(directory, "review-provider.mjs")));

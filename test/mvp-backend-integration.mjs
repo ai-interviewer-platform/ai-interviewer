@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { testDatabase } from "./postgres-harness.mjs";
+import { fakeSessions, withSessions } from "./fake-session.mjs";
 
 // Node requires duplex for streamed Request bodies; the Worker runtime does not.
 const NativeRequest = globalThis.Request;
@@ -16,11 +17,10 @@ const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await build({ entryPoints: ["src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-    plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async request => request.headers.get("x-test-user") ?? "owner"; export const passwordMatches = async () => false;' }));
-  } }] });
-  const { appendVoiceTranscript, handleApi, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/voice-context.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+  const handle = withSessions(handleRequest, fakeSessions({ userId: request => request.headers.get("x-test-user") ?? "owner" }));
+  const { appendVoiceTranscript, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'MVP Fixture', 'mvp@example.invalid'), ('other', 'Other Fixture', 'other-mvp@example.invalid')");
   let dispatchedReviewId;
@@ -44,7 +44,7 @@ try {
   };
   let order = 0;
   const call = async (method, path, body, user = "owner") => {
-    const response = await handleApi(new Request(`https://app.example${path}`, {
+    const response = await handle(new Request(`https://app.example${path}`, {
       method,
       headers: { origin: "https://app.example", "x-test-user": user, ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),

@@ -5,14 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, test } from "node:test";
+import { fakeSessions, withSessions } from "./fake-session.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "account-lifecycle-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/api.ts", "src/email.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node", plugins: [{ name: "test-auth", setup(plugin) {
-  plugin.onResolve({ filter: /^\.\/auth$/ }, () => ({ path: "auth", namespace: "test" }));
-  plugin.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: 'export const authenticatedUserId = async () => globalThis.accountTestUser ?? null; export const passwordMatches = async (_request, _env, _pool, password) => password === "correct password";' }));
-} }] });
-const { handleApi } = await import(pathToFileURL(join(directory, "api.mjs")));
+await build({ entryPoints: ["src/request-handler.ts", "src/email.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
+const handle = withSessions(handleRequest, fakeSessions({ userId: () => globalThis.accountTestUser ?? null }));
 const { emailConfigured, passwordResetText, sendEmail, verificationText } = await import(pathToFileURL(join(directory, "email.mjs")));
 const origin = "https://app.example";
 const env = { BETTER_AUTH_URL: origin, PERSONAL_DATA_COLLECTION_APPROVED: "true" };
@@ -30,23 +29,23 @@ const deletions = (pool) => pool.queries.filter(({ sql }) => sql.includes("delet
 test("account deletion requires the exact origin, a session, and the current password", async () => {
   globalThis.accountTestUser = "owner";
   const untouched = { query: () => { throw new Error("Must reject before database access"); } };
-  assert.equal((await handleApi(deleteRequest({ password: "correct password" }, { origin: "https://attacker.example" }), env, {}, untouched)).status, 403);
+  assert.equal((await handle(deleteRequest({ password: "correct password" }, { origin: "https://attacker.example" }), env, {}, untouched)).status, 403);
 
   globalThis.accountTestUser = null;
   const signedOut = database();
-  assert.equal((await handleApi(deleteRequest({ password: "correct password" }), env, {}, signedOut)).status, 401);
+  assert.equal((await handle(deleteRequest({ password: "correct password" }), env, {}, signedOut)).status, 401);
   assert.equal(deletions(signedOut).length, 0);
 
   globalThis.accountTestUser = "owner";
   for (const body of [{}, { password: "" }, { password: "wrong" }]) {
     const pool = database();
-    const response = await handleApi(deleteRequest(body), env, {}, pool);
+    const response = await handle(deleteRequest(body), env, {}, pool);
     assert.equal(response.status, body.password === "wrong" ? 403 : 400);
     assert.equal(deletions(pool).length, 0, "nothing is deleted without the correct password");
   }
 
   const pool = database();
-  const response = await handleApi(deleteRequest({ password: "correct password" }), env, {}, pool);
+  const response = await handle(deleteRequest({ password: "correct password" }), env, {}, pool);
   assert.equal(response.status, 200);
   assert.deepEqual(deletions(pool).map(({ values }) => values), [["owner"]]);
 });
@@ -54,7 +53,7 @@ test("account deletion requires the exact origin, a session, and the current pas
 test("data export is an attachment scoped to the signed-in user without hidden problem content", async () => {
   globalThis.accountTestUser = "owner";
   const pool = database();
-  const response = await handleApi(new Request(`${origin}/api/me/export`), env, {}, pool);
+  const response = await handle(new Request(`${origin}/api/me/export`), env, {}, pool);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-disposition"), /^attachment; filename="coursay-export\.json"$/);
   const exported = await response.json();
