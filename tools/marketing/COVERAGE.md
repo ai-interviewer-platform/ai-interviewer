@@ -17,3 +17,17 @@ Operator-approved additional coverage: one real ad plus one short-form video. Ru
 Source availability is observed at capture time. Native media is distinct from thumbnails/page screenshots. Caption availability is reported per source; provider-generated or automatic captions are not independently verified speech. Protected/private-platform access is not claimed. No conversion, spend, creative durability in market or virality conclusion follows from these samples.
 
 Reference evaluation uses explicit reviewed fields and rationales, reports disagreement without a numerical acceptance threshold, and does not present assistant-authored references as human owner approval.
+
+## Reference comparison (assistant-authored, not owner-approved truth)
+
+Compared stored Jev judgments against an independent reading of the tutorial's timestamped evidence. This is a small diagnostic reference set, not an accuracy estimate or release threshold.
+
+| Field | Jev | Reference | Assessment |
+|---|---|---|---|
+| Opening hook | demonstration | flat-open | Disagreement: 0–29s is a static library page; cursor activity starts at 29s. Jev's label describes the later demonstration rather than the opening. |
+| Format | tutorial | tutorial | Agreement: 48–71s navigates to account creation; 149–300s demonstrates review tools. |
+| Homepage match | unknown | unknown | Agreement: no separately captured landing page. |
+
+Observed: 2 agreements, 1 disagreement. Inspect opening evidence before trusting a hook label; retain original judgment and reviewer rationale. No prompt was tuned just to force these examples to agree.
+
+Tutorial run measured 285.693s end-to-end: acquisition 10.671s, vision 272.343s, Jev 2.665s. Qwen returned 206,902 total tokens under the confirmed coupon; no dollar receipt. Jev reported $0.000306. Exa/Firecrawl/Qwen dollar costs are not inferred when absent. The UI's current report can repeat comparisons on operator-entered references and exports provenance/receipts alongside them.
