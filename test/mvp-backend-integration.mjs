@@ -100,7 +100,7 @@ try {
       const spoken = evidence.find(item => item.transcript?.speaker === "candidate");
       assert.ok(submission && passingRun && spoken);
       assert.ok([submission.id, passingRun.id, spoken.id].every(id => allowedEvidenceIds.has(id)));
-      return [{ observation: "The final saved solution passed the visible cases after an earlier failed run.", interpretation: null, limitations: "Visible cases do not establish correctness for all inputs.", suggested_action: "Explain why the slice selects odd indexes.", criterion: "Correctness", evidence_status: "reproducible_observation", evidenceIds: [submission.id, passingRun.id, spoken.id] }];
+      return { findings: [{ observation: "The final saved solution passed the visible cases after an earlier failed run.", interpretation: null, limitations: "Visible cases do not establish correctness for all inputs.", suggested_action: "Explain why the slice selects odd indexes.", criterion: "Correctness", evidence_status: "reproducible_observation", evidenceIds: [submission.id, passingRun.id, spoken.id] }] };
     },
   });
   const review = await call("GET", `${path}/review`);
