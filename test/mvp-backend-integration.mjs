@@ -17,10 +17,11 @@ const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/voice-context.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/attempt-timeline.ts", "src/voice-context.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
   const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
   const handle = withSessions(handleRequest, fakeSessions({ userId: request => request.headers.get("x-test-user") ?? "owner" }));
-  const { appendVoiceTranscript, processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  const { processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
+  const { withTimeline } = await import(pathToFileURL(join(directory, "attempt-timeline.mjs")));
   const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));
   const { inMemoryRunner } = await import(pathToFileURL(join(directory, "runner.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'MVP Fixture', 'mvp@example.invalid'), ('other', 'Other Fixture', 'other-mvp@example.invalid')");
@@ -71,9 +72,9 @@ try {
     assert.equal(run.status, 200, await run.clone().text());
     assert.equal((await run.json()).status, expected);
   }
-  const attempt = (await database.query("SELECT * FROM attempts WHERE id = $1", [attemptId])).rows[0];
-  const transcript = await appendVoiceTranscript(database, attempt, { role: "user", text: "I changed the index selection.", providerSessionId: "fictional-provider-session", ...metadata("voice") });
-  assert.equal(transcript.status, 201);
+  // A verified voice Transcript segment, as the Voice session records it.
+  const transcript = await withTimeline(database, attemptId, (timeline) => timeline.record("candidate_voice", metadata("voice"), { verified: true, inputMode: "voice", provider: "deepgram", providerSessionId: "fictional-provider-session", role: "user" }, { transcript: { speaker: "candidate", text: "I changed the index selection." } }));
+  assert.equal(transcript.status, "recorded");
   const help = await call("POST", `${path}/help`, { category: "hint", ...metadata("help") });
   assert.equal(help.status, 202);
   const context = JSON.parse(await loadVoiceCodingContext(database, attemptId, "owner"));
