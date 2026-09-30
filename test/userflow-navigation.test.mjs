@@ -33,6 +33,7 @@ test('mocked account navigation, authentication modes, personal session flow, an
       let signedIn = false;
       const authRequests = [];
       const drafts = [];
+      const measured = [];
       let attemptStatus = 'completed';
       const user = { id: 'fixture-user', name: 'Flow Tester', email: 'flow@example.invalid' };
       const problem = { id: 'fixture-problem', title: 'Fixture sum', topic: 'Arrays', difficulty: 'Easy', prompt: 'Return the sum.', entry_point: 'solve', starter_code: 'def solve(values):\n    return sum(values)' };
@@ -43,7 +44,9 @@ test('mocked account navigation, authentication modes, personal session flow, an
         const path = new URL(request.url()).pathname;
         let payload;
         let status = 200;
-        if (path === '/api/personal-availability') payload = { collectionEnabled: true, voiceEnabled: false, emailEnabled: true };
+        if (path === '/api/site-config') payload = { measurementEnabled: true };
+        else if (path === '/api/measure') { measured.push(request.postDataJSON()); status = 202; payload = { accepted: true }; }
+        else if (path === '/api/personal-availability') payload = { collectionEnabled: true, voiceEnabled: false, emailEnabled: true };
         else if (path === '/api/auth/get-session') payload = signedIn ? { user } : null;
         else if (path === '/api/auth/sign-in/email' || path === '/api/auth/sign-up/email') { authRequests.push(path); signedIn = true; payload = { user, token: 'fixture-token' }; }
         else if (path === '/api/auth/sign-out') { signedIn = false; payload = { success: true }; }
@@ -164,6 +167,9 @@ test('mocked account navigation, authentication modes, personal session flow, an
       }
       await page.goto(`${base}/#welcome`);
       await page.locator('.page-footer').waitFor();
+      const personal = measured.filter(item => item.activity === 'personal' && item.name !== 'page_viewed').map(item => `${item.name}:${item.authority}`);
+      for (const expected of ['practice_started:server', 'review_opened:client', 'retry_started:server']) assert.ok(personal.includes(expected), `${expected} in ${personal}`);
+      assert.ok(!/draft before settings|return sum|flow@example|Flow Tester|fixture-attempt|fixture-token/.test(JSON.stringify(measured)), 'Personal measurement excludes code, account and record identifiers');
       assert.deepEqual(unexpectedRequests, []);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }

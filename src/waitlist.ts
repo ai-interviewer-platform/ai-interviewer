@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { Env } from './env';
 import { badRequest, boundedRequest, checkOrigin, json, requestBody } from './http';
+import { isOperator, operatorRequired } from './operator';
 
 type Policy = { version: string; contactPurpose: string; operator: string; contact: string; retention: string; processors: string; emailProvider: 'none'; confirmation: 'browser_receipt'; deletion: string };
 
@@ -27,7 +28,7 @@ export async function waitlistRequest(request: Request, env: Env, database: () =
   const originError = checkOrigin(request, env.BETTER_AUTH_URL);
   if (originError) return originError;
   const operatorPath = path === '/api/waitlist/records';
-  if (operatorPath && (!env.WAITLIST_OPERATOR_TOKEN || request.headers.get('authorization') !== `Bearer ${env.WAITLIST_OPERATOR_TOKEN}`)) return json({ error: 'Operator access required.' }, { status: 401 });
+  if (operatorPath && !isOperator(request, env)) return operatorRequired();
   if (path === '/api/waitlist' && !config.waitlistEnabled) return json({ error: 'The waitlist is not accepting email addresses yet.' }, { status: 503 });
   const bounded = await boundedRequest(request);
   if (bounded instanceof Response) return bounded;

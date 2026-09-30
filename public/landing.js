@@ -1,18 +1,18 @@
+import { heatGridSize } from './measurement-contract.js';
 import { measure } from './measurement.js';
 
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-const exposureId = crypto.randomUUID();
 let exposureEmitted = false;
 
 export function landingScreen() {
   return `<div class="landing">
-    <section class="landing-hero enter" aria-labelledby="landing-title">
+    <section class="landing-hero enter" aria-labelledby="landing-title" data-heat-zone="hero">
       <div><p class="eyebrow">For students &amp; new grads preparing for SWE interviews</p>
       <h1 id="landing-title">Make your thinking<br>part of the answer.</h1>
       <p class="intro">You know enough Python to attempt the problem. Now practice explaining your approach, testing it, and revising what didn’t work.</p>
       <div class="actions" id="landing-actions"><a class="button secondary pressable" href="#sample" data-launch-action="sample">Explore the guided sample</a></div>
       <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p></div>
-      <aside class="landing-evidence" aria-label="Fictional review example"><div class="landing-evidence-label">Fictional sample · evidence, not a verdict</div>
+      <aside class="landing-evidence" aria-label="Fictional review example" data-heat-zone="sample-evidence"><div class="landing-evidence-label">Fictional sample · evidence, not a verdict</div>
         <pre><code>for index, tag in enumerate(tags):
     if tag in seen:
         answer = index
@@ -20,15 +20,15 @@ export function landingScreen() {
         <div class="landing-finding"><span class="eyebrow">At checkpoint 04:26</span><h2>You said “the first match.”</h2><p>The saved code keeps scanning and overwrites the answer. Inspect that difference, then try another approach.</p><a class="text-link" href="#review?source=sample">Inspect the sample review →</a></div>
       </aside>
     </section>
-    <section class="landing-loop" aria-labelledby="landing-loop-title"><div class="section-heading"><h2 id="landing-loop-title">An attempt is a starting point.</h2><span class="small muted">Practice → review → retry</span></div>
+    <section class="landing-loop" aria-labelledby="landing-loop-title" data-heat-zone="loop"><div class="section-heading"><h2 id="landing-loop-title">An attempt is a starting point.</h2><span class="small muted">Practice → review → retry</span></div>
       <ol><li><span class="eyebrow">Practice</span><h3>Explain. Write. Test.</h3><p>Work through a Python problem with the AI interviewer. Try interview conditions or guided coach mode.</p></li><li><span class="eyebrow">Review</span><h3>Follow the evidence.</h3><p>Findings cite recorded work and state their limits. They don’t infer what you never showed.</p></li><li><span class="eyebrow">Retry</span><h3>Revise with a purpose.</h3><p>Start again from a saved checkpoint in coach mode. Test whether your change fixes the problem.</p></li></ol>
     </section>
-    <div class="landing-bottom"><section aria-labelledby="landing-fit"><p class="eyebrow">Before you begin</p><h2 id="landing-fit">Bring Python fundamentals.<br>Leave room to get it wrong.</h2><p>This is coding-interview practice, not a beginner Python course or a hiring assessment. C++, JavaScript and TypeScript are not supported.</p>
+    <div class="landing-bottom"><section aria-labelledby="landing-fit" data-heat-zone="fit"><p class="eyebrow">Before you begin</p><h2 id="landing-fit">Bring Python fundamentals.<br>Leave room to get it wrong.</h2><p>This is coding-interview practice, not a beginner Python course or a hiring assessment. C++, JavaScript and TypeScript are not supported.</p>
       <details><summary>What does voice require?</summary><p>Personal voice requires an enabled service, a supported browser and microphone permission. Text practice does not require a microphone. The sample never records audio.</p></details>
       <details><summary>What is real in the sample?</summary><p>The code, conversations and findings are authored examples. They create no personal attempt records and do not measure your performance.</p></details>
       <details><summary>What gets saved in personal practice?</summary><p>When enabled, Coursay saves code, transcripts, test results and evidence-linked reviews. AI findings can be wrong. Read the <a href="#privacy">privacy notice</a> before starting. No interview outcome is guaranteed.</p></details>
     </section>
-    <section class="landing-waitlist" aria-labelledby="waitlist-title"><p class="eyebrow">Keep in touch</p><h2 id="waitlist-title">Join the waitlist</h2><p id="waitlist-unavailable" role="status">Checking whether the waitlist is open…</p>
+    <section class="landing-waitlist" aria-labelledby="waitlist-title" data-heat-zone="waitlist"><p class="eyebrow">Keep in touch</p><h2 id="waitlist-title">Join the waitlist</h2><p id="waitlist-unavailable" role="status">Checking whether the waitlist is open…</p>
       <div id="waitlist-policy" hidden></div>
       <form id="waitlist-form" hidden novalidate><label for="waitlist-email">Email address</label><input id="waitlist-email" name="email" type="email" autocomplete="email" required aria-describedby="waitlist-error"><label class="landing-consent"><input id="waitlist-consent" type="checkbox" required><span id="waitlist-purpose"></span></label><button class="button primary pressable" type="submit">Join the waitlist</button><p id="waitlist-error" role="alert"></p></form>
       <div id="waitlist-success" hidden><p role="status">Request saved. If this address was already registered, its existing record stays unchanged. Joining is not a practice attempt.</p><label for="waitlist-receipt">Withdrawal receipt — save your first receipt</label><textarea id="waitlist-receipt" readonly rows="2"></textarea><p class="small">Only the receipt from your original signup can remove that record. No confirmation email is sent.</p></div>
@@ -46,10 +46,18 @@ export function mountLanding(root) {
   const error = root.querySelector('#waitlist-error');
   const withdrawal = root.querySelector('#withdraw-receipt');
   try { withdrawal.value = JSON.parse(sessionStorage.getItem('coursay-waitlist-receipt') || 'null')?.receipt || ''; } catch { /* Receipt remains manually usable. */ }
-  if (!exposureEmitted) { measure('landing_exposed', { exposureId }); exposureEmitted = true; }
+  if (!exposureEmitted) { measure('landing_exposed'); exposureEmitted = true; }
   root.addEventListener('click', event => {
     const link = event.target.closest('[data-launch-action]');
-    if (link) measure('cta_selected', { exposureId, action: link.dataset.launchAction });
+    if (link) measure('cta_selected', { action: link.dataset.launchAction });
+    // Heatmap cells over the landing. Clicks in text fields are masked. A keyboard
+    // activation has no pointer position (detail 0), so it counts at the control's centre.
+    if (event.target.closest('input, textarea, select')) return;
+    const bounds = root.getBoundingClientRect();
+    const target = event.target.getBoundingClientRect();
+    const [x, y] = event.detail === 0 ? [target.left + target.width / 2, target.top + target.height / 2] : [event.clientX, event.clientY];
+    const cell = (offset, size) => Math.min(heatGridSize - 1, Math.max(0, Math.floor((offset / size) * heatGridSize)));
+    measure('landing_click', { zone: event.target.closest('[data-heat-zone]')?.dataset.heatZone ?? 'other', cellX: cell(x - bounds.left, bounds.width), cellY: cell(y - bounds.top, bounds.height), viewport: innerWidth < 768 ? 'narrow' : 'wide' });
   });
   const api = async (url, body) => {
     const response = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -97,7 +105,7 @@ export function mountLanding(root) {
       root.querySelector('#waitlist-receipt').value = receipt; withdrawal.value = receipt;
       root.querySelector('#waitlist-success').hidden = false; form.hidden = true;
       root.querySelector('#waitlist-receipt').focus();
-      measure('waitlist_request_accepted', { authority: 'server', exposureId, action: 'waitlist' });
+      measure('waitlist_request_accepted', { authority: 'server', action: 'waitlist' });
     } catch (failure) { error.textContent = failure.message; }
     finally { button.disabled = false; form.removeAttribute('aria-busy'); }
   });
@@ -108,7 +116,7 @@ export function mountLanding(root) {
       status.textContent = 'Withdrawal processed. Any record matching this receipt has been deleted. If you lost your original receipt, use the published contact channel.';
       try { sessionStorage.removeItem('coursay-waitlist-receipt'); } catch { /* No effect on server withdrawal. */ }
       root.querySelector('#waitlist-success').hidden = true;
-      measure('waitlist_withdrawal_accepted', { authority: 'server', exposureId, action: 'waitlist' });
+      measure('waitlist_withdrawal_accepted', { authority: 'server', action: 'waitlist' });
     } catch (failure) { status.textContent = failure.message; }
     finally { button.disabled = false; }
   });

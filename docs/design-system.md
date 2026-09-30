@@ -9,7 +9,8 @@ the existing application state, sample fixtures, and personal adapter.
 `index.html` loads `design-system.css` (tokens, materials, motion), then
 `styles.css`, `discovery.css`, and `practice.css` (existing feature layouts),
 then `revision.css` (Revision 2 screen composition and material mapping) and
-`screens-v2.css` (the supplied Home and Profile v2 layouts).
+`screens-v2.css` (the supplied Home and Profile v2 layouts), `landing.css` and
+`operator.css` (private operator reports and the landing heatmap grid).
 Shared timing and color roles remain in `design-system.css`.
 
 
@@ -108,7 +109,7 @@ reduced motion, keyboard input, and forced colors disable all logo animation.
 
 ## Screens
 
-Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, and Profile use the floating top navbar. The primary group contains Home, Roadmap, and Sessions; the account group contains Preferences, Design system, and the profile avatar.
+Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, Profile, and the private Operator reports (`#operator`, not linked from navigation) use the floating top navbar. The primary group contains Home, Roadmap, and Sessions; the account group contains Preferences, Design system, and the profile avatar.
 
 ## Runtime decisions
 

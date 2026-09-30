@@ -2,6 +2,10 @@ import { accountMenu } from './account-menu.js';
 import { brandWordmark, beginBrandLoading, setBrandVoice } from './brand.js';
 import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
 import { createAttemptSession } from "./attempt-session.js";
+import { measure } from "./measurement.js";
+
+const personalOutcome = (name, authority = "server") => measure(name, { surface: "personal", activity: "personal", authority });
+const openedReviews = new Set();
 
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
@@ -172,7 +176,11 @@ export function mountPersonal(root) {
     }
     let content;
     if (['profile', 'settings'].includes(state.page)) content = accountMarkup(state);
-    else if (state.page === "review") content = reviewMarkup(state);
+    else if (state.page === "review") {
+      content = reviewMarkup(state);
+      const review = state.review?.review;
+      if (review?.status === "ready" && !openedReviews.has(review.id)) { openedReviews.add(review.id); personalOutcome("review_opened", "client"); }
+    }
     else if (state.page === "related") content = relatedMarkup(state);
     else if (state.selectedProblemId) {
       const problem = state.catalog.find((item) => item.id === state.selectedProblemId);
@@ -270,7 +278,7 @@ export function mountPersonal(root) {
       else if (control.hasAttribute("data-open-related")) { state.related = (await session.related()).relatedProblems; state.page = "related"; render(); }
       else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
-      else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); await openAttempt(result.attemptId); }
+      else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); personalOutcome("retry_started"); await openAttempt(result.attemptId); }
       else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
       else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
       else if (control.hasAttribute("data-run")) {
@@ -286,6 +294,7 @@ export function mountPersonal(root) {
         control.disabled = true;
         try {
           const result = await session.finish();
+          personalOutcome("practice_completed");
           await openAttempt(state.attempt.attempt.id);
           showError(`Attempt completed. Review dispatch: ${result.dispatch}.`);
         } finally { control.disabled = false; }
@@ -326,6 +335,7 @@ export function mountPersonal(root) {
       } else if (form.id === "personal-setup-form") {
         const data = new FormData(form);
         const result = await api("/api/attempts", { method: "POST", body: { problemId: data.get("problemId"), mode: data.get("mode"), inputMode: data.get("inputMode"), saveAudio: false, consent: data.get("consent") === "on", familiarity: "unanswered", practiceGoal: data.get("practiceGoal"), setupContext: { studiedTopics: data.get("studiedTopics"), concern: data.get("concern") } } });
+        personalOutcome("practice_started");
         await openAttempt(result.attemptId);
       } else if (form.id === "personal-message-form") {
         const message = new FormData(form).get("message");
