@@ -1,16 +1,34 @@
-// Shared, opt-in adapter seam. No transport, cookies, identity or tracking storage.
+import { actions, activities, eventNames, pageActivity, queueLimit } from './measurement-contract.js';
+
+// Shared, opt-in adapter seam. No cookies, identity or browser storage.
+// The first-party transport runs only when the server enables measurement and the
+// browser sends neither Global Privacy Control nor Do Not Track.
 let adapter;
-const names = new Set(['landing_exposed', 'cta_selected', 'waitlist_request_accepted', 'waitlist_withdrawal_accepted', 'practice_started', 'practice_completed', 'review_opened', 'retry_started']);
+// Random per page load: links the events of one document, never a person. A reload is a new document.
+const documentExposureId = crypto.randomUUID();
 export function setMeasurementAdapter(value) { adapter = typeof value === 'function' ? value : undefined; }
-export function measure(name, { surface = 'landing', activity = 'none', action = 'none', authority = 'client', exposureId = null } = {}) {
-  if (!names.has(name)) return;
+export function measure(name, { surface = 'landing', activity = 'none', action = 'none', authority = 'client', zone, cellX, cellY, viewport } = {}) {
+  if (!eventNames.includes(name) || !Object.hasOwn(pageActivity, surface)) return;
   const event = {
-    version: 'coursay-outcomes-v1', id: crypto.randomUUID(), name, occurredAt: new Date().toISOString(),
-    surface: ['landing', 'sample', 'personal'].includes(surface) ? surface : 'unknown',
-    activity: ['none', 'sample', 'personal'].includes(activity) ? activity : 'none',
-    action: ['none', 'sample', 'waitlist', 'personal_practice'].includes(action) ? action : 'none',
+    version: 'coursay-outcomes-v1', id: crypto.randomUUID(), name, surface,
+    activity: activities.includes(activity) ? activity : 'none',
+    action: actions.includes(action) ? action : 'none',
     authority: authority === 'server' ? 'server' : 'client', attribution: 'unknown',
-    exposureId: typeof exposureId === 'string' && /^[a-f\d-]+$/i.test(exposureId) ? exposureId : null,
+    exposureId: documentExposureId,
+    ...(name === 'landing_click' ? { zone, cellX, cellY, viewport } : {}),
   };
   try { Promise.resolve(adapter?.(event)).catch(() => {}); } catch { /* Measurement never gates product work. */ }
+}
+export function startFirstPartyMeasurement() {
+  if (navigator.globalPrivacyControl === true || navigator.doNotTrack === '1') return;
+  // Events wait for the server decision, then are sent or dropped.
+  const queued = [];
+  const queue = event => { if (queued.length < queueLimit) queued.push(event); };
+  const send = event => fetch('/api/measure', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(event) });
+  adapter = queue;
+  fetch('/api/site-config').then(response => response.json()).catch(() => null).then(config => {
+    if (adapter !== queue) return;
+    adapter = config?.measurementEnabled ? send : undefined;
+    for (const event of queued) Promise.resolve(adapter?.(event)).catch(() => {});
+  });
 }

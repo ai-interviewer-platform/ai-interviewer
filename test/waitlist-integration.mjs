@@ -33,7 +33,7 @@ try {
   assert.equal(published.policy.confirmation, 'browser_receipt');
   assert.match(published.policy.retention, /withdrawal.*fulfilled.*closes/);
   assert.match(published.policy.deletion, /6 hours.*restored.*fresh opt-in/);
-  assert.match(published.policy.processors, /Cloudflare.*Neon.*Jack Cao.*not sent to AI.*off/);
+  assert.match(published.policy.processors, /Cloudflare.*Neon.*Jack Cao.*not sent to AI.*never enters measurement/);
   assert.equal((await (await request('/api/landing-config', undefined, {}, { ...deployment, WAITLIST_OPERATOR_TOKEN: env.WAITLIST_OPERATOR_TOKEN })).json()).waitlistEnabled, true);
   const first = await request('/api/waitlist', { email: 'Candidate@example.invalid', consent: true, policyVersion: policy.version });
   assert.equal(first.status, 200);

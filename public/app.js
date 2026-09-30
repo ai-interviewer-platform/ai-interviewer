@@ -8,8 +8,12 @@ import { mountPersonal } from './personal-adapter.js';
 import { pageFooter, legalScreen } from './legal.js';
 import { accountMenu, bindAccountMenus } from './account-menu.js';
 import { landingScreen, mountLanding } from './landing.js';
+import { measure, startFirstPartyMeasurement } from './measurement.js';
+import { pageActivity } from './measurement-contract.js';
+import { operatorScreen, mountOperator } from './operator.js';
 
 if (!location.hash) history.replaceState(null, '', '#landing');
+startFirstPartyMeasurement();
 
 const app = document.querySelector('#app');
 const drawer = document.querySelector('#problem-drawer');
@@ -123,6 +127,7 @@ let accountUser = null;
 let leftPersonal = false;
 let unmountPersonal;
 let unmountLanding;
+let measuredPage;
 function refreshAccountLabel() {
   fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).catch(() => null).then(session => {
     accountUser = session?.user ?? null;
@@ -320,6 +325,14 @@ function render(navigation = false) {
     location.replace(`#personal${route.page === 'profile' || route.page === 'settings' ? `?page=${route.page}` : ''}`);
     return;
   }
+  // Page views carry only the allowlisted page name, never its query or record identifiers.
+  if (route.page !== measuredPage) {
+    measuredPage = route.page;
+    const activity = pageActivity[route.page];
+    measure('page_viewed', { surface: route.page, activity });
+    if (['sample', 'interview'].includes(route.page)) measure('practice_started', { surface: route.page, activity });
+    if (route.page === 'review') measure('review_opened', { surface: 'review', activity });
+  }
   unmountPersonal?.();
   unmountPersonal = undefined;
   document.documentElement.dataset.reduce = String(state.reduce);
@@ -340,13 +353,14 @@ function render(navigation = false) {
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
   if (route.page === 'review' && !isSample()) { state.reviewOpened = true; persist(); }
-  const screens = { landing: landingScreen, 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
+  const screens = { landing: landingScreen, 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, operator: operatorScreen, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
   navbarObserver.disconnect();
   roadmapObserver.disconnect();
   app.innerHTML = chrome((screens[route.page] ?? welcome)(), workspacePage);
   if (route.page === 'landing') unmountLanding = mountLanding(app.querySelector('.landing'));
+  if (route.page === 'operator') mountOperator(app.querySelector('#operator'));
   if (navigation) document.querySelectorAll('.home-layout > section, .profile-panel, .session-row, .setup-grid > *, .preferences-content').forEach((element, index) => { element.classList.add('enter'); element.style.setProperty('--i', index); });
   document.querySelector('#main').classList.toggle('roadmap-main', route.page === 'roadmap');
   const graph = document.querySelector('.road-grid');
@@ -421,8 +435,8 @@ function handleAction(action) {
     case 'repair': mutateAttempt('repair'); render(); notify('Prepared early-return repair applied. Run its tests to inspect the result.'); break;
     case 'help': showDialog('Would you like a hint?', `<p>I can point out what happens after a match, without replacing the entire approach.</p><p class="small muted">Accepting help keeps this attempt open. Guidance is identified in the review. This is a prepared reply.</p><div class="actions">${button('Keep thinking', 'close-dialog', 'secondary')}${button('Show the hint', 'accept-help', 'primary')}</div>`); break;
     case 'accept-help': closeDialog(); mutateAttempt('help'); render(); notify('Prepared hint added. The attempt continues with assistance noted.'); break;
-    case 'finish': mutateAttempt('finish'); state.leftTab = 'findings'; state.checkpoint = 'run'; state.reviewState = ''; go(`review${sourceQuery()}`); break;
-    case 'start-retry': state.retry = { ...initialAttempt(activeAttempt().problem), assisted: true }; go(`retry${sourceQuery()}`); break;
+    case 'finish': measure('practice_completed', { surface: route.page, activity: 'sample' }); mutateAttempt('finish'); state.leftTab = 'findings'; state.checkpoint = 'run'; state.reviewState = ''; go(`review${sourceQuery()}`); break;
+    case 'start-retry': measure('retry_started', { surface: route.page, activity: 'sample' }); state.retry = { ...initialAttempt(activeAttempt().problem), assisted: true }; go(`retry${sourceQuery()}`); break;
     case 'finish-retry': mutateAttempt('finish'); go(`complete${sourceQuery()}`); break;
     case 'save-exit': {
       mutateAttempt('save'); const saved = persist(); go(isSample() ? 'welcome' : 'sessions'); notify(saved ? 'Prepared position saved in this prototype tab. No personal content was saved.' : 'Storage is unavailable. This prepared state will last only while the page stays open.'); break;

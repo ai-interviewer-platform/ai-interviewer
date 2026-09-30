@@ -1,0 +1,9 @@
+.operator-form { display: grid; gap: 0.5rem; max-width: 32rem; }
+#operator-report { display: grid; gap: 1rem; margin-top: 2rem; }
+.operator-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.operator-table caption { text-align: left; font-weight: 600; padding-bottom: 0.5rem; }
+.operator-table :is(th, td) { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--divider); }
+.heat-figure { margin: 0; }
+.heat-grid { display: grid; grid-template-columns: repeat(var(--grid), 1fr); aspect-ratio: 1 / 1.4; max-width: 28rem; box-shadow: var(--ring); }
+.heat-cell { background: color-mix(in oklch, var(--accent) calc(var(--heat, 0) * 90%), transparent); }
+@media (max-width: 48rem) { #operator-report { overflow-x: auto; } }

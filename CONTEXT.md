@@ -92,6 +92,26 @@ A budget of voice seconds held for one voice connection to an Attempt.
 The fictional practice flow that needs no account and records nothing.
 _Avoid_: prototype, demo
 
+### Measurement
+
+**Document**:
+One page load of the application. A random identifier links the measurement events of one Document; a reload or new tab starts a new one.
+_Avoid_: visitor, user, session
+
+**Measurement event**:
+One allowlisted record of a page view, interaction or outcome. It never identifies a person.
+_Avoid_: tracking, analytics hit
+
+### Site feedback
+
+**Feedback response**:
+An anonymous answer to the contextual question of one page: a preset, a comment, or both. It is not a Correction and does not change a Finding.
+_Avoid_: review, rating
+
+**Bug report**:
+A private report of what someone expected and what happened instead, with allowlisted diagnostics and an optional reply address. It is triaged by the operator, never posted publicly.
+_Avoid_: ticket, issue (the issue tracker is a different thing)
+
 ### Content research
 
 **Source observation**:

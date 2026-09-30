@@ -17,6 +17,15 @@ export const limits = {
   modelTurnsPerAttempt: 40,
   accountModelTurnsPerHour: 60,
   accountReviewsPerDay: 20,
+  // Owner-delegated defaults of 2026-09-30 for first-party measurement (#23).
+  measurementEventBytes: 4 * 1024,
+  measurementEventsPerMinute: 1200,
+  // Owner-delegated default of 2026-09-30 for contextual feedback (#21).
+  feedbackPerMinute: 60,
+  feedbackBytes: 8 * 1024,
+  // Owner-delegated defaults of 2026-09-30 for bug reports (#22).
+  bugReportsPerMinute: 30,
+  bugReportsBytes: 32 * 1024,
 };
 
 // Every rate-limit prefix that is keyed by a user ID. Account deletion removes the
@@ -34,6 +43,11 @@ export function userRateLimitKey(prefix: typeof userRateLimitPrefixes[number], u
 
 export function userRateLimitKeys(userId: string): RateLimitKey[] {
   return userRateLimitPrefixes.map((prefix) => userRateLimitKey(prefix, userId));
+}
+
+// Project-wide limits for public collection. No IP address or other identifier is stored.
+export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report"): RateLimitKey {
+  return `site:${name}` as RateLimitKey;
 }
 
 // better-auth keys its limits by IP address and path, not by a user ID.
