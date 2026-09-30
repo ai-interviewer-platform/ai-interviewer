@@ -7,6 +7,7 @@ import { operatorToken, siteHarness } from './site-harness.mjs';
 const site = await siteHarness('bugs', { BUG_REPORT_COLLECTION_APPROVED: 'true', FEEDBACK_COLLECTION_APPROVED: 'true', MEASUREMENT_COLLECTION_APPROVED: 'true', PERSONAL_DATA_COLLECTION_APPROVED: 'false' });
 const { pool, base, request, operator } = site;
 const report = (fields = {}) => ({ surface: 'sample', expected: 'The run shows test results.', actual: 'The run button spins forever.', steps: 'Open the sample, run tests.', diagnostics: { browser: 'Firefox', os: 'Linux', viewport: 'wide', viewportWidth: 1300, online: true, errors: ['TypeError'] }, ...fields });
+const edgeUserAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0';
 const records = async (query = '') => (await operator(`/api/bug-reports/records${query}`)).records;
 const authorization = { authorization: `Bearer ${operatorToken}` };
 try {
@@ -59,7 +60,8 @@ try {
 
   const browser = await launchBrowser({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+    // launchBrowser picks Edge or Chromium, so a fixed user agent keeps the detected browser the same.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', userAgent: edgeUserAgent });
     const page = await context.newPage();
     await page.route('**/api/measure', route => route.abort());
     await page.route('**/api/feedback', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Feedback outage."}' }));
@@ -78,7 +80,7 @@ try {
     assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'bug-expected', 'Focus moves to the first field');
     const shown = await page.locator('#bug-diagnostics').innerText();
-    for (const detail of [/Page\s+interview/, /Activity\s+sample/, /Browser\s+Chrome/, /Operating system\s+Linux/, /Viewport\s+wide, about 1300 px/, /Online\s+yes/, /Recent errors\s+.*TypeError/]) assert.match(shown, detail);
+    for (const detail of [/Page\s+interview/, /Activity\s+sample/, /Browser\s+Edge/, /Operating system\s+Linux/, /Viewport\s+wide, about 1300 px/, /Online\s+yes/, /Recent errors\s+.*TypeError/]) assert.match(shown, detail);
     assert.doesNotMatch(shown, /secret-detail|PRIVATE TRANSCRIPT/);
     assert.deepEqual((await new AxeBuilder({ page }).include('#site-support').analyze()).violations.map(item => item.id), []);
     await page.getByRole('button', { name: 'Send report' }).click();
@@ -101,8 +103,9 @@ try {
     const reference = saved.match(/BR-[0-9A-F]{8}/)[0];
     assert.match(saved, /private.*not posted publicly/i);
     const [row] = await records();
-    assert.deepEqual([row.reference, row.surface, row.feature, row.activity, row.contact_email, row.diagnostics.os, row.diagnostics.errors.includes('TypeError')], [reference, 'interview', 'practice', 'sample', 'person@example.invalid', 'Linux', true]);
-    assert.doesNotMatch(JSON.stringify(row), /secret-detail|PRIVATE TRANSCRIPT|HeadlessChrome|127\.0\.0\.1/);
+    assert.deepEqual([row.reference, row.surface, row.feature, row.activity, row.contact_email, row.diagnostics.browser, row.diagnostics.os, row.diagnostics.errors.includes('TypeError')], [reference, 'interview', 'practice', 'sample', 'person@example.invalid', 'Edge', 'Linux', true]);
+    assert.doesNotMatch(JSON.stringify(row), /secret-detail|PRIVATE TRANSCRIPT|127\.0\.0\.1/);
+    assert.ok(!JSON.stringify(row).includes(edgeUserAgent.split(' ')[0]) && !JSON.stringify(row).includes(edgeUserAgent.split(' ').at(-1)), 'The user-agent string is not stored');
     await page.keyboard.press('Escape');
 
     await toggle.click();
