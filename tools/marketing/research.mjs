@@ -6,6 +6,7 @@ import { EventEmitter } from 'node:events';
 import { discover, acquire, observe, classify, publicUrl, taxonomy, scoreRubrics, landingPage } from './research-providers.mjs';
 import { prepareVideo } from './media.mjs';
 import { captions } from './captions.mjs';
+import { syncIfConfigured } from './cloud.mjs';
 
 const initialContext = 'Coursay: Python coding interview practice for students and new graduates actively preparing for SWE interviews. Find related ads and short-form or long-form content about explaining, testing and revising solutions.';
 
@@ -105,6 +106,7 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
     run.stage = null;
     run.finishedAt = new Date().toISOString();
     await save(run);
+    await syncIfConfigured({ directory, env, fetch });
   }
   function launch(run) {
     const controller = new AbortController();
@@ -138,7 +140,7 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
       if (typeof runId !== 'string' || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(runId)) throw new Error('Monid run id required');
       const run = get(id), source = run.sources.find(item => item.id === sourceId);
       if (!source || source.classification) throw new Error('Unfinished source required');
-      source.jevRunId = runId; save(run); return run;
+      source.jevRunId = runId; save(run); await syncIfConfigured({ directory, env, fetch }); return run;
     },
     async resume(id) {
       if (active.has(id)) throw new Error('Run already active');
@@ -157,16 +159,18 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
       source.corrections ??= [];
       source.corrections.push({ field, ...(scored ? { type: 'score', score } : { type: 'choice', choice }), reason, reviewer, agreesWithModel: scored ? source.classification.answers[field]?.score === score : source.classification.answers[field]?.choice === choice, createdAt: new Date().toISOString() });
       await save(run);
+      await syncIfConfigured({ directory, env, fetch });
       return run;
     },
     async setContext(value) {
       if (typeof value !== 'string' || !value.trim()) throw new Error('Product/audience context required');
       await mkdir(directory, { recursive: true });
       await writeFile(join(directory, 'context.txt'), value.trim());
+      await syncIfConfigured({ directory, env, fetch });
     },
     async list() {
       await mkdir(directory, { recursive: true });
-      const files = (await readdir(directory)).filter(name => name.endsWith('.json'));
+      const files = (await readdir(directory)).filter(name => /^[a-f0-9-]+\.json$/.test(name));
       return Promise.all(files.map(file => get(file.slice(0, -5))));
     },
     async start({ query, numResults }) {

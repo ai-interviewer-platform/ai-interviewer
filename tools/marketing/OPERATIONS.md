@@ -24,7 +24,7 @@
 - Runs: `.local/marketing/research/<run-id>.json`; originals/playback/segments/posters: `research/media/`.
 - Embedding revisions: `research/embeddings/<revision-id>.json`; immutable source/evidence/label snapshots, input hash, modality, model, dimensions, usage and timestamp. Failed acquisition or embedding appends explicit unavailability and retains existing ready revisions. Browser responses omit vectors.
 - CLI `add/search/list` and browser now share `research/embeddings/`. Earlier CLI records under `.local/marketing/embeddings/` remain untouched; move reviewed JSON records into the shared directory if wanted.
-- Run JSON and evaluation JSON export locally. No automatic cloud sync or deletion. Back up the ignored `.local/marketing` directory yourself if needed; do not include the environment file when sharing.
+- Run JSON and evaluation JSON export locally. Configured Cloudflare archives sync after a run, correction, context change or embedding save and on CLI server start. See [Cloudflare recovery](CLOUD.md). No automatic deletion; credentials never enter the archive.
 - Source identity is based on the normalized original source URL (fragment removed); each capture/run is distinct. Extractor original URLs and page-reported canonical hints retain mirrored provenance without pretending different URLs are verified duplicates. Local uploads have their own IDs. Access is public without credentials/cookies, or operator-supplied local media.
 - Public views/likes/comments, when returned, are timestamped observed counters. They do not establish paid impressions, spend, conversions or virality. Missing metrics remain null.
 - Config remains `.env.marketing.local`. Covered-usage flags are operator acknowledgements, not billing guarantees. Provider-side quota/coupon controls remain necessary. Stop on exhausted coverage; no paid fallback. Cancel does not undo requests a provider already accepted.
@@ -38,3 +38,11 @@ Selected connectors cover accessible public media, not every platform's private 
 ## Design and motion
 
 `REFERENCE.md` preserves the supplied visual/motion contract. Analyze retains the reference dashboard. Library adds source indexing controls beside ranked evidence cards; evaluation adds a readable coverage table and reference disagreements. Same paper/gray palette, square borders, mono labels, snap updates and brief gray-to-ink arrival. Existing summary transitions and reduced motion remain. No simulated throughput, fake ads or copied demo metrics.
+
+## Strategy review
+
+Generation and independent claim audit each consume the selected direct Qwen model's quota. A provider failure stops the request; no automatic model fallback or approval occurs. Inspect saved briefs before retrying. A rejected brief retains its original model output and audit. Human review is still required after an audit passes.
+
+Before approving distribution, set `STRATEGY_LAUNCH_BASE_URL` to the actual public Coursay origin. Approval verifies the owner-configured primary action and current availability. No owner choice is inferred from a generated suggestion. An approved export remains an artifact for the owner to publish separately; no external publishing calls exist.
+
+Strategy panels retain the reference paper/gray palette, hairlines, mono status, short gray-to-ink arrival, keyboard forms and reduced-motion override. They adapt the layout for source selection, a readable brief and review/outcome forms rather than duplicating the analysis grid.

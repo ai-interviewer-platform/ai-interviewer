@@ -10,7 +10,12 @@
   },
   // keep_vars preserves dashboard variables (e.g. PERSONAL_DATA_COLLECTION_APPROVED) across deploys.
   "keep_vars": true,
-  "vars": { "BETTER_AUTH_URL": "https://ai-interviewer.jack-cao.workers.dev" },
+  "vars": {
+    "BETTER_AUTH_URL": "https://ai-interviewer.jack-cao.workers.dev",
+    "LANDING_PRIMARY_ACTION": "personal_practice",
+    "WAITLIST_COLLECTION_APPROVED": "true",
+    "WAITLIST_POLICY": "{\"version\":\"waitlist-2026-09-30\",\"contactPurpose\":\"Optional invitations to new Coursay practice features and voluntary product feedback. Joining is not required for current personal practice.\",\"operator\":\"Jack Cao\",\"contact\":\"jack.cao@utdallas.edu\",\"retention\":\"Entries are retained until withdrawal, the contact purpose is fulfilled, or the waitlist closes, whichever occurs first. Anonymous signup and withdrawal outcomes are retained until project retirement.\",\"processors\":\"Cloudflare hosts the application; Neon PostgreSQL stores waitlist records. Operator access is restricted to Jack Cao. Waitlist data is not sent to AI models. Analytics and heatmaps are off.\",\"deletion\":\"Use the original receipt to delete your entry, or contact jack.cao@utdallas.edu for access, export or deletion. Jack Cao deletes entries when their purpose is fulfilled or the waitlist closes. Deleted entries may remain in Neon recovery history until its configured expiry (currently 6 hours). Before a restored database is used, restored waitlist entries are erased and fresh opt-in is required.\",\"emailProvider\":\"none\",\"confirmation\":\"browser_receipt\"}"
+  },
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "737f5774922a4f44bdd83817b62a9ab3" }],
   // Reviews and text-mode interviewer replies (src/llm.ts). Always remote, even in wrangler dev.
   "ai": { "binding": "AI", "remote": true },

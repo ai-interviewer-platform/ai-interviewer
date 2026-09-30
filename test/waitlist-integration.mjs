@@ -1,0 +1,128 @@
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+import { mkdtemp, rm, readFile, mkdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join, resolve, extname, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { testDatabase } from './postgres-harness.mjs';
+import { launchBrowser } from './browser/launch.mjs';
+import AxeBuilder from '@axe-core/playwright';
+import ts from 'typescript';
+
+const directory = await mkdtemp(join(tmpdir(), 'waitlist-'));
+const { pool, drop } = await testDatabase('waitlist', { problemBank: false });
+try {
+  await build({ entryPoints: ['src/request-handler.ts'], outdir: directory, outExtension: { '.js': '.mjs' }, bundle: true, format: 'esm', platform: 'node' });
+  const { handleRequest } = await import(pathToFileURL(join(directory, 'request-handler.mjs')));
+  const origin = 'https://app.example';
+  const policy = { version: 'fixture-v1', contactPurpose: 'Fixture launch invitation only.', operator: 'Fixture operator', contact: 'privacy@example.invalid', retention: 'Until this isolated test ends.', processors: 'Isolated PostgreSQL fixture.', emailProvider: 'none', confirmation: 'browser_receipt', deletion: 'Receipt withdrawal deletes the email; operator handles lost receipts.' };
+  const env = { BETTER_AUTH_URL: origin, WAITLIST_COLLECTION_APPROVED: 'true', WAITLIST_POLICY: JSON.stringify(policy), WAITLIST_OPERATOR_TOKEN: 'fixture-operator-secret', LANDING_PRIMARY_ACTION: 'waitlist' };
+  const deployment = ts.parseConfigFileTextToJson('wrangler.jsonc', await readFile('wrangler.jsonc', 'utf8')).config.vars;
+  const request = (path, body, extra = {}, configured = env) => handleRequest(new Request(origin + path, { method: body === undefined ? 'GET' : 'POST', headers: { origin, 'content-type': 'application/json', ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), configured, {}, { database: () => pool, sessions: () => { throw Error('Waitlist must not require a personal session'); } });
+  const records = async () => (await (await request('/api/waitlist/records', undefined, { authorization: 'Bearer fixture-operator-secret' })).json()).records;
+  assert.equal((await request('/api/waitlist', { email: 'candidate@example.invalid', consent: true, policyVersion: policy.version }, {}, { ...env, WAITLIST_COLLECTION_APPROVED: 'false' })).status, 503);
+  assert.equal((await request('/api/waitlist/records')).status, 401);
+  assert.equal((await (await request('/api/landing-config', undefined, {}, { ...env, WAITLIST_POLICY: '{}' })).json()).waitlistEnabled, false);
+  const published = await (await request('/api/landing-config', undefined, {}, deployment)).json();
+  assert.equal(published.primaryAction, 'personal_practice');
+  assert.equal(published.waitlistEnabled, false, 'Operator secret is mandatory even with approved policy');
+  assert.equal(published.policy.operator, 'Jack Cao');
+  assert.equal(published.policy.contact, 'jack.cao@utdallas.edu');
+  assert.equal(published.policy.emailProvider, 'none');
+  assert.equal(published.policy.confirmation, 'browser_receipt');
+  assert.match(published.policy.retention, /withdrawal.*fulfilled.*closes/);
+  assert.match(published.policy.deletion, /6 hours.*restored.*fresh opt-in/);
+  assert.match(published.policy.processors, /Cloudflare.*Neon.*Jack Cao.*not sent to AI.*off/);
+  assert.equal((await (await request('/api/landing-config', undefined, {}, { ...deployment, WAITLIST_OPERATOR_TOKEN: env.WAITLIST_OPERATOR_TOKEN })).json()).waitlistEnabled, true);
+  const first = await request('/api/waitlist', { email: 'Candidate@example.invalid', consent: true, policyVersion: policy.version });
+  assert.equal(first.status, 200);
+  const receipt = await first.json();
+  assert.equal(receipt.accepted, true);
+  assert.equal((await records()).length, 1);
+  assert.equal((await records())[0].email, 'candidate@example.invalid');
+  const duplicate = await (await request('/api/waitlist', { email: 'candidate@example.invalid', consent: true, policyVersion: policy.version })).json();
+  assert.equal(duplicate.accepted, true);
+  assert.equal((await records()).length, 1);
+  await request('/api/waitlist/withdraw', { receipt: duplicate.receipt });
+  assert.equal((await records()).length, 1, 'Another signup must not grant access to the existing record');
+  assert.equal((await request('/api/waitlist/withdraw', { receipt: receipt.receipt })).status, 200);
+  assert.equal((await records()).length, 0);
+  assert.equal((await request('/api/waitlist', { email: 'bad', consent: true, policyVersion: policy.version })).status, 400);
+  assert.equal((await request('/api/waitlist', { email: 'candidate@example.invalid', consent: false, policyVersion: policy.version })).status, 400);
+  assert.equal((await request('/api/waitlist', { email: 'candidate@example.invalid', consent: true, policyVersion: 'stale' })).status, 409);
+  await request('/api/waitlist', { email: 'retention@example.invalid', consent: true, policyVersion: policy.version });
+  const retained = (await records())[0];
+  assert.equal((await request('/api/waitlist/records', { action: 'delete', id: retained.id })).status, 401);
+  assert.equal((await request('/api/waitlist/records', { action: 'delete', id: retained.id }, { authorization: 'Bearer fixture-operator-secret' })).status, 200);
+  assert.equal((await records()).length, 0);
+  console.log('PASS waitlist collection gate, independent persistence, duplicate privacy, receipt withdrawal, validation and private operator access');
+  const assets = resolve('public');
+  const types = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.html': 'text/html' };
+  let base;
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, base);
+    if (url.pathname.startsWith('/api/')) {
+      const chunks = []; for await (const chunk of req) chunks.push(chunk);
+      const response = await handleRequest(new Request(url, { method: req.method, headers: req.headers, ...(['GET', 'HEAD'].includes(req.method) ? {} : { body: Buffer.concat(chunks) }) }), { ...env, ...deployment, BETTER_AUTH_URL: base }, {}, { database: () => pool, sessions: () => { throw Error('No personal session'); } });
+      res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer())); return;
+    }
+    const path = resolve(assets, url.pathname === '/' ? 'index.html' : `.${url.pathname}`);
+    if (!path.startsWith(assets + sep)) { res.writeHead(404).end(); return; }
+    try { res.writeHead(200, { 'content-type': types[extname(path)] || 'application/octet-stream' }); res.end(await readFile(path)); }
+    catch { res.writeHead(404).end(); }
+  });
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  base = `http://127.0.0.1:${server.address().port}`;
+  const browser = await launchBrowser({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    await page.goto(base);
+    await page.locator('#waitlist-form').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#waitlist-policy').innerText(), /Jack Cao.*jack.cao@utdallas.edu/);
+    assert.match(await page.locator('#waitlist-purpose').innerText(), /not required for current personal practice/);
+    assert.match(await page.locator('#landing-title').innerText(), /Make your thinking/);
+    await page.evaluate(async () => { window.observed = []; const { setMeasurementAdapter } = await import('/measurement.js'); setMeasurementAdapter(event => { window.observed.push(event); throw Error('Analytics unavailable'); }); });
+    await page.locator('#waitlist-form button').click();
+    assert.equal(await page.locator('#waitlist-email').getAttribute('aria-invalid'), 'true');
+    await page.locator('#waitlist-email').fill('browser@example.invalid');
+    await page.locator('#waitlist-consent').check();
+    await page.route('**/api/waitlist', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture service unavailable; retry.' }) }));
+    await page.locator('#waitlist-form button').click();
+    await page.getByText('Fixture service unavailable; retry.').waitFor();
+    assert.equal(await page.locator('#waitlist-email').inputValue(), 'browser@example.invalid');
+    await page.unroute('**/api/waitlist');
+    await page.locator('#waitlist-form button').click();
+    await page.locator('#waitlist-success').waitFor({ state: 'visible' });
+    assert.equal((await records()).length, 1);
+    const event = await page.evaluate(() => window.observed.find(item => item.name === 'waitlist_request_accepted'));
+    assert.equal(event.authority, 'server'); assert.equal(event.activity, 'none'); assert.doesNotMatch(JSON.stringify(event), /browser@example|receipt|transcript|code/);
+    const firstBrowserReceipt = await page.locator('#waitlist-receipt').inputValue();
+    await page.reload();
+    await page.locator('#waitlist-form').waitFor({ state: 'visible' });
+    await page.locator('#waitlist-email').fill('second@example.invalid');
+    await page.locator('#waitlist-consent').check();
+    await page.locator('#waitlist-form button').click();
+    await page.locator('#waitlist-success').waitFor({ state: 'visible' });
+    assert.notEqual(await page.locator('#waitlist-receipt').inputValue(), firstBrowserReceipt, 'Different email retains its own valid receipt');
+    assert.equal((await records()).length, 2);
+    await page.locator('#waitlist-withdrawal summary').click();
+    assert.ok(await page.locator('#withdraw-receipt').inputValue());
+    await page.getByRole('button', { name: 'Withdraw interest', exact: true }).click();
+    await page.getByText(/Withdrawal processed/).waitFor();
+    assert.equal((await records()).length, 1);
+    await page.locator('#withdraw-receipt').fill(firstBrowserReceipt);
+    await Promise.all([page.waitForResponse(response => response.url().endsWith('/api/waitlist/withdraw')), page.getByRole('button', { name: 'Withdraw interest', exact: true }).click()]);
+    assert.equal((await records()).length, 0);
+    assert.deepEqual((await new AxeBuilder({ page }).include('.landing').analyze()).violations.map(item => item.id), []);
+    await mkdir('.local/marketing', { recursive: true });
+    await page.evaluate(() => { document.activeElement?.blur(); scrollTo(0, 0); });
+    await page.screenshot({ path: '.local/marketing/landing-desktop.png', fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: '.local/marketing/landing-mobile.png', fullPage: true });
+    assert.deepEqual((await new AxeBuilder({ page }).include('.landing').analyze()).violations.map(item => item.id), []);
+    console.log('PASS landing browser → real API/PostgreSQL persistence, retry after failure, receipt reload/withdrawal, analytics outage isolation, accessible desktop/mobile');
+  } finally { await browser.close(); await new Promise(done => server.close(done)); }
+} finally { await drop(); await rm(directory, { recursive: true, force: true }); }

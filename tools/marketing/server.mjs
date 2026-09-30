@@ -7,15 +7,19 @@ import { join } from 'node:path';
 import { mediaPath } from './media.mjs';
 import { research } from './research.mjs';
 import { library } from './library.mjs';
+import { strategy } from './strategy.mjs';
+import { syncIfConfigured } from './cloud.mjs';
 import { evaluate } from './evaluation.mjs';
 import { taxonomy, scoreRubrics } from './research-providers.mjs';
 
 export async function serve(options) {
+  options = { env: process.env, ...options };
   const app = research(options);
   const archive = library({ ...options, research: app });
+  const planner = strategy({ ...options, research: app });
   const libraryJobs = new Set();
   let origin;
-  const files = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
+  const files = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/strategy.js': ['strategy.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
   const server = createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -58,6 +62,12 @@ export async function serve(options) {
       }
       if (req.method === 'GET' && pathname === '/api/context') return json(200, { context: await app.getContext(), taxonomy, scoreRubrics });
       if (req.method === 'GET' && pathname === '/api/library') return json(200, await archive.list());
+      if (req.method === 'GET' && pathname === '/api/strategy') return json(200, planner.list());
+      if (req.method === 'GET' && pathname === '/api/cloud') {
+        if (!options.env.MARKETING_D1_DATABASE_ID) return json(200, { status: 'local-only' });
+        try { return json(200, JSON.parse(await readFile(join(options.directory, '.cloud-sync.json'), 'utf8'))); }
+        catch (error) { if (error.code !== 'ENOENT') throw error; return json(200, { status: 'pending' }); }
+      }
       if (req.method === 'GET' && pathname === '/api/runs') return json(200, await app.list());
       const report = pathname.match(/^\/api\/runs\/([a-f0-9-]+)\/report$/);
       if (req.method === 'GET' && report) return json(200, evaluate(app.get(report[1])));
@@ -78,6 +88,18 @@ export async function serve(options) {
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(415, { error: 'JSON required' });
       let raw = ''; for await (const chunk of req) raw += chunk;
       let body; try { body = JSON.parse(raw); } catch { return json(400, { error: 'Invalid JSON' }); }
+      const brief = pathname.match(/^\/api\/strategy\/([a-f0-9-]+)\/(review|outcomes)$/);
+      if (pathname === '/api/strategy/generate' || brief) {
+        const controller = new AbortController(); libraryJobs.add(controller);
+        res.once('close', () => controller.abort());
+        try {
+          const input = { ...body, signal: controller.signal };
+          const result = pathname === '/api/strategy/generate' ? await planner.generate(input)
+            : brief[2] === 'review' ? await planner.review(brief[1], input) : planner.outcome(brief[1], input);
+          await syncIfConfigured(options);
+          return json(200, result);
+        } finally { libraryJobs.delete(controller); }
+      }
       if (pathname === '/api/library/index' || pathname === '/api/library/search') {
         const controller = new AbortController(); libraryJobs.add(controller);
         res.once('close', () => controller.abort());

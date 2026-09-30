@@ -7,6 +7,9 @@ import { profileScreen } from './profile.js';
 import { mountPersonal } from './personal-adapter.js';
 import { pageFooter, legalScreen } from './legal.js';
 import { accountMenu, bindAccountMenus } from './account-menu.js';
+import { landingScreen, mountLanding } from './landing.js';
+
+if (!location.hash) history.replaceState(null, '', '#landing');
 
 const app = document.querySelector('#app');
 const drawer = document.querySelector('#problem-drawer');
@@ -102,12 +105,12 @@ function currentExercise() { return exercises[activeAttempt().problem]; }
 
 function chrome(content, workspace = false) {
   const navItem = (label, path) => {
-    const destination = path === 'sessions' || (accountUser && ['welcome', 'roadmap'].includes(path)) ? `personal?page=${{ welcome: 'home', roadmap: 'catalog', sessions: 'sessions' }[path]}` : path;
-    const current = destination === path && route.page === path;
+    const destination = path === 'sessions' || (accountUser && ['welcome', 'roadmap'].includes(path)) ? `personal?page=${{ welcome: 'home', roadmap: 'catalog', sessions: 'sessions' }[path]}` : path === 'welcome' ? 'landing' : path;
+    const current = route.page === destination;
     return link(label, destination, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
   };
   return `<div class="app-shell" data-nav="top"><div class="floating-nav"><header class="app-header">
-    ${brandWordmark().replace('href="#welcome"', accountUser ? 'href="#personal?page=home"' : 'href="#welcome"')}
+    ${brandWordmark().replace('href="#welcome"', accountUser ? 'href="#personal?page=home"' : 'href="#landing"')}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
     <nav class="nav-account" aria-label="Account">${accountMenu(accountUser)}</nav>
   </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
@@ -119,6 +122,7 @@ function chrome(content, workspace = false) {
 let accountUser = null;
 let leftPersonal = false;
 let unmountPersonal;
+let unmountLanding;
 function refreshAccountLabel() {
   fetch('/api/auth/get-session', { credentials: 'same-origin' }).then(response => response.ok ? response.json() : null).catch(() => null).then(session => {
     accountUser = session?.user ?? null;
@@ -298,6 +302,8 @@ function system() {
 }
 
 function render(navigation = false) {
+  unmountLanding?.();
+  unmountLanding = undefined;
   const focused = document.activeElement;
   const focusId = focused?.id;
   const focusAction = focused?.getAttribute('data-action');
@@ -334,12 +340,13 @@ function render(navigation = false) {
   const requestedProblem = route.params.get('problem');
   if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
   if (route.page === 'review' && !isSample()) { state.reviewOpened = true; persist(); }
-  const screens = { 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
+  const screens = { landing: landingScreen, 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
   navbarObserver.disconnect();
   roadmapObserver.disconnect();
   app.innerHTML = chrome((screens[route.page] ?? welcome)(), workspacePage);
+  if (route.page === 'landing') unmountLanding = mountLanding(app.querySelector('.landing'));
   if (navigation) document.querySelectorAll('.home-layout > section, .profile-panel, .session-row, .setup-grid > *, .preferences-content').forEach((element, index) => { element.classList.add('enter'); element.style.setProperty('--i', index); });
   document.querySelector('#main').classList.toggle('roadmap-main', route.page === 'roadmap');
   const graph = document.querySelector('.road-grid');

@@ -91,3 +91,17 @@ A budget of voice seconds held for one voice connection to an Attempt.
 **Sample**:
 The fictional practice flow that needs no account and records nothing.
 _Avoid_: prototype, demo
+
+### Content research
+
+**Source observation**:
+A description of visible content or a caption tied to its original source and a region or time range. It does not establish performance.
+
+**Content hypothesis**:
+A proposed explanation of how an observed structure might help communicate Coursay. It is not a measured outcome.
+
+**Campaign brief**:
+A proposal linking source observations, supported product facts, an original script and a measurement definition. Approval records human review, the owner's production and distribution choices, and the actual launch action.
+
+**Experiment outcome**:
+An operator-reported measurement and feedback, with an evidence reference and a proposed change for the next campaign brief.

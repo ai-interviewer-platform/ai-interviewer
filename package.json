@@ -19,6 +19,7 @@
     "test": "node --test test/*.test.mjs",
     "test:browser": "node test/browser/app-check.mjs",
     "test:discovery": "node test/browser/discovery-check.mjs",
+    "test:waitlist": "node --env-file-if-exists=.dev.vars test/waitlist-integration.mjs",
     "lint": "oxlint src scripts test public --ignore-pattern public/voice-agent.js --deny-warnings",
     "runner:build": "node scripts/python-runner/build.mjs",
     "runner:dev": "node scripts/python-runner/dev.mjs",
