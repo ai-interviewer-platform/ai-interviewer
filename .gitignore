@@ -26,3 +26,16 @@ worker-configuration.d.ts
 *.log
 .neon
 .claude/worktrees/
+
+# Agent scratch, research downloads, and generated browser output.
+/.scratch/
+/.firecrawl/
+/public/voice-agent.js
+**/.thumbnail
+
+# Machine-local editor/agent state; shared skills stay tracked.
+/.claude/settings.local.json
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

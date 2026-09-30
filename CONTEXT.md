@@ -88,9 +88,39 @@ A budget of voice seconds held for one voice connection to an Attempt.
 
 ### Surfaces
 
+**Personal practice**:
+Practice whose Attempts and Evidence belong to the signed-in Candidate.
+_Avoid_: live demo, real mode
+
 **Sample**:
 The fictional practice flow that needs no account and records nothing.
 _Avoid_: prototype, demo
+
+### Access and consent
+
+**Account**:
+The identity a Candidate uses to access their personal practice records.
+
+**Sign-in session**:
+An authenticated period of access to an Account; it can span multiple Attempts.
+_Avoid_: Attempt, practice session
+
+**Collection policy**:
+The approved purpose, disclosures, access, retention, and deletion rules for a
+particular kind of collected record. Approval for one kind does not approve another.
+
+**Operator**:
+The person authorized to inspect aggregate reports and privately triage collected
+feedback, bug reports, and waitlist records.
+_Avoid_: Interviewer, Candidate
+
+**Waitlist entry**:
+A person's consented request for contact about Coursay. It is separate from an
+Account and grants no access to personal practice.
+
+**Withdrawal receipt**:
+The proof given when joining the waitlist that permits withdrawal of that entry.
+_Avoid_: password, sign-in token
 
 ### Measurement
 

@@ -8,7 +8,7 @@
 .session-row { padding: 1rem; margin: 0; }
 .session-row:last-child { border-bottom: 0; }
 .session-table { border: 0; }
-/* Geometry and materials from docs/revised_design/Roadmap.dc.html. */
+/* Geometry and materials from docs/design/reference/roadmap.dc.html. */
 .roadmap-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
 .road-graph { background: linear-gradient(180deg,var(--plane-lit),var(--plane)); border-radius: var(--radius-pane); box-shadow: var(--ring),var(--light-top),var(--shadow-contact); overflow: hidden; }
 .graph-stages { display: grid; grid-template-columns: repeat(3,1fr); padding: 14px 24px; box-shadow: inset 0 -1px 0 var(--divider); }

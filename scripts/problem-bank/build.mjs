@@ -1,6 +1,6 @@
 // Regenerates migrations/0005_problem_bank.sql from pinned public datasets.
 // Reference solutions run only inside a disposable, network-less container.
-// See docs/problem-bank.md for sources, licenses, and selection rules.
+// See docs/reference/problem-bank.md for sources, licenses, and selection rules.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

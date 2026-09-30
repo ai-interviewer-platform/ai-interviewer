@@ -1,5 +1,8 @@
 # AGENTS.md
 
+When adding or moving repository files, follow [the repository guide](docs/README.md).
+Keep domain terms in `CONTEXT.md`, contracts in their owning docs, and work status in the issue tracker.
+
 ## Agent skills
 
 ### Issue tracker

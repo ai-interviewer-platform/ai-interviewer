@@ -17,7 +17,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$ENV_BUNDLE_GPG_BASE64" ]]; then
-            echo '::error::Set ENV_BUNDLE_GPG_BASE64 using docs/sharing-development-env.md first.'
+            echo '::error::Set ENV_BUNDLE_GPG_BASE64 using docs/operations/sharing-development-env.md first.'
             exit 1
           fi
           umask 077
@@ -38,6 +38,6 @@ jobs:
           Download **coursay-development-env** from this run's artifacts.
           It contains an encrypted archive of `.env` and `.dev.vars`.
           Obtain the passphrase separately from the maintainer, then follow
-          `docs/sharing-development-env.md` to decrypt into a staging folder.
+          `docs/operations/sharing-development-env.md` to decrypt into a staging folder.
           Expiration follows this repository's artifact-retention settings.
           NOTICE
