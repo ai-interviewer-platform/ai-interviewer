@@ -28,6 +28,10 @@ export interface Env {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   PERSONAL_DATA_COLLECTION_APPROVED?: string;
+  LANDING_PRIMARY_ACTION?: string;
+  WAITLIST_COLLECTION_APPROVED?: string;
+  WAITLIST_POLICY?: string;
+  WAITLIST_OPERATOR_TOKEN?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;

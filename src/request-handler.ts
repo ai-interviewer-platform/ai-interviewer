@@ -8,6 +8,7 @@ import { boundedRequest, checkOrigin, json, serverUnavailable, unauthorized } fr
 import { logOperationalEvent } from "./observability";
 import { runtimeCapabilities } from "./runtime-config";
 import { consumeRate, userRateLimitKey } from "./security";
+import { waitlistRequest } from "./waitlist";
 
 // The signed-in user of a request. Production uses better-auth; tests pass a fake.
 export interface SessionResolver {
@@ -51,6 +52,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const url = new URL(request.url);
   if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
   if (url.pathname === "/api/personal-availability" && request.method === "GET") return availability(env);
+  if (url.pathname === '/api/landing-config' || url.pathname === '/api/waitlist' || url.pathname.startsWith('/api/waitlist/')) return waitlistRequest(request, env, dependencies.database);
   if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
   const originError = checkOrigin(request, env.BETTER_AUTH_URL);
   if (originError) return originError;

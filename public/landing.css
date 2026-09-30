@@ -1,0 +1,23 @@
+.landing { display: grid; gap: 4rem; max-width: 1240px; margin-inline: auto; }
+.landing-hero { display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 3rem; padding-block: 2rem; }
+.landing h1 { font-family: var(--font-display, 'Gabarito', sans-serif); font-size: clamp(2.5rem, 5vw, 4.5rem); }
+.landing-evidence { min-width: 0; border: 1px solid var(--divider); border-radius: var(--radius-pane); background: var(--surface); box-shadow: var(--shadow-contact); overflow: hidden; }
+.landing-evidence-label { padding: 1rem 1.25rem; font-size: var(--text-small); border-bottom: 1px solid var(--divider); color: var(--muted); }
+.landing-evidence pre { margin: 0; padding: 1.5rem 1.25rem; background: var(--recess); font-size: 0.8rem; white-space: pre-wrap; }
+.landing-finding { padding: 1.5rem; border-left: 2px solid var(--accent); }
+.landing-finding h2 { margin-top: 0.7rem; }
+.landing-loop ol { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+.landing-loop li { border-top: 1px solid var(--divider); padding-top: 1.5rem; }
+.landing-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; }
+.landing details { border-top: 1px solid var(--divider); padding-block: 1rem; }
+.landing summary { cursor: pointer; font-weight: 500; padding-block: 0.25rem; }
+.landing details p { margin: 1rem 0 0; }
+.landing-waitlist { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-pane); padding: 2rem; }
+.landing form { display: grid; gap: 0.8rem; }
+.landing input:not([type=checkbox]), .landing textarea { box-sizing: border-box; width: 100%; padding: 0.75rem; color: var(--text); background: var(--input); border: 1px solid var(--control-border); border-radius: var(--radius-control); }
+.landing-consent { display: flex; align-items: flex-start; gap: 0.65rem; font-size: var(--text-small); line-height: 1.6; }
+.landing-consent input { flex: 0 0 auto; margin-top: 0.25rem; }
+.landing [role=alert] { color: var(--error); margin: 0; }
+.landing #waitlist-withdraw-form { padding-top: 1rem; }
+.landing label { font-size: var(--text-small); }
+@media (max-width: 800px) { .landing-hero, .landing-bottom { grid-template-columns: 1fr; gap: 2rem; } .landing-loop ol { grid-template-columns: 1fr; gap: 1rem; } .landing { gap: 2rem; } .landing-waitlist { padding: 1.25rem; } }
