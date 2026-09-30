@@ -93,10 +93,14 @@ async function report(pool: Pool, env: Env, start: Date, end: Date) {
     FROM waitlist_outcomes WHERE occurred_at >= $1 AND occurred_at < $2`, window);
   const heatmap = await pool.query(`SELECT viewport, zone, cell_x AS x, cell_y AS y, count(*)::int AS clicks FROM measurement_events
     WHERE name = 'landing_click' AND received_at >= $1 AND received_at < $2 GROUP BY 1, 2, 3, 4 ORDER BY 1, 2, 3, 4`, window);
+  // Counts of preset answers and operator categories only: comments stay in feedback triage.
+  const feedbackThemes = await pool.query(`SELECT feature, question_id AS "questionId", question_version AS "questionVersion", answer, category,
+      count(*)::int AS responses, count(response_text)::int AS "withComment"
+    FROM feedback_responses WHERE created_at >= $1 AND created_at < $2 GROUP BY 1, 2, 3, 4, 5 ORDER BY 1, 2, 3, 4, 5`, window);
   return {
     window: { start: window[0], end: window[1], clock: 'server receipt time' },
     events: events.rows, landing: landing.rows[0], personalCohort: cohort.rows[0], waitlist: waitlist.rows[0], heatmap: heatmap.rows,
-    experiment: await experimentReport(pool, env, end),
+    feedbackThemes: feedbackThemes.rows, experiment: await experimentReport(pool, env, end),
     limitations: measurementLimitations,
   };
 }

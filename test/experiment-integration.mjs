@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { launchBrowser } from './browser/launch.mjs';
 import { assignVariant, variantVersion } from '../public/experiment.js';
 import { operatorToken, siteHarness } from './site-harness.mjs';
+import { aggregateFrom } from '../tools/marketing/strategy.mjs';
 
 const policy = { version: 'fixture-v1', contactPurpose: 'Fixture invitation only.', operator: 'Fixture operator', contact: 'privacy@example.invalid', retention: 'Until the test ends.', processors: 'Isolated fixture.', emailProvider: 'none', confirmation: 'browser_receipt', deletion: 'Receipt withdrawal.' };
 const treatmentCopy = 'See what your practice shows.';
@@ -151,6 +153,12 @@ try {
     assert.match(text, /95% interval/);
     assert.match(text, /Naming the evidence raises waitlist intent/);
     assert.deepEqual((await new AxeBuilder({ page: inspect }).include('#main').analyze()).violations.map(item => item.id), []);
-    console.log('PASS operator experiment report');
+    const download = inspect.waitForEvent('download');
+    await inspect.getByRole('button', { name: 'Download aggregate report (JSON)' }).click();
+    const file = await download;
+    assert.match(file.suggestedFilename(), /^coursay-report-.*\.json$/);
+    const aggregate = aggregateFrom(JSON.parse(await readFile(await file.path(), 'utf8')));
+    assert.ok(aggregate.landing.documents > 0, 'The local content-planning tool imports the downloaded report');
+    console.log('PASS operator experiment report and an aggregate download the content-planning tool imports');
   } finally { await browser.close(); }
 } finally { await site.close(); }

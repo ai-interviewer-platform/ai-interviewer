@@ -66,8 +66,11 @@ function reportMarkup(report) {
     ${table('Waitlist outcomes', [['joined', 'Joined'], ['withdrawn', 'Withdrawn']], [report.waitlist])}
     ${experimentMarkup(report.experiment)}
     <h2>Landing heatmap</h2>${heatmap(report.heatmap)}
+    <h2>Feedback themes</h2><p>Preset answers and operator categories only. Comments stay in feedback triage.</p>
+    ${table('Feedback responses by answer and category', [['feature', 'Feature'], ['questionId', 'Question'], ['questionVersion', 'Version'], ['answer', 'Answer'], ['category', 'Category'], ['responses', 'Responses'], ['withComment', 'With comment']], report.feedbackThemes)}
     <h2>All events</h2>${table('Events by name and surface', [['name', 'Event'], ['surface', 'Surface'], ['activity', 'Activity'], ['action', 'Action'], ['authority', 'Authority'], ['events', 'Events'], ['documents', 'Documents'], ['duplicates', 'Duplicates'], ['withoutDocument', 'Without document']], report.events)}
-    <h2>Limitations</h2><ul>${report.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
+    <h2>Limitations</h2><ul>${report.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>
+    <button class="button secondary" type="button" data-download-report>Download aggregate report (JSON)</button>`;
 }
 
 const option = (value, selected, label = value) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(label)}</option>`;
@@ -152,6 +155,15 @@ export function mountOperator(root) {
       button.parentElement.textContent = 'No reply address';
       status.textContent = 'Reply address erased.';
     } catch (error) { status.textContent = error.message; }
+  });
+  // The aggregate report for content planning (tools/marketing): aggregates and the experiment contract, no records.
+  root.querySelector('#operator-report').addEventListener('click', event => {
+    if (!event.target.closest('[data-download-report]')) return;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(view.report, null, 2)], { type: 'application/json' }));
+    link.download = `coursay-report-${view.report.window.start.slice(0, 10)}-${view.report.window.end.slice(0, 10)}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href));
   });
   root.querySelector('#operator-form').addEventListener('submit', async event => {
     event.preventDefault();

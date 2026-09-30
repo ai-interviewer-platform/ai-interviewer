@@ -51,7 +51,10 @@ Sample events stay `activity: sample` and never count as personal practice.
 - **Waitlist**: `waitlist_joined` and `waitlist_withdrawn` server outcomes in the window.
 - **Events**: counts per name, surface, activity, action and authority, with distinct documents, resent `duplicates` (same event UUID; stored once) and `withoutDocument` (missing exposure).
 - **Heatmap**: landing clicks per viewport, zone and cell.
+- **Feedback themes**: feedback responses (#21) in the window counted by feature, question version, preset answer and operator category, with how many have a comment. Comments stay in triage.
 - **Experiment**: the configured landing experiment (#24), or its contract problems. See `docs/landing-experiments.md`.
+
+**Download aggregate report (JSON)** in `#operator` saves this report for the local content-planning tool (#25). It holds aggregates and the experiment contract, no records.
 
 The report never calculates a rate between client documents and server outcomes: they are not joined. Click intent is never counted as persisted success. The `limitations` list comes with every report.
 
