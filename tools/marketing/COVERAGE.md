@@ -10,7 +10,12 @@ Live calls use configured direct Exa/Firecrawl/Alibaba accounts and Jev-only Mon
 | Integrated Tongyi retrieval | Existing uploaded demo poster indexed through local API, 1,152 dimensions; text query returned the original source ID and linked evidence | Poster only, explicitly labeled; no full-video semantic claim |
 | Gemini embedding adapter | Fixture text/image/video contracts and failed-revision retention pass | Earlier authenticated call returned HTTP 402; no repeated charge attempt or fallback |
 
-Operator-approved additional coverage: one real ad plus one short-form video. Run `556332c3-39d3-4722-81e0-7cc8cbdd43ca` is processing [Future You Thanks You](https://www.youtube.com/watch?v=scZVLCB1aX0), discovered by Exa. Final receipts and reference comparisons will be appended after completion. This row does not yet establish a completed pipeline.
+## Additional operator-scoped live verification
+
+One real ad plus one short-form video was the approved scope. Exa discovered [Future You Thanks You — Write Your Future With Grammarly](https://www.youtube.com/watch?v=scZVLCB1aX0). Run `556332c3-39d3-4722-81e0-7cc8cbdd43ca` completed automated acquisition → Qwen → caption extraction → Jev: 98.89s native video, six size-derived segments, 43 timed visual observations, 45 English publisher-caption cues and twelve judgments. Acquisition used the public yt-dlp fallback. End-to-end elapsed 779.327s; acquisition 109.593s, vision 661.307s, Jev 3.765s. Reported Exa cost $0.007 and Jev $0.000647; other dollar costs unavailable.
+
+The first short-form query returned a NeetCode channel index, not an individual clip. It remains a page-only capture, never counted as full short-form video proof. A narrowed live Exa query (`site:youtube.com/shorts/ NeetCode coding interview advice`) found [How to Solve LeetCode Problems in Interviews](https://www.youtube.com/shorts/RJ_LfFS_94o). The actual Exa response/receipt was saved and reused for the acquisition run, avoiding a duplicate search request. Run `43743251-1c55-4b74-832a-4d6a8389a202` completed: 60.08s native video, five size-derived segments, 48 timed visual observations, 26 English automatic-caption cues and twelve Jev judgments. Automatic captions remain explicitly fallible. Elapsed 745.914s; acquisition 94.667s, vision 644.198s, captions 4.212s and Jev 2.806s. Qwen returned 66,200 total tokens across the segments under the confirmed coupon. Exa reported $0.007 and Jev $0.000656. The channel-index discovery was a separate $0.007 Exa request; it is not counted as a verified Short.
+
 
 ## Interpretation
 
@@ -31,3 +36,7 @@ Compared stored Jev judgments against an independent reading of the tutorial's t
 Observed: 2 agreements, 1 disagreement. Inspect opening evidence before trusting a hook label; retain original judgment and reviewer rationale. No prompt was tuned just to force these examples to agree.
 
 Tutorial run measured 285.693s end-to-end: acquisition 10.671s, vision 272.343s, Jev 2.665s. Qwen returned 206,902 total tokens under the confirmed coupon; no dollar receipt. Jev reported $0.000306. Exa/Firecrawl/Qwen dollar costs are not inferred when absent. The UI's current report can repeat comparisons on operator-entered references and exports provenance/receipts alongside them.
+
+## Completion checks
+
+86 local tests passed, no skips, with FFmpeg enabled. Typecheck, lint, browser/API/workflow tests, reduced motion, desktop/mobile layouts and axe checks passed. Standards review: no findings. Spec review: segment-lineage defect fixed and regression-tested; final pass. Production dry-run excluded the research UI/API/models; only the existing public app is deployable. The separate local tool remains operator-triggered.

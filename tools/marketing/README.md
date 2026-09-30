@@ -1,6 +1,6 @@
 # Local marketing research
 
-Local workflow for [01](https://github.com/ai-interviewer-platform/ai-interviewer/issues/17), with embedding CLI foundation for [02](https://github.com/ai-interviewer-platform/ai-interviewer/issues/18). See [operator workflow](OPERATIONS.md) for captions, indexing, retrieval and evaluation; [coverage evidence](COVERAGE.md) separates live proof from fixtures.
+Local workflow for [01](https://github.com/ai-interviewer-platform/ai-interviewer/issues/17), with integrated multimodal retrieval for [02](https://github.com/ai-interviewer-platform/ai-interviewer/issues/18). See [operator workflow](OPERATIONS.md) for captions, indexing, retrieval and evaluation; [coverage evidence](COVERAGE.md) separates live proof from fixtures.
 
 ## Keys
 
@@ -59,7 +59,7 @@ Use only authorized public research material; no candidate recordings/code. Text
 ## Architecture
 
 ```text
-Local operator / future local acquisition workflow
+Local discovery / operator imports
                   |
        source + segment + evidence + Jev labels
                   |
