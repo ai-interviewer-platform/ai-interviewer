@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
 import type { Env } from './env';
+import { experimentConfig } from './experiment';
 import { badRequest, boundedRequest, checkOrigin, isEmailAddress, json, requestBody } from './http';
+import { measurementEnabled } from './measurement';
 import { isOperator, operatorRequired } from './operator';
 
 type Policy = { version: string; contactPurpose: string; operator: string; contact: string; retention: string; processors: string; emailProvider: 'none'; confirmation: 'browser_receipt'; deletion: string };
@@ -14,7 +16,7 @@ export function landingConfig(env: Env) {
     }
   } catch { /* Invalid or incomplete policy keeps collection closed. */ }
   const primaryAction = ['waitlist', 'personal_practice'].includes(env.LANDING_PRIMARY_ACTION || '') ? env.LANDING_PRIMARY_ACTION : null;
-  return { primaryAction, waitlistEnabled: env.WAITLIST_COLLECTION_APPROVED === 'true' && policy !== null && Boolean(env.WAITLIST_OPERATOR_TOKEN), policy };
+  return { primaryAction, waitlistEnabled: env.WAITLIST_COLLECTION_APPROVED === 'true' && policy !== null && Boolean(env.WAITLIST_OPERATOR_TOKEN), policy, experiment: experimentConfig(env, measurementEnabled(env)) };
 }
 
 async function hash(value: string) {

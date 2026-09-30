@@ -5,9 +5,10 @@ import { actions, activities, eventNames, pageActivity, queueLimit } from './mea
 // browser sends neither Global Privacy Control nor Do Not Track.
 let adapter;
 // Random per page load: links the events of one document, never a person. A reload is a new document.
-const documentExposureId = crypto.randomUUID();
+export const documentExposureId = crypto.randomUUID();
+export const measurementOptedOut = () => navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
 export function setMeasurementAdapter(value) { adapter = typeof value === 'function' ? value : undefined; }
-export function measure(name, { surface = 'landing', activity = 'none', action = 'none', authority = 'client', zone, cellX, cellY, viewport } = {}) {
+export function measure(name, { surface = 'landing', activity = 'none', action = 'none', authority = 'client', zone, cellX, cellY, viewport, experiment, variant, variantVersion, eligibility } = {}) {
   if (!eventNames.includes(name) || !Object.hasOwn(pageActivity, surface)) return;
   const event = {
     version: 'coursay-outcomes-v1', id: crypto.randomUUID(), name, surface,
@@ -16,11 +17,12 @@ export function measure(name, { surface = 'landing', activity = 'none', action =
     authority: authority === 'server' ? 'server' : 'client', attribution: 'unknown',
     exposureId: documentExposureId,
     ...(name === 'landing_click' ? { zone, cellX, cellY, viewport } : {}),
+    ...(name === 'experiment_exposed' ? { experiment, variant, variantVersion, eligibility } : {}),
   };
   try { Promise.resolve(adapter?.(event)).catch(() => {}); } catch { /* Measurement never gates product work. */ }
 }
 export function startFirstPartyMeasurement() {
-  if (navigator.globalPrivacyControl === true || navigator.doNotTrack === '1') return;
+  if (measurementOptedOut()) return;
   // Events wait for the server decision, then are sent or dropped.
   const queued = [];
   const queue = event => { if (queued.length < queueLimit) queued.push(event); };

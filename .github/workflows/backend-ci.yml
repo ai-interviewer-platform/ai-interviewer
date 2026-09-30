@@ -52,6 +52,7 @@ jobs:
           node test/request-pipeline-integration.mjs
           node test/waitlist-integration.mjs
           node test/measurement-integration.mjs
+          node test/experiment-integration.mjs
           node test/feedback-integration.mjs
           node test/bug-report-integration.mjs
           node test/attempt-timeline-integration.mjs

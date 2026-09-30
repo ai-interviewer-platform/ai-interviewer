@@ -102,6 +102,16 @@ _Avoid_: visitor, user, session
 One allowlisted record of a page view, interaction or outcome. It never identifies a person.
 _Avoid_: tracking, analytics hit
 
+**Landing experiment**:
+A pre-registered randomized comparison of a control and one treatment wording of the landing page, assigned by Document. Its result is an interval or an inconclusive result, never an automatic winner.
+_Avoid_: A/B winner, split test
+
+**Variant**:
+The control or the treatment of a Landing experiment. Its version changes with its copy.
+
+**Eligible exposure**:
+A Document that showed its assigned Variant and is neither automated nor internal. Only eligible exposures enter the comparison.
+
 ### Site feedback
 
 **Feedback response**:
