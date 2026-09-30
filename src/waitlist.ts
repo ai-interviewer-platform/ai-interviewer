@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type { Env } from './env';
-import { badRequest, boundedRequest, checkOrigin, json, requestBody } from './http';
+import { badRequest, boundedRequest, checkOrigin, isEmailAddress, json, requestBody } from './http';
 import { isOperator, operatorRequired } from './operator';
 
 type Policy = { version: string; contactPurpose: string; operator: string; contact: string; retention: string; processors: string; emailProvider: 'none'; confirmation: 'browser_receipt'; deletion: string };
@@ -49,7 +49,7 @@ export async function waitlistRequest(request: Request, env: Env, database: () =
     }
     if (path === '/api/waitlist') {
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return badRequest('Enter an email address, such as name@example.com.');
+      if (!isEmailAddress(email)) return badRequest('Enter an email address, such as name@example.com.');
       if (body.consent !== true) return badRequest('Agree to the stated contact purpose to join.');
       if (body.policyVersion !== config.policy!.version) return json({ error: 'The waitlist notice changed. Reload it before joining.' }, { status: 409 });
       const receipt = crypto.randomUUID();

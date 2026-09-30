@@ -5,6 +5,7 @@ import type { Env } from './env';
 import { badRequest, boundedRequest, checkOrigin, json, notFound, requestBody, serverUnavailable } from './http';
 import { isOperator, operatorRequired } from './operator';
 import { consumeRate, limits, siteRateLimitKey } from './security';
+import { listTriageRecords } from './triage';
 
 const columns = 'id, question_id, question_version, feature, surface, activity, answer, response_text, category, status, resolution, created_at, updated_at';
 const unavailable = () => serverUnavailable('Feedback could not be saved. Your answer is still here; try again.');
@@ -20,7 +21,7 @@ export async function feedbackRequest(request: Request, env: Env, database: () =
   if (!operatorPath && !feedbackEnabled(env)) return serverUnavailable('Feedback is not being collected.');
   const originError = checkOrigin(request, env.BETTER_AUTH_URL);
   if (originError) return originError;
-  if (operatorPath && request.method === 'GET') return listRecords(database(), url.searchParams);
+  if (operatorPath && request.method === 'GET') return listTriageRecords(database(), 'feedback_responses', columns, url.searchParams, { status: feedbackStatuses, feature: Object.keys(feedbackQuestions), surface: Object.keys(pageFeature), category: feedbackCategories });
   if (request.method !== 'POST') return notFound();
   const bounded = await boundedRequest(request, limits.feedbackBytes);
   if (bounded instanceof Response) return bounded;
@@ -47,25 +48,6 @@ async function save(pool: Pool, body: Record<string, unknown>) {
   await pool.query(`INSERT INTO feedback_responses (id, question_id, question_version, feature, surface, activity, answer, response_text)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [crypto.randomUUID(), question.id, question.version, question.feature, surface, pageActivity[surface as keyof typeof pageActivity], answer, text || null]);
   return json({ saved: true }, { status: 201 });
-}
-
-async function listRecords(pool: Pool, query: URLSearchParams) {
-  const filters: Record<string, readonly string[]> = { status: feedbackStatuses, feature: Object.keys(feedbackQuestions), surface: Object.keys(pageFeature), category: feedbackCategories };
-  const conditions: string[] = [];
-  const values: string[] = [];
-  for (const [name, allowed] of Object.entries(filters)) {
-    const value = query.get(name);
-    if (value === null || value === '') continue;
-    if (!allowed.includes(value)) return badRequest(`Unknown ${name}.`);
-    values.push(value);
-    conditions.push(`${name} = $${values.length}`);
-  }
-  try {
-    const records = await pool.query(`SELECT ${columns} FROM feedback_responses ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT 200`, values);
-    return json({ records: records.rows });
-  } catch {
-    return unavailable();
-  }
 }
 
 async function triage(pool: Pool, body: Record<string, unknown>) {

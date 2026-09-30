@@ -1,3 +1,4 @@
+import { bugStatuses, bugSurfaces, diagnosticLabels } from './bug-report-contract.js';
 import { feedbackCategories, feedbackQuestions, feedbackStatuses, pageFeature } from './feedback-questions.js';
 import { heatGridSize } from './measurement-contract.js';
 
@@ -51,6 +52,43 @@ function feedbackMarkup(records) {
     <div class="actions"><button class="button secondary small" type="submit">Save triage</button><p role="status"></p></div></form>`).join('');
 }
 
+function bugMarkup(records) {
+  if (!records.length) return '<p>No bug reports match these filters.</p>';
+  return records.map((record, index) => `<form class="triage-record setup-form" data-id="${esc(record.id)}"><p class="small muted"><strong>${esc(record.reference)}</strong> · ${esc(record.created_at)} · ${esc(record.surface)} · ${esc(record.activity)}</p>
+    <dl><dt>Expected</dt><dd>${esc(record.expected)}</dd><dt>Actual</dt><dd>${esc(record.actual)}</dd>${record.steps ? `<dt>Steps</dt><dd>${esc(record.steps)}</dd>` : ''}
+      ${Object.entries(record.diagnostics).map(([key, value]) => `<dt>${esc(diagnosticLabels[key] ?? key)}</dt><dd>${esc(Array.isArray(value) ? value.join(', ') || 'none' : value)}</dd>`).join('')}
+      <dt>Reply</dt><dd>${record.contact_email ? `${esc(record.contact_email)} (${esc(record.contact_purpose)}) <button class="button quiet small" type="button" data-erase-contact>Erase reply address</button>` : 'No reply address'}</dd></dl>
+    ${select(`bug-${index}-status`, 'status', 'Status', bugStatuses, record.status)}
+    <label for="bug-${index}-investigation">Investigation</label><textarea id="bug-${index}-investigation" name="investigation" rows="2">${esc(record.investigation ?? '')}</textarea>
+    <label for="bug-${index}-resolution">Resolution</label><textarea id="bug-${index}-resolution" name="resolution" rows="2">${esc(record.resolution ?? '')}</textarea>
+    <div class="actions"><button class="button secondary small" type="submit">Save triage</button><p role="status"></p></div></form>`).join('');
+}
+
+// One triage section: filters that load records, and a form per record that saves its triage.
+function mountTriage(root, id, path, markup, payload) {
+  root.querySelector(`#${id}-filter-form`).addEventListener('submit', async event => {
+    event.preventDefault();
+    const status = root.querySelector(`#${id}-load-message`);
+    try {
+      const { records } = await operatorFetch(`${path}?${new URLSearchParams(new FormData(event.target))}`);
+      root.querySelector(`#${id}-records`).innerHTML = markup(records);
+      status.textContent = `${records.length} records loaded.`;
+    } catch (error) { status.textContent = error.message; }
+  });
+  root.querySelector(`#${id}-records`).addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.target;
+    const status = form.querySelector('[role=status]');
+    try {
+      await operatorFetch(path, { id: form.dataset.id, ...payload(form.elements) });
+      status.textContent = 'Saved.';
+    } catch (error) { status.textContent = error.message; }
+  });
+}
+const triageSection = (id, heading, filters, action) => `<section class="operator-triage" aria-labelledby="${id}-triage-heading"><h2 id="${id}-triage-heading">${heading}</h2>
+    <form id="${id}-filter-form" class="setup-form operator-form">${filters}<button class="button primary" type="submit">${action}</button><p id="${id}-load-message" role="status"></p></form>
+    <div id="${id}-records"></div></section>`;
+
 const operatorFetch = async (path, body) => {
   const response = await fetch(path, { headers: { authorization: `Bearer ${view.token}`, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
   const data = await response.json();
@@ -67,31 +105,22 @@ export function operatorScreen() {
     <p class="small muted">Times use this browser’s time zone. Choose the window explicitly; there is no default.</p>
     <button class="button primary" type="submit">Load report</button><p id="operator-status" role="status"></p></form>
   <div id="operator-report">${view.report ? reportMarkup(view.report) : ''}</div>
-  <section class="operator-triage" aria-labelledby="feedback-triage-heading"><h2 id="feedback-triage-heading">Feedback triage</h2>
-    <form id="feedback-filter-form" class="setup-form operator-form">${select('feedback-filter-status', 'status', 'Feedback status', feedbackStatuses, '', 'Any status')}${select('feedback-filter-feature', 'feature', 'Feedback feature', Object.keys(feedbackQuestions), '', 'Any feature')}${select('feedback-filter-surface', 'surface', 'Feedback page', Object.keys(pageFeature), '', 'Any page')}
-      <button class="button primary" type="submit">Load feedback</button><p id="feedback-load-message" role="status"></p></form>
-    <div id="feedback-records"></div></section></div>`;
+  ${triageSection('feedback', 'Feedback triage', `${select('feedback-filter-status', 'status', 'Feedback status', feedbackStatuses, '', 'Any status')}${select('feedback-filter-feature', 'feature', 'Feedback feature', Object.keys(feedbackQuestions), '', 'Any feature')}${select('feedback-filter-surface', 'surface', 'Feedback page', Object.keys(pageFeature), '', 'Any page')}`, 'Load feedback')}
+  ${triageSection('bug', 'Bug report triage', `${select('bug-filter-status', 'status', 'Bug status', bugStatuses, '', 'Any status')}${select('bug-filter-surface', 'surface', 'Bug page', bugSurfaces, '', 'Any page')}${select('bug-filter-feature', 'feature', 'Bug feature', [...new Set(Object.values(pageFeature)), 'other'], '', 'Any feature')}`, 'Load bug reports')}</div>`;
 }
 
 export function mountOperator(root) {
   root.querySelector('#operator-token').addEventListener('input', event => { view.token = event.target.value; });
-  root.querySelector('#feedback-filter-form').addEventListener('submit', async event => {
-    event.preventDefault();
-    const status = root.querySelector('#feedback-load-message');
-    const query = new URLSearchParams(new FormData(event.target));
+  mountTriage(root, 'feedback', '/api/feedback/records', feedbackMarkup, fields => ({ category: fields.category.value || null, status: fields.status.value, resolution: fields.resolution.value }));
+  mountTriage(root, 'bug', '/api/bug-reports/records', bugMarkup, fields => ({ status: fields.status.value, investigation: fields.investigation.value, resolution: fields.resolution.value }));
+  root.querySelector('#bug-records').addEventListener('click', async event => {
+    const button = event.target.closest('[data-erase-contact]');
+    if (!button) return;
+    const status = button.closest('form').querySelector('[role=status]');
     try {
-      const { records } = await operatorFetch(`/api/feedback/records?${query}`);
-      root.querySelector('#feedback-records').innerHTML = feedbackMarkup(records);
-      status.textContent = `${records.length} feedback records loaded.`;
-    } catch (error) { status.textContent = error.message; }
-  });
-  root.querySelector('#feedback-records').addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.target;
-    const status = form.querySelector('[role=status]');
-    try {
-      await operatorFetch('/api/feedback/records', { id: form.dataset.id, category: form.elements.category.value || null, status: form.elements.status.value, resolution: form.elements.resolution.value });
-      status.textContent = 'Saved.';
+      await operatorFetch('/api/bug-reports/records', { action: 'erase-contact', id: button.closest('form').dataset.id });
+      button.parentElement.textContent = 'No reply address';
+      status.textContent = 'Reply address erased.';
     } catch (error) { status.textContent = error.message; }
   });
   root.querySelector('#operator-form').addEventListener('submit', async event => {

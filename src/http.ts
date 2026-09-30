@@ -28,6 +28,10 @@ export function serverUnavailable(message: string): Response {
   return json({ error: message }, { status: 503 });
 }
 
+export function isEmailAddress(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

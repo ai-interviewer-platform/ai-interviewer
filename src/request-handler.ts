@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { catalog, routeApi } from "./api";
+import { bugReportRequest, bugReportsEnabled } from "./bug-reports";
 import { personalCollectionEnabled, personalCollectionUnavailable } from "./data-policy";
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { emailConfigured } from "./email";
@@ -54,7 +55,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const url = new URL(request.url);
   if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
   if (url.pathname === "/api/personal-availability" && request.method === "GET") return availability(env);
-  if (url.pathname === "/api/site-config" && request.method === "GET") return json({ measurementEnabled: measurementEnabled(env), feedbackEnabled: feedbackEnabled(env) });
+  if (url.pathname === "/api/site-config" && request.method === "GET") return json({ measurementEnabled: measurementEnabled(env), feedbackEnabled: feedbackEnabled(env), bugReportsEnabled: bugReportsEnabled(env) });
+  if (url.pathname === "/api/bug-reports" || url.pathname === "/api/bug-reports/records") return bugReportRequest(request, env, dependencies.database);
   if (url.pathname === "/api/feedback" || url.pathname === "/api/feedback/records") return feedbackRequest(request, env, dependencies.database);
   if (url.pathname === "/api/measure" || url.pathname === "/api/measure/report") return measurementRequest(request, env, dependencies.database);
   if (url.pathname === '/api/landing-config' || url.pathname === '/api/waitlist' || url.pathname.startsWith('/api/waitlist/')) return waitlistRequest(request, env, dependencies.database);

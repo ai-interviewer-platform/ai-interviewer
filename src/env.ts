@@ -34,6 +34,7 @@ export interface Env {
   WAITLIST_OPERATOR_TOKEN?: string;
   MEASUREMENT_COLLECTION_APPROVED?: string;
   FEEDBACK_COLLECTION_APPROVED?: string;
+  BUG_REPORT_COLLECTION_APPROVED?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;

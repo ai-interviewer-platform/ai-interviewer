@@ -108,6 +108,10 @@ _Avoid_: tracking, analytics hit
 An anonymous answer to the contextual question of one page: a preset, a comment, or both. It is not a Correction and does not change a Finding.
 _Avoid_: review, rating
 
+**Bug report**:
+A private report of what someone expected and what happened instead, with allowlisted diagnostics and an optional reply address. It is triaged by the operator, never posted publicly.
+_Avoid_: ticket, issue (the issue tracker is a different thing)
+
 ### Content research
 
 **Source observation**:
