@@ -6,10 +6,14 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { mediaPath } from './media.mjs';
 import { research } from './research.mjs';
+import { library } from './library.mjs';
+import { evaluate } from './evaluation.mjs';
 import { taxonomy, scoreRubrics } from './research-providers.mjs';
 
 export async function serve(options) {
   const app = research(options);
+  const archive = library({ ...options, research: app });
+  const libraryJobs = new Set();
   let origin;
   const files = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
   const server = createServer(async (req, res) => {
@@ -53,7 +57,10 @@ export async function serve(options) {
         return res.end(await readFile(new URL(`./ui/${name}`, import.meta.url)));
       }
       if (req.method === 'GET' && pathname === '/api/context') return json(200, { context: await app.getContext(), taxonomy, scoreRubrics });
+      if (req.method === 'GET' && pathname === '/api/library') return json(200, await archive.list());
       if (req.method === 'GET' && pathname === '/api/runs') return json(200, await app.list());
+      const report = pathname.match(/^\/api\/runs\/([a-f0-9-]+)\/report$/);
+      if (req.method === 'GET' && report) return json(200, evaluate(app.get(report[1])));
       const events = pathname.match(/^\/api\/events\/([a-f0-9-]+)$/);
       if (req.method === 'GET' && events) {
         const initial = await app.get(events[1]);
@@ -71,6 +78,12 @@ export async function serve(options) {
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(415, { error: 'JSON required' });
       let raw = ''; for await (const chunk of req) raw += chunk;
       let body; try { body = JSON.parse(raw); } catch { return json(400, { error: 'Invalid JSON' }); }
+      if (pathname === '/api/library/index' || pathname === '/api/library/search') {
+        const controller = new AbortController(); libraryJobs.add(controller);
+        res.once('close', () => controller.abort());
+        try { return json(200, await archive[pathname.endsWith('/index') ? 'index' : 'search']({ ...body, signal: controller.signal })); }
+        finally { libraryJobs.delete(controller); }
+      }
       if (pathname === '/api/context') { await app.setContext(body.context); return json(200, { saved: true }); }
       if (pathname === '/api/runs') { const run = await app.start(body); run.finished.catch(() => {}); return json(202, { id: run.id }); }
       if (pathname === '/api/import') { const run = await app.importSource(body); run.finished.catch(() => {}); return json(202, { id: run.id }); }
@@ -88,6 +101,7 @@ export async function serve(options) {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
   return { server, url: origin, close: async () => {
+    libraryJobs.forEach(controller => controller.abort());
     server.closeAllConnections();
     const closed = new Promise(resolve => server.close(resolve));
     await app.shutdown(); await closed;

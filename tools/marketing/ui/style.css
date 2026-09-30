@@ -668,3 +668,26 @@ body.summary-mode .masthead,body.summary-mode #message{
 .metric strong .digit.changing-digit{color:var(--pending)}
 .masthead p,#message{color:#5e5e5b}
 .summary-muted{color:#73736f}
+
+/* Research views share the supplied paper, hairline, mono and snap-update system. */
+.workspace-nav{display:flex;align-items:center;gap:8px;margin:22px 0 12px;flex-wrap:wrap}
+.workspace-nav button{font:12px ui-monospace,monospace}
+.workspace-nav button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+#run-context{margin-left:auto;font:11px ui-monospace,monospace;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.library-layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,3fr);gap:16px}
+.control-body,#library-search,#library-results{padding:20px}
+.control-body label{display:block;margin:16px 0 6px;font:12px ui-monospace,monospace}
+.control-body select{width:100%;padding:10px;background:var(--paper);border:1px solid var(--ink)}
+.control-body button{margin-top:12px}
+#library-search{border-bottom:1px solid var(--ink)}
+#library-search input{width:100%;padding:12px;background:var(--paper);border:1px solid var(--ink);margin:8px 0}
+.library-result{display:grid;grid-template-columns:120px minmax(0,1fr);gap:20px;padding:20px 0;border-top:1px solid var(--ink);animation:library-enter var(--t-row) ease-out both}
+.library-result img{width:120px;max-height:180px;object-fit:contain;background:var(--track)}
+.library-result h3{margin-top:0}.library-result p{line-height:1.5}.library-result button{margin-left:12px}
+.library-result pre,.control-body pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px ui-monospace,monospace}
+#library-revisions{overflow-wrap:anywhere;font:11px ui-monospace,monospace;line-height:1.5}
+#library-status{overflow-wrap:anywhere;line-height:1.5}
+.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}th,td{padding:12px;border-bottom:1px solid var(--ink);vertical-align:top}th{font:11px ui-monospace,monospace}
+@keyframes library-enter{from{color:var(--pending);opacity:.35}to{color:var(--ink);opacity:1}}
+@media(max-width:760px){.library-layout{grid-template-columns:1fr}.workspace-nav{gap:6px}#run-context{max-width:100%;width:100%;margin:4px 0}.library-result{grid-template-columns:72px minmax(0,1fr);gap:12px}.library-result img{width:72px}.library-result button{display:block;margin:12px 0}.control-body,#library-search,#library-results{padding:14px}}
+@media(prefers-reduced-motion:reduce){.library-result{animation:none}}

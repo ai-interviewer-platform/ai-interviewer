@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { discover, acquire, observe, classify, publicUrl, taxonomy, scoreRubrics, landingPage } from './research-providers.mjs';
 import { prepareVideo } from './media.mjs';
+import { captions } from './captions.mjs';
 
 const initialContext = 'Coursay: Python coding interview practice for students and new graduates actively preparing for SWE interviews. Find related ads and short-form or long-form content about explaining, testing and revising solutions.';
 
@@ -65,6 +66,16 @@ export function research({ directory, env = process.env, fetch = globalThis.fetc
           started = performance.now();
           source.evidence ??= await observe({ source, directory, env, fetch, signal, onSegment: segment => { source.visionSegments ??= []; source.visionSegments.push(segment); save(run); } });
           source.timings.vision ??= performance.now() - started;
+          run.stage = 'captions'; await save(run); started = performance.now();
+          source.evidence.speech ??= await captions({ source, env, fetch, exec, signal });
+          source.timings.captions ??= performance.now() - started;
+          source.provenance.access ??= source.uploadId ? 'Operator-supplied local video' : 'Public source without authentication or cookies';
+          source.provenance.reportedCanonicalUrl ??= source.acquisition.metadata?.ogUrl ?? source.acquisition.metadata?.sourceURL ?? null;
+          if (source.evidence.speech.status === 'available') {
+            source.evidence.audio = 'caption-evidence';
+            source.evidence.gaps = source.evidence.gaps.filter(gap => !gap.startsWith('Audio unavailable;') && gap !== 'Full video and spoken hooks unverified');
+            source.evidence.gaps.push('Caption evidence is separate from sampled visual frames; speech accuracy is not independently verified');
+          }
           if (source.landingUrl && !source.landingPage) source.landingPage = await landingPage({ url: source.landingUrl, env, fetch, signal });
           signal.throwIfAborted();
           run.stage = 'classification'; await save(run);

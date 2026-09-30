@@ -1,6 +1,6 @@
 # Local marketing research
 
-Local workflow for [01](https://github.com/ai-interviewer-platform/ai-interviewer/issues/17), with embedding CLI foundation for [02](https://github.com/ai-interviewer-platform/ai-interviewer/issues/18). Ticket 01 remains open for real ad/short-form/long-form coverage validation. Ticket 02's retrieval UI integration remains open.
+Local workflow for [01](https://github.com/ai-interviewer-platform/ai-interviewer/issues/17), with integrated multimodal retrieval for [02](https://github.com/ai-interviewer-platform/ai-interviewer/issues/18). See [operator workflow](OPERATIONS.md) for captions, indexing, retrieval and evaluation; [coverage evidence](COVERAGE.md) separates live proof from fixtures.
 
 ## Keys
 
@@ -35,7 +35,7 @@ npm run marketing -- list
 
 The browser supports topic or blank-context discovery, operator-entered source count, streamed progress, cancellation, restart/resume, manual public page/image/video import, sorting/filtering, JSON export and append-only human judgment history. Source count is an operator choice, not a dollar cap. Exa/Firecrawl/Qwen costs are not inferred from tokens; actual available receipts are retained. Successful stages are reused on resume. An uncertain Jev submission requires its existing run ID from Monid history, avoiding an automatic duplicate bill.
 
-Automated acquisition requests markdown, links, screenshot and video from Firecrawl with ads enabled. Public social posts can fall back to platform-specific yt-dlp extraction; local config, cookies and plugins are not used. If video extraction fails, a page-only capture is explicitly labeled. Page screenshots are explicitly distinct from native images and video frames. Native video URLs are followed automatically when supplied by Firecrawl or the extractor. The first extracted creative is analyzed; remaining links stay inspectable for import. Signed video URLs can expire. Video observations preserve parent source identity and time ranges. Audio/captions are not transcribed by this implementation. Unsupported URLs and missing media remain visible; usable page text is retained. There is no claim of access to a platform's private ad corpus or of complete video coverage from thumbnails. Repeated captures retain the same source ID across runs; individual runs retain their own provenance.
+Automated acquisition requests markdown, links, screenshot and video from Firecrawl with ads enabled. Public social posts can fall back to platform-specific yt-dlp extraction; local config, cookies and plugins are not used. If video extraction fails, a page-only capture is explicitly labeled. Page screenshots are explicitly distinct from native images and video frames. Native video URLs are followed automatically when supplied by Firecrawl or the extractor. The first extracted creative is analyzed; remaining links stay inspectable for import. Signed video URLs can expire. Video observations preserve parent source identity and time ranges. Available public captions are extracted separately and passed to Jev with timed provenance; missing captions remain explicit. Unsupported URLs and missing media remain visible; usable page text is retained. There is no claim of access to a platform's private ad corpus or of complete video coverage from thumbnails. Repeated captures retain the same source ID across runs; individual runs retain their own provenance.
 
 Smoke sends synthetic text and a synthetic PNG separately: this verifies both text and image request shapes. It prints model, dimension, usage when supplied and latency; never vectors or keys. A missing key/coverage confirmation fails before a request.
 
@@ -54,12 +54,12 @@ Smoke sends synthetic text and a synthetic PNG separately: this verifies both te
 }
 ```
 
-Use only authorized public research material; no candidate recordings/code. Text input: `{ "modality": "text", "text": "...", "title": "..." }`. Gemini video: base64 `data` and `mimeType`. Tongyi video: `{ "modality": "video", "url": "https://..." }`; Alibaba fetches that public media URL. Image input uses base64 with both providers. Embedding CLI inputs must fit provider limits. The research UI separately segments local videos for Qwen vision; no speech transcription is performed.
+Use only authorized public research material; no candidate recordings/code. Text input: `{ "modality": "text", "text": "...", "title": "..." }`. Gemini video: base64 `data` and `mimeType`. Tongyi video: `{ "modality": "video", "url": "https://..." }`; Alibaba fetches that public media URL. Image input uses base64 with both providers. Embedding CLI inputs must fit provider limits. The research UI separately segments local videos for Qwen vision; available publisher/automatic caption evidence is kept separate from visual observations.
 
 ## Architecture
 
 ```text
-Local operator / future local acquisition workflow
+Local discovery / operator imports
                   |
        source + segment + evidence + Jev labels
                   |
@@ -113,7 +113,7 @@ Uploads retain original bytes under ignored `.local/marketing/research/media/`; 
 
 Advertiser counts require observed brand evidence. Durability scores mean evergreen relevance, not observed time in market. Homepage match stays unknown without a separate page capture. Human review flags unknown/missing evidence, with no confidence cutoff. Costs contain available Exa/Jev receipts only and are labeled partial; elapsed/rate includes acquisition and vision, not just Jev inference.
 
-Run `node --test test/marketing-*.test.mjs`; set `FFMPEG_PATH` in the test process to include the real codec/upload/playback/browser-seeking test. Other tests use external HTTP/process fixtures. Live checks are documented separately from fixture proof. No private ad-library collector or speech transcription is claimed.
+Run `node --test test/marketing-*.test.mjs`; set `FFMPEG_PATH` in the test process to include the real codec/upload/playback/browser-seeking test. Other tests use external HTTP/process fixtures. Live checks are documented separately from fixture proof. No private ad-library access or paid speech transcription is claimed.
 
 ### Native video and design verification (2026-09-29)
 
@@ -122,4 +122,4 @@ Run `node --test test/marketing-*.test.mjs`; set `FFMPEG_PATH` in the test proce
 - Original X reference: Firecrawl returned HTTP 500; configured yt-dlp recovered the native 48.266-second public video and original-post metadata. This separately proves acquisition fallback.
 - Updated to supplied `Video Analysis.dc.html` design/motion system; rendering runtime `support.js` not shipped. Desktop/mobile screenshots, summary, reduced motion, native playback/seek, categorical/numeric corrections and axe accessibility check passed. Full suite: 100 passed; typecheck, lint and targeted checks after the file-input fix passed. Standards and Spec review findings resolved.
 
-Ticket 01 stays open for remaining broader ad-library/caption coverage; these live checks establish public video and local upload analysis, not access to every social platform. Ticket 02 retrieval UI remains separate. No production deployment.
+These earlier checks are supplemented by COVERAGE.md. The operator UI now connects research outputs to embedding retrieval and evaluation. The tool remains loopback-only.

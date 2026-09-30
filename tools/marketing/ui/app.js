@@ -40,14 +40,14 @@ async function summary(show, completed = false) {
   await animate(dashboard,[{opacity:.35},{opacity:0}],motion.exit);
   if(version===viewVersion)dashboard.hidden=true;
 }
-function inspect(run, newlyStarted = false) {
-  stream?.close(); selected = null; detailSignature = ''; following = true; categoryFilter=null;autoSummary = newlyStarted; summary(false); el('workspace').close();
+function inspect(run, newlyStarted = false, sourceId = null) {
+  showView('analysis'); stream?.close(); selected = sourceId; detailSignature = ''; following = !sourceId; categoryFilter=null;autoSummary = newlyStarted; summary(false); el('workspace').close();
   stream = new EventSource(`/api/events/${run.id}`);
   stream.onmessage = event => {
     const before = current?.id === run.id ? current : null; current = JSON.parse(event.data);
     if (following) selected = current.sources.findLast(source => source.classification && !before?.sources.find(old => old.id === source.id)?.classification)?.id ?? selected ?? current.sources[0]?.id;
     render();
-    if (current.status !== 'running') { stream.close(); void history(); if (autoSummary && current.status === 'complete' && current.sources.length) void summary(true,true); autoSummary = false; }
+    if (current.status !== 'running') { stream.close(); void history(); if (autoSummary && activeView === 'analysis' && current.status === 'complete' && current.sources.length) void summary(true,true); autoSummary = false; }
   };
   stream.onerror = () => { stream.close(); error('Connection ended. Reopen the run to inspect saved progress.'); };
 }
@@ -171,6 +171,9 @@ function openEvidence(source) {
     if(Number.isFinite(observation.startSeconds))root.append(action(`${observation.startSeconds.toFixed(1)}–${observation.endSeconds.toFixed(1)}s · ${observation.description}`,()=>{el('evidence-dialog').close();const video=el('results').querySelector('video');if(video){video.currentTime=observation.startSeconds;void video.play().catch(()=>{});}},'observation'));
     else root.append(node('p',`${observation.region} · ${observation.description}`));
   }
+  const speech=source.evidence?.speech;
+  root.append(node('h3','Spoken evidence'),node('p',speech?.status==='available'?`${speech.kind} · ${speech.language} · ${speech.limitation}`:speech?.reason ?? 'Captions unavailable'));
+  for(const cue of speech?.cues ?? [])root.append(action(`${cue.startSeconds.toFixed(1)}–${cue.endSeconds.toFixed(1)}s · ${cue.text}`,()=>{el('evidence-dialog').close();const video=el('results').querySelector('video');if(video){video.currentTime=cue.startSeconds;void video.play().catch(()=>{});}},'observation'));
   for(const gap of source.evidence?.gaps ?? [])root.append(node('p',gap,'muted'));
   const details=node('details');details.append(node('summary','Evidence, provenance, usage & correction history'),node('pre',JSON.stringify(source,null,2)));root.append(details);
   if(source.jevAttempted && !source.jevRunId && current.status!=='running'){
@@ -186,7 +189,10 @@ function openEvidence(source) {
 }
 function render() {
   if(!current)return;el('message').textContent=`${current.status} · ${current.stage ?? 'stopped'} · ${current.sources.length} sources · ${current.error ?? ''}`;
+  el('run-context').textContent=`${current.queryMode} · ${current.query}`;
   metrics();renderTiles();renderDetail();renderCategory();renderSummary();
+  if(activeView==='library')void refreshLibrary().catch(e=>error(e.message));
+  if(activeView==='evaluation')void renderEvaluation().catch(e=>error(e.message));
   const controls=[];
   if(current.status==='running')controls.push(action('Cancel run',async()=>{current=await api(`/api/runs/${current.id}/cancel`,{});render();}));
   else if(current.status!=='complete')controls.push(action('Resume failed stages',async()=>{await api(`/api/runs/${current.id}/resume`,{});inspect(current,true);}));
@@ -194,11 +200,73 @@ function render() {
 }
 el('workspace-open').onclick=()=>el('workspace').showModal();el('workspace-close').onclick=()=>el('workspace').close();el('evidence-close').onclick=()=>el('evidence-dialog').close();el('back').onclick=()=>summary(false);
 el('follow').onclick=()=>{following=true;selected=current?.sources.findLast(s=>s.classification)?.id??current?.sources[0]?.id;render();};el('sort').onchange=render;el('filter').onchange=()=>{categoryFilter=null;render();};
-async function submit(event, request) {event.preventDefault();event.submitter.disabled=true;try{inspect(await request(),true);await history();}catch(e){error(e.message);}finally{event.submitter.disabled=false;}}
+async function submit(event, request) {event.preventDefault();event.submitter.disabled=true;try{inspect(await request(),true);taxonomy.hook.forEach(value=>el('library-hook').add(new Option(pretty(value),value)));await history();}catch(e){error(e.message);}finally{event.submitter.disabled=false;}}
 el('search').onsubmit=event=>submit(event,async()=>{await api('/api/context',{context:el('context').value});return api('/api/runs',{query:el('query').value,numResults:Number(el('count').value)});});
 el('import').onsubmit=event=>submit(event,()=>api('/api/import',{url:el('source-url').value,kind:el('source-kind').value,landingUrl:el('landing-url').value}));
 el('upload').onsubmit=event=>submit(event,async()=>{const file=el('video-file').files[0],response=await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':file.type || 'video/mp4'},body:file}),result=await response.json();if(!response.ok)throw new Error(result.error);return result;});
-try{const config=await api('/api/context');el('context').value=config.context;taxonomy=config.taxonomy;scoreRubrics=config.scoreRubrics;taxonomy.hook.forEach(value=>el('filter').add(new Option(pretty(value),value)));await history();}catch(e){error(e.message);}
+try{const config=await api('/api/context');el('context').value=config.context;taxonomy=config.taxonomy;scoreRubrics=config.scoreRubrics;taxonomy.hook.forEach(value=>el('filter').add(new Option(pretty(value),value)));taxonomy.hook.forEach(value=>el('library-hook').add(new Option(pretty(value),value)));await history();}catch(e){error(e.message);}
 // Display refresh only; never schedules a provider call.
 function tick(){if(current?.status==='running')metrics();requestAnimationFrame(tick);}requestAnimationFrame(tick);
 new ResizeObserver(()=>{if(current)renderTiles();}).observe(el('tiles'));
+let activeView = 'analysis', libraryRequest, evaluationReport;
+function showView(view) {
+  summary(false); activeView=view;
+  el('dashboard').hidden=view!=='analysis'; el('library-view').hidden=view!=='library'; el('evaluation-view').hidden=view!=='evaluation';
+  for(const name of ['analysis','library','evaluation'])el(`view-${name}`).setAttribute('aria-pressed',String(name===view));
+  if(view==='library')void refreshLibrary().catch(e=>error(e.message));
+  if(view==='evaluation')void renderEvaluation().catch(e=>error(e.message));
+}
+async function refreshLibrary() {
+  const records=await api('/api/library');
+  const source=current?.sources.find(item=>item.id===selected);
+  el('index-source').textContent=source?.title ?? 'Select a creative in Analyze.';
+  el('index-selected').disabled=!source?.evidence || current?.status==='running' || Boolean(libraryRequest);
+  el('index-segment').disabled=el('index-modality').value!=='video' || !source?.acquisition?.localVideo;
+  el('index-segment').replaceChildren(new Option('Whole source',''),...(source?.acquisition?.chunks ?? []).map(chunk=>new Option(`${chunk.startSeconds.toFixed(1)}–${chunk.endSeconds.toFixed(1)}s`,chunk.id)));
+  el('library-revisions').replaceChildren(...records.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(record=>node('p',`${record.source.title} · ${record.provider} · ${record.status} · ${record.createdAt}${record.error?` · ${record.error}`:''}`)));
+}
+async function libraryCall(path,body) {
+  if(libraryRequest)throw new Error('A collection request is already running');
+  libraryRequest=new AbortController();el('library-cancel').hidden=false;el('index-selected').disabled=true;
+  el('library-status').textContent='Working…';
+  try {
+    const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:libraryRequest.signal});
+    const result=await response.json();if(!response.ok)throw new Error(result.error);return result;
+  } finally {libraryRequest=null;el('library-cancel').hidden=true;el('index-selected').disabled=!current?.sources.find(item=>item.id===selected)?.evidence;}
+}
+function exportJSON(value,name) {
+  const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),link=node('a');link.href=url;link.download=name;link.click();URL.revokeObjectURL(url);
+}
+async function renderEvaluation() {
+  if(!current)return;
+  evaluationReport=await api(`/api/runs/${current.id}/report`);
+  const report=evaluationReport,root=el('evaluation-report');root.replaceChildren(node('h3',report.query),node('p',`${report.referenceCount} reference judgments · ${report.agreements} agreements · ${report.disagreements} disagreements`),node('p',report.interpretation,'muted'));
+  const table=node('table'),head=node('tr');['Source','Visual / speech coverage','Status & gaps'].forEach(title=>head.append(node('th',title)));table.append(head);
+  for(const item of report.coverage){const row=node('tr'),title=node('td');title.append(action(item.title,()=>{showView('analysis');select(current.sources.find(source=>source.id===item.sourceId));}));row.append(title,node('td',`${item.visual} / ${item.speech}`),node('td',`${item.status} · ${item.error ?? item.gaps.join(' · ')}`));table.append(row);}
+  const scroll=node('div',undefined,'table-scroll');scroll.append(table);root.append(scroll);
+  for(const item of report.judgments)root.append(node('p',`${item.title} · ${pretty(item.field)}: model ${item.model ?? 'unknown'} → ${item.reviewer}: ${item.reference} · ${item.reason}`));
+  const raw=node('details');raw.append(node('summary','Models, cost, latency and provenance'),node('pre',JSON.stringify(report,null,2)));root.append(raw);
+}
+el('view-analysis').onclick=()=>showView('analysis');el('view-library').onclick=()=>showView('library');el('view-evaluation').onclick=()=>showView('evaluation');
+el('library-cancel').onclick=()=>{libraryRequest?.abort();el('library-status').textContent='Cancelled locally; already submitted provider work may still consume quota.';};
+el('export-evaluation').onclick=()=>{if(evaluationReport)exportJSON(evaluationReport,`${evaluationReport.runId}-evaluation.json`);};
+el('index-modality').onchange=()=>{el('index-segment').disabled=el('index-modality').value!=='video' || !current?.sources.find(item=>item.id===selected)?.acquisition?.localVideo;};
+el('index-selected').onclick=async()=>{
+  try{const result=await libraryCall('/api/library/index',{runId:current.id,sourceId:selected,provider:el('embedding-provider').value,modality:el('index-modality').value,segmentId:el('index-segment').value});el('library-status').textContent=`${result.status} · ${result.error ?? `${result.embedding.model} · ${result.embedding.dimensions} dimensions`}`;await refreshLibrary();}
+  catch(e){el('library-status').textContent=e.name==='AbortError'?'Cancelled locally; inspect revisions before retrying.':e.message;}
+};
+el('library-search').onsubmit=async event=>{
+  event.preventDefault();const button=event.submitter;button.disabled=true;
+  try{
+    const result=await libraryCall('/api/library/search',{provider:el('embedding-provider').value,text:el('library-query').value,modality:el('library-modality').value,hook:el('library-hook').value});
+    el('library-status').textContent=`${result.matches.length} matching revisions`;
+    el('library-results').replaceChildren(node('p',result.interpretation,'muted'),...result.matches.map((record,index)=>{
+      const card=node('article',undefined,'library-result');card.style.setProperty('--index',index);
+      if(record.source.screenshot){const img=node('img');img.src=record.source.screenshot;img.alt='';img.loading='lazy';card.append(img);}
+      const content=node('div');content.append(node('h3',record.source.title),node('p',`${record.embedding.modality} · similarity ${record.similarity.toFixed(3)} · ${record.embedding.model}`),node('p',record.source.coverage ?? record.source.evidence.coverage),node('p',record.source.evidence.observations[0]?.description ?? 'No visual observation'));
+      if(record.source.url){const link=node('a','Original source');link.href=record.source.url;link.target='_blank';link.rel='noopener noreferrer';content.append(link);}
+      content.append(action('Open evidence',async()=>{const runs=await api('/api/runs'),run=runs.find(item=>item.id===record.source.runId);if(!run)throw new Error('Research run unavailable; indexed evidence remains in this revision');showView('analysis');inspect(run,false,record.source.id);}));
+      const snapshot=node('details');snapshot.append(node('summary','Indexed evidence & judgment revision'),node('pre',JSON.stringify(record,null,2)));content.append(snapshot);card.append(content);return card;
+    }));
+  }catch(e){el('library-status').textContent=e.name==='AbortError'?'Cancelled locally':e.message;}finally{button.disabled=false;}
+};
