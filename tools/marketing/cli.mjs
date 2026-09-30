@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { collection } from './collection.mjs';
 import { embed } from './embeddings.mjs';
+import { restoreResearch, syncIfConfigured } from './cloud.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 try { process.loadEnvFile(join(root, '.env.marketing.local')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -14,10 +15,20 @@ const output = value => console.log(JSON.stringify(value, (key, item) => key ===
 
 try {
   if (command === 'serve') {
+    const receipt = await syncIfConfigured({ directory: join(root, '.local/marketing/research') });
+    if (receipt) output({ cloud: receipt });
     const { serve } = await import('./server.mjs');
     const app = await serve({ directory: join(root, '.local/marketing/research') });
     console.log(`Developer research: ${app.url}`);
     process.once('SIGINT', () => { void app.close(); });
+  } else if (command === 'cloud-sync') {
+    const receipt = await syncIfConfigured({ directory: join(root, '.local/marketing/research') });
+    if (!receipt) throw new Error('Configure MARKETING_D1_DATABASE_ID before cloud sync');
+    output(receipt);
+    if (receipt.status !== 'saved') process.exitCode = 1;
+  } else if (command === 'cloud-restore') {
+    if (!provider) throw new Error('Supply an empty restore directory');
+    output(await restoreResearch({ directory: provider }));
   } else if (command === 'smoke') {
     // Synthetic valid PNG: no third-party creative or customer data leaves the machine.
     const inputs = [
@@ -37,7 +48,7 @@ try {
   } else if (command === 'list') {
     output(await library.list());
   } else {
-    console.log('Commands: serve | smoke <gemini|tongyi> | add <provider> <source.json> | search <provider> <text> | list');
+    console.log('Commands: serve | cloud-sync | cloud-restore <empty-directory> | smoke <gemini|tongyi> | add <provider> <source.json> | search <provider> <text> | list');
     process.exitCode = 1;
   }
 } catch (error) {

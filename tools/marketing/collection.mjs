@@ -1,7 +1,8 @@
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { embed } from './embeddings.mjs';
+import { syncIfConfigured } from './cloud.mjs';
 
 function sameSpace(left, right) {
   return ['provider', 'model', 'dimensions', 'encodingVersion'].every(key => left[key] === right[key]);
@@ -41,6 +42,7 @@ export function collection({ directory, env = process.env, fetch = globalThis.fe
       const path = join(directory, record.id);
       await writeFile(`${path}.pending`, JSON.stringify(record), { flag: 'wx' });
       await rename(`${path}.pending`, `${path}.json`);
+      await syncIfConfigured({ directory: dirname(directory), env, fetch });
       return record;
     },
     async search({ provider, text, signal }) {
