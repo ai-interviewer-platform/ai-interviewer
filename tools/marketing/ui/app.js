@@ -1,3 +1,4 @@
+import { strategyView } from './strategy.js';
 const el = id => document.getElementById(id);
 const fields = { hook:'HOOK ARCHETYPE', format:'FORMAT', offer:'OFFER', cta:'CTA INTENT', awareness:'AWARENESS', driver:'DRIVER', funnel:'FUNNEL', hookSpecificity:'HOOK SPECIFICITY', offerStrength:'OFFER STRENGTH', durability:'DURABILITY', claimRisk:'CLAIM RISK', homepageMatch:'HOMEPAGE MATCH' };
 const formatColors = { 'problem-solution':'#f5891f', 'offer-promo':'#e85a4a', 'lifestyle-aspiration':'#5b5bd6', 'product-announcement':'#8b4dbf', 'catalog-generic':'#8a8a86', tutorial:'#d63384', testimonial:'#8b4dbf', 'product-demo':'#f5891f', 'talking-head':'#5b5bd6', static:'#e85a4a', unknown:'#8a8a86' };
@@ -211,10 +212,11 @@ new ResizeObserver(()=>{if(current)renderTiles();}).observe(el('tiles'));
 let activeView = 'analysis', libraryRequest, evaluationReport;
 function showView(view) {
   summary(false); activeView=view;
-  el('dashboard').hidden=view!=='analysis'; el('library-view').hidden=view!=='library'; el('evaluation-view').hidden=view!=='evaluation';
-  for(const name of ['analysis','library','evaluation'])el(`view-${name}`).setAttribute('aria-pressed',String(name===view));
+  el('dashboard').hidden=view!=='analysis'; el('library-view').hidden=view!=='library'; el('evaluation-view').hidden=view!=='evaluation'; el('strategy-view').hidden=view!=='strategy';
+  for(const name of ['analysis','library','evaluation','strategy'])el(`view-${name}`).setAttribute('aria-pressed',String(name===view));
   if(view==='library')void refreshLibrary().catch(e=>error(e.message));
   if(view==='evaluation')void renderEvaluation().catch(e=>error(e.message));
+  if(view==='strategy')void planner.refresh().catch(e=>error(e.message));
 }
 async function refreshLibrary() {
   const records=await api('/api/library');
@@ -248,6 +250,10 @@ async function renderEvaluation() {
   const raw=node('details');raw.append(node('summary','Models, cost, latency and provenance'),node('pre',JSON.stringify(report,null,2)));root.append(raw);
 }
 el('view-analysis').onclick=()=>showView('analysis');el('view-library').onclick=()=>showView('library');el('view-evaluation').onclick=()=>showView('evaluation');
+const planner = strategyView({ el, node, api, action, exportJSON, inspect, showView });
+el('view-strategy').onclick=()=>showView('strategy');
+el('refresh-cloud').onclick=()=>planner.cloudStatus().catch(e=>error(e.message));
+void planner.cloudStatus().catch(e=>error(e.message));
 el('library-cancel').onclick=()=>{libraryRequest?.abort();el('library-status').textContent='Cancelled locally; already submitted provider work may still consume quota.';};
 el('export-evaluation').onclick=()=>{if(evaluationReport)exportJSON(evaluationReport,`${evaluationReport.runId}-evaluation.json`);};
 el('index-modality').onchange=()=>{el('index-segment').disabled=el('index-modality').value!=='video' || !current?.sources.find(item=>item.id===selected)?.acquisition?.localVideo;};
@@ -266,6 +272,7 @@ el('library-search').onsubmit=async event=>{
       const content=node('div');content.append(node('h3',record.source.title),node('p',`${record.embedding.modality} · similarity ${record.similarity.toFixed(3)} · ${record.embedding.model}`),node('p',record.source.coverage ?? record.source.evidence.coverage),node('p',record.source.evidence.observations[0]?.description ?? 'No visual observation'));
       if(record.source.url){const link=node('a','Original source');link.href=record.source.url;link.target='_blank';link.rel='noopener noreferrer';content.append(link);}
       content.append(action('Open evidence',async()=>{const runs=await api('/api/runs'),run=runs.find(item=>item.id===record.source.runId);if(!run)throw new Error('Research run unavailable; indexed evidence remains in this revision');showView('analysis');inspect(run,false,record.source.id);}));
+      content.append(action('Use in strategy',()=>planner.add(record.source)));
       const snapshot=node('details');snapshot.append(node('summary','Indexed evidence & judgment revision'),node('pre',JSON.stringify(record,null,2)));content.append(snapshot);card.append(content);return card;
     }));
   }catch(e){el('library-status').textContent=e.name==='AbortError'?'Cancelled locally':e.message;}finally{button.disabled=false;}

@@ -38,3 +38,11 @@ Selected connectors cover accessible public media, not every platform's private 
 ## Design and motion
 
 `REFERENCE.md` preserves the supplied visual/motion contract. Analyze retains the reference dashboard. Library adds source indexing controls beside ranked evidence cards; evaluation adds a readable coverage table and reference disagreements. Same paper/gray palette, square borders, mono labels, snap updates and brief gray-to-ink arrival. Existing summary transitions and reduced motion remain. No simulated throughput, fake ads or copied demo metrics.
+
+## Strategy review
+
+Generation and independent claim audit each consume the selected direct Qwen model's quota. A provider failure stops the request; no automatic model fallback or approval occurs. Inspect saved briefs before retrying. A rejected brief retains its original model output and audit. Human review is still required after an audit passes.
+
+Before approving distribution, set `STRATEGY_LAUNCH_BASE_URL` to the actual public Coursay origin. Approval verifies the owner-configured primary action and current availability. No owner choice is inferred from a generated suggestion. An approved export remains an artifact for the owner to publish separately; no external publishing calls exist.
+
+Strategy panels retain the reference paper/gray palette, hairlines, mono status, short gray-to-ink arrival, keyboard forms and reduced-motion override. They adapt the layout for source selection, a readable brief and review/outcome forms rather than duplicating the analysis grid.

@@ -123,3 +123,15 @@ Run `node --test test/marketing-*.test.mjs`; set `FFMPEG_PATH` in the test proce
 - Updated to supplied `Video Analysis.dc.html` design/motion system; rendering runtime `support.js` not shipped. Desktop/mobile screenshots, summary, reduced motion, native playback/seek, categorical/numeric corrections and axe accessibility check passed. Full suite: 100 passed; typecheck, lint and targeted checks after the file-input fix passed. Standards and Spec review findings resolved.
 
 These earlier checks are supplemented by COVERAGE.md. The operator UI now connects research outputs to embedding retrieval and evaluation. The tool remains loopback-only.
+
+## Strategy and scripts (Ticket 03)
+
+Open **Strategy & scripts**, enter goal/audience, choose supported product facts and saved source evidence, then **Generate draft**. Library results also offer **Use in strategy**. Generation uses direct Alibaba `STRATEGY_MODEL` (default owner-requested `qwen3.8-max`), independently from Jev and the vision adapter. `STRATEGY_PROVIDER=qwen` is currently supported; no Astra endpoint or Monid generation route is assumed. Existing `DASHSCOPE_API_KEY`, matching host and `QWEN_COVERED_USAGE_CONFIRMED` apply.
+
+Every brief saves original source/region/time snapshots, product proof, explicitly labelled hypotheses, original hook/script, creative notes, measurement definition and assumptions. A separate Qwen claim audit checks unsupported product claims, invented performance, broken evidence and copied scripts. Broken IDs and unsupported fact references are also rejected deterministically. A structured proposed launch action is bound to the owner choice and live landing action; the audit also rejects CTA wording that implies a different action. Model audits are fallible; successful audits still require human review. Rejected proposals remain visible and exportable for diagnosis.
+
+CTA/distribution remain proposed until the operator records reviewer/rationale, selected format, channel/community access, organic/paid sequencing and CTA. Approval checks `STRATEGY_LAUNCH_BASE_URL` against the actual Coursay `/api/landing-config`: an unset/different primary action, disabled waitlist or unavailable personal practice blocks approval. Leave this URL unset while planning. Changing the proposed format/channel/CTA requires a new brief. **Export review artifact** never publishes; there is no publishing endpoint.
+
+Record outcomes with measurement, feedback, evidence reference and next change. Select that previous experiment when generating again; its recorded outcomes enter the next proposal. These are operator reports, not automatically verified campaign metrics. No cadence, ad spend, hiring gains or additional language support is implied.
+
+Briefs and review/outcome history persist under `research/strategy/`; configured Cloudflare sync runs after each mutation. The UI reports verified/pending/local-only archive state. The research UI and APIs remain loopback-only and outside public assets.
