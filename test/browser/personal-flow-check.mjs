@@ -58,18 +58,18 @@ try {
   await page.locator('#personal-code').fill('def sum_odd_positions(values):\n    return -1\n');
   await page.getByRole('button', { name: 'Run visible tests' }).click();
   await page.locator('#personal-error').getByText(/Run recorded/).waitFor({ timeout: 60_000 });
-  assert.match(await alert(), /0 passed, 2 failed/);
-  assert.equal(await page.locator('.test-case.failed').count(), 2);
+  assert.match(await alert(), /0 passed, 4 failed/);
+  assert.equal(await page.locator('.test-case.failed').count(), 4);
   assert.match(await page.locator('.test-cases').innerText(), /sum_odd_positions\(\[4, 7, 2, 9\]\)[\s\S]*Expected 16 · got -1/);
   await page.locator('#personal-code').fill('def sum_odd_positions(values):\n    return sum(values[1::2])\n');
   await page.getByRole('button', { name: 'Run visible tests' }).click();
-  await page.locator('#personal-error').getByText(/2 passed, 0 failed/).waitFor({ timeout: 60_000 });
-  assert.equal(await page.locator('.test-case.passed').count(), 2);
+  await page.locator('#personal-error').getByText(/4 passed, 0 failed/).waitFor({ timeout: 60_000 });
+  assert.equal(await page.locator('.test-case.passed').count(), 4);
   await axe('workspace');
   console.log('Passed: text message, failing run, passing run through the isolated runner');
 
   await page.getByRole('button', { name: 'Request help' }).click();
-  await page.locator('#personal-error').getByText(/hint request was recorded/).waitFor();
+  await page.locator('#personal-error').getByText(/hint request was (recorded|answered)/).waitFor();
 
   const attemptId = await page.evaluate(async () => (await (await fetch('/api/attempts')).json()).attempts[0].id);
   const detail = await api(`/api/attempts/${attemptId}`);
@@ -84,7 +84,8 @@ try {
   await page.locator('#personal-error').getByText(/Attempt completed/).waitFor();
   assert.equal(await page.locator('#personal-code').isDisabled(), true);
   let review;
-  for (let i = 0; i < 20 && review?.review.status !== 'failed' && review?.review.status !== 'ready'; i++) {
+  // A real Workers AI review takes up to the 45 s provider deadline, plus the queue delay.
+  for (let i = 0; i < 120 && review?.review.status !== 'failed' && review?.review.status !== 'ready'; i++) {
     await page.waitForTimeout(500);
     review = await api(`/api/attempts/${attemptId}/review`);
   }
@@ -124,6 +125,8 @@ try {
   await page.locator('.account-menu summary').click();
   await page.getByRole('link', { name: 'My sessions', exact: true }).waitFor();
   await page.getByRole('link', { name: 'My sessions' }).click();
+  // The navigation re-renders the header; open the account menu only after it settles.
+  await page.getByRole('heading', { name: 'Your sessions', exact: true }).waitFor();
   const exported = await api('/api/me/export');
   assert.equal(exported.user.email, email);
   assert.equal(exported.attempts.length, 2);
