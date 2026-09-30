@@ -45,7 +45,8 @@ try {
 
   const browser = await launchBrowser({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+    // The operator window inputs are local times; UTC matches the ISO values the test types.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', timezoneId: 'UTC' });
     const page = await context.newPage();
     const sent = [];
     const errors = [];

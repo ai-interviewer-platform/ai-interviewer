@@ -132,6 +132,20 @@ Every brief saves original source/region/time snapshots, product proof, explicit
 
 CTA/distribution remain proposed until the operator records reviewer/rationale, selected format, channel/community access, organic/paid sequencing and CTA. Approval checks `STRATEGY_LAUNCH_BASE_URL` against the actual Coursay `/api/landing-config`: an unset/different primary action, disabled waitlist or unavailable personal practice blocks approval. Leave this URL unset while planning. Changing the proposed format/channel/CTA requires a new brief. **Export review artifact** never publishes; there is no publishing endpoint.
 
-Record outcomes with measurement, feedback, evidence reference and next change. Select that previous experiment when generating again; its recorded outcomes enter the next proposal. These are operator reports, not automatically verified campaign metrics. No cadence, ad spend, hiring gains or additional language support is implied.
+Record outcomes as described in Ticket 09 below. Select that previous experiment when generating again; its recorded outcomes enter the next proposal. No cadence, ad spend, hiring gains or additional language support is implied.
 
 Briefs and review/outcome history persist under `research/strategy/`; configured Cloudflare sync runs after each mutation. The UI reports verified/pending/local-only archive state. The research UI and APIs remain loopback-only and outside public assets.
+
+## Measured outcomes (Ticket 09)
+
+This capability stays in the local developer tool. The live Coursay deployment only gains **Download aggregate report (JSON)** on its private `#operator` page; no research UI, API or data enters the Worker.
+
+1. In Coursay `#operator`, load the measurement report for an explicit window and download the aggregate report.
+2. In **Strategy & scripts**, open the brief and use **Compare outcomes for the next brief**: import the file, compare each hypothesis with what the aggregates show and with the self-selected feedback, assess it as consistent, inconsistent or inconclusive, then record a revised recommendation and the unresolved explanations.
+3. Select the brief as the previous experiment and generate again. The revised brief records `previousId` and `basedOnOutcomes`, the outcome IDs it used.
+
+The import accepts only the Coursay report. It keeps the window, the landing documents and steps with their denominator, the personal cohort, waitlist counts, and feedback theme counts (preset answer and operator category), each with its definition. A report with any other key at any level, a non-count value or free text in an identifier is rejected; the report's free-text limitations are not imported. Feedback comments, bug reports, waitlist emails, heatmaps, raw events and experiment data never enter the tool, and personal records stay in Coursay. Creative sources stay in the research records.
+
+Coursay records no campaign attribution, so every count is site-wide for the window and the outcome records `campaign: unknown`; no join to the brief is made. Each outcome states that it is observational: a change in counts, a heatmap pattern or self-selected feedback does not show that the brief caused it. The generation and claim-audit prompts carry the same rule. An inconclusive assessment is a valid result.
+
+`node --test test/marketing-strategy.test.mjs` demonstrates outcome → revised brief lineage with a fixture report and the rejection cases. `test/experiment-integration.mjs` imports a report downloaded from the real Coursay operator page.

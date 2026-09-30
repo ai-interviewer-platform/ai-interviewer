@@ -29,15 +29,48 @@ function heatmap(cells) {
   }, {})));
 }
 
+const points = value => `${(value * 100).toFixed(2)} percentage points`;
+const interval = item => `${points(item.difference)} (${Math.round(item.confidence * 100)}% interval ${points(item.interval[0])} to ${points(item.interval[1])})`;
+const outcomeLabel = item => `${item.name} · ${item.action}`;
+const results = {
+  collecting: 'Collecting. No interval is shown while the experiment runs: after every variant reaches its planned documents, stop it with its end time to analyze it.',
+  plan_unavailable: 'No sample could be derived from the baseline. Treat the counts as observations only.',
+  inconclusive: 'Inconclusive: the stopping rule gives no evidence of a difference.',
+  difference_detected: 'The interval excludes zero. This is evidence of a difference, not an automatic winner: weigh the guardrails and limitations.',
+};
+
+function experimentMarkup(experiment) {
+  if (!experiment) return '';
+  if (experiment.status === 'invalid') return `<h2>Landing experiment</h2><p>The configured contract is incomplete, so every document shows the control.</p><ul>${experiment.problems.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
+  const contract = experiment.contract;
+  const variants = experiment.variants.map(variant => ({ ...variant, planned: variant.planned ?? 'not derived', primary: `${variant.primary.conversions} of ${variant.primary.documents}` }));
+  return `<h2>Landing experiment</h2><p><strong>${esc(contract.id)}</strong> · ${esc(contract.status)} · ${esc(experiment.design)}. ${esc(results[experiment.status])}</p>
+    ${experiment.primary ? `<p>Primary outcome difference (treatment − control): ${interval(experiment.primary)}.</p>` : ''}
+    <dl><dt>Experiment window</dt><dd>${esc(experiment.window.start)} – ${esc(experiment.window.end)} (${esc(experiment.window.endSource)}), whatever window is chosen above${experiment.reached ? ' · every variant has reached its plan' : ''}</dd><dt>Hypothesis</dt><dd>${esc(contract.hypothesis)}</dd><dt>Eligible audience</dt><dd>${esc(contract.audience)}</dd>
+      <dt>Primary outcome</dt><dd>${esc(outcomeLabel(contract.primaryOutcome))}</dd><dt>Guardrails</dt><dd>${esc(contract.guardrails.map(outcomeLabel).join('; '))}</dd>
+      <dt>Baseline</dt><dd>${esc(experiment.baseline.conversions)} of ${esc(experiment.baseline.documents)} landing documents, ${esc(experiment.baseline.start)} – ${esc(experiment.baseline.end)}</dd>
+      <dt>Minimum meaningful effect</dt><dd>${esc(points(contract.minimumEffect))}</dd><dt>Alpha and power</dt><dd>${esc(contract.alpha)} two-sided · ${esc(contract.power)}</dd>
+      <dt>Allocation and identity</dt><dd>${esc(contract.variants.map(variant => `${variant.id} ${variant.weight}`).join(' : '))} · by ${esc(contract.identity)}</dd>
+      <dt>Method and stopping rule</dt><dd>${esc(contract.method)}. ${esc(experiment.plan.reason)}</dd></dl>
+    ${table('Variants', [['id', 'Variant'], ['version', 'Copy version'], ['planned', 'Planned documents'], ['eligible', 'Eligible documents'], ['primary', 'Primary outcome (analyzed)']], variants)}
+    ${experiment.guardrails.length ? table('Guardrails', [['label', 'Guardrail'], ['result', 'Difference']], experiment.guardrails.map(item => ({ label: outcomeLabel(item), result: interval(item) }))) : ''}
+    ${table('Excluded and missing documents', [['automation', 'Automation'], ['internal', 'Internal'], ['assignmentMismatch', 'Wrong variant'], ['versionMismatch', 'Old copy version'], ['mixedVariants', 'Both variants'], ['missingExposure', 'Landing without exposure']], [{ ...experiment.exclusions, missingExposure: experiment.missingExposure }])}
+    <ul>${experiment.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
+}
+
 function reportMarkup(report) {
   return `<h2>Landing funnel</h2><p>${report.landing.documents} landing documents in ${esc(report.window.start)} – ${esc(report.window.end)} (${esc(report.window.clock)}). Each step counts landing documents that reached it after landing; that count is the denominator. ${report.landing.unattributedDocuments} other documents sent events without a landing exposure (attribution unknown).</p>
     ${table('Landing document steps', [['name', 'Step'], ['activity', 'Activity'], ['action', 'Action'], ['documents', 'Documents']], report.landing.steps)}
     <h2>Personal practice cohort</h2><p>Persisted personal Attempts started in the window, observed until its end. Open Attempts are incomplete, not failed. Retried counts reviewed Attempts with at least one Retry.</p>
     ${table('Server cohort', [['started', 'Started'], ['completed', 'Completed'], ['openAtEnd', 'Open at end'], ['reviewsReady', 'Reviews ready'], ['reviewedRetried', 'Reviewed and retried']], [report.personalCohort])}
     ${table('Waitlist outcomes', [['joined', 'Joined'], ['withdrawn', 'Withdrawn']], [report.waitlist])}
+    ${experimentMarkup(report.experiment)}
     <h2>Landing heatmap</h2>${heatmap(report.heatmap)}
+    <h2>Feedback themes</h2><p>Preset answers and operator categories only. Comments stay in feedback triage.</p>
+    ${table('Feedback responses by answer and category', [['feature', 'Feature'], ['questionId', 'Question'], ['questionVersion', 'Version'], ['answer', 'Answer'], ['category', 'Category'], ['responses', 'Responses'], ['withComment', 'With comment']], report.feedbackThemes)}
     <h2>All events</h2>${table('Events by name and surface', [['name', 'Event'], ['surface', 'Surface'], ['activity', 'Activity'], ['action', 'Action'], ['authority', 'Authority'], ['events', 'Events'], ['documents', 'Documents'], ['duplicates', 'Duplicates'], ['withoutDocument', 'Without document']], report.events)}
-    <h2>Limitations</h2><ul>${report.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
+    <h2>Limitations</h2><ul>${report.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>
+    <button class="button secondary" type="button" data-download-report>Download aggregate report (JSON)</button>`;
 }
 
 const option = (value, selected, label = value) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(label)}</option>`;
@@ -122,6 +155,15 @@ export function mountOperator(root) {
       button.parentElement.textContent = 'No reply address';
       status.textContent = 'Reply address erased.';
     } catch (error) { status.textContent = error.message; }
+  });
+  // The aggregate report for content planning (tools/marketing): aggregates and the experiment contract, no records.
+  root.querySelector('#operator-report').addEventListener('click', event => {
+    if (!event.target.closest('[data-download-report]')) return;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(view.report, null, 2)], { type: 'application/json' }));
+    link.download = `coursay-report-${view.report.window.start.slice(0, 10)}-${view.report.window.end.slice(0, 10)}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href));
   });
   root.querySelector('#operator-form').addEventListener('submit', async event => {
     event.preventDefault();

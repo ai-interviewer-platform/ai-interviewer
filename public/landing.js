@@ -1,15 +1,17 @@
+import { assignVariant } from './experiment.js';
 import { heatGridSize } from './measurement-contract.js';
-import { measure } from './measurement.js';
+import { documentExposureId, measure, measurementOptedOut } from './measurement.js';
 
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 let exposureEmitted = false;
+let experimentEmitted = false;
 
 export function landingScreen() {
   return `<div class="landing">
     <section class="landing-hero enter" aria-labelledby="landing-title" data-heat-zone="hero">
-      <div><p class="eyebrow">For students &amp; new grads preparing for SWE interviews</p>
-      <h1 id="landing-title">Make your thinking<br>part of the answer.</h1>
-      <p class="intro">You know enough Python to attempt the problem. Now practice explaining your approach, testing it, and revising what didn’t work.</p>
+      <div><p class="eyebrow" data-copy-slot="eyebrow">For students &amp; new grads preparing for SWE interviews</p>
+      <h1 id="landing-title" data-copy-slot="headline">Make your thinking<br>part of the answer.</h1>
+      <p class="intro" data-copy-slot="intro">You know enough Python to attempt the problem. Now practice explaining your approach, testing it, and revising what didn’t work.</p>
       <div class="actions" id="landing-actions"><a class="button secondary pressable" href="#sample" data-launch-action="sample">Explore the guided sample</a></div>
       <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p></div>
       <aside class="landing-evidence" aria-label="Fictional review example" data-heat-zone="sample-evidence"><div class="landing-evidence-label">Fictional sample · evidence, not a verdict</div>
@@ -68,6 +70,16 @@ export function mountLanding(root) {
   Promise.all([api('/api/landing-config').catch(() => null), api('/api/personal-availability').catch(() => null)]).then(([config, personal]) => {
     if (!active) return;
     policy = config?.policy;
+    // A running experiment assigns this document a variant. Opted-out browsers keep the control and send nothing.
+    if (config?.experiment && !measurementOptedOut()) {
+      const variant = assignVariant(config.experiment, documentExposureId);
+      for (const [slot, copy] of Object.entries(variant.copy ?? {})) { const target = root.querySelector(`[data-copy-slot="${slot}"]`); if (target) target.textContent = copy; }
+      if (!experimentEmitted) {
+        const internal = new URLSearchParams(location.hash.split('?')[1]).has('internal');
+        measure('experiment_exposed', { experiment: config.experiment.id, variant: variant.id, variantVersion: variant.version, eligibility: navigator.webdriver ? 'automation' : internal ? 'internal' : 'eligible' });
+        experimentEmitted = true;
+      }
+    }
     const ready = personal?.collectionEnabled && personal?.mvpReady;
     root.querySelector('#landing-availability').textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice availability is not confirmed. Explore the fictional sample without an account.';
     const actions = root.querySelector('#landing-actions');

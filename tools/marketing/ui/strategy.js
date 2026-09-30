@@ -52,13 +52,34 @@ export function strategyView({ el, node, api, action, exportJSON, inspect, showV
       } catch (error) { el('strategy-status').textContent = error.message; } finally { button.disabled = false; }
     };
     root.append(review);
-    const outcome = node('form', undefined, 'brief-form'); outcome.append(node('h3', 'Record outcomes for the next experiment'));
-    for (const [label, name] of [['Outcome recorder', 'reviewer'], ['Observed measurement — include unknowns', 'measurement'], ['Feedback received', 'feedback'], ['Change to try next', 'nextChange'], ['Outcome evidence reference', 'evidence']]) field(outcome, label, `outcome-${name}`);
-    outcome.append(node('button', 'Save outcome'));
+    root.append(node('h3', 'Outcome lineage'), node('p', draft.previousId ? `Revises brief ${draft.previousId} using outcomes ${list(draft.basedOnOutcomes).join(', ') || 'recorded before outcome IDs'}.` : 'A new experiment: no previous brief.'));
+    for (const item of list(draft.outcomes).filter(outcome => outcome.aggregate)) {
+      root.append(node('p', `${item.aggregate.window.start} – ${item.aggregate.window.end} · ${item.aggregate.landing.documents} landing documents · campaign attribution ${item.attribution.campaign}. ${item.interpretation}`, 'muted'));
+      for (const comparison of item.comparisons) root.append(node('p', `${comparison.assessment}: ${comparison.hypothesis} Observed: ${comparison.observed} Feedback: ${comparison.feedback}`));
+      root.append(node('p', `Revised recommendation: ${item.recommendation}`), node('p', `Unresolved: ${item.unresolved.join(' · ')}`));
+    }
+    const outcome = node('form', undefined, 'brief-form'); outcome.append(node('h3', 'Compare outcomes for the next brief'));
+    outcome.append(node('p', 'Import the aggregate report downloaded from the Coursay operator page. Only counts enter this tool. Counts are site-wide for the window: Coursay records no campaign attribution, so none is joined to this brief.', 'muted'));
+    field(outcome, 'Outcome recorder', 'outcome-reviewer');
+    const reportLabel = node('label', 'Coursay aggregate report (JSON)'), report = node('input'); report.type = 'file'; report.accept = 'application/json'; report.id = 'outcome-report'; report.required = true; reportLabel.htmlFor = report.id; outcome.append(reportLabel, report);
+    list(proposal.hypotheses).forEach((hypothesis, index) => {
+      const group = node('fieldset'); group.append(node('legend', `Hypothesis ${index + 1}: ${hypothesis.text}`)); outcome.append(group);
+      field(group, 'Observed in the aggregates', `outcome-observed-${index}`); field(group, 'Self-selected feedback', `outcome-feedback-${index}`);
+      const label = node('label', 'Assessment'), assessment = node('select'); assessment.id = `outcome-assessment-${index}`; assessment.name = assessment.id; label.htmlFor = assessment.id; assessment.required = true;
+      assessment.add(new Option('Choose an assessment', '')); for (const value of ['consistent', 'inconsistent', 'inconclusive']) assessment.add(new Option(value, value)); group.append(label, assessment);
+    });
+    field(outcome, 'Revised recommendation', 'outcome-recommendation'); field(outcome, 'Unresolved explanations — one per line', 'outcome-unresolved');
+    outcome.append(node('button', 'Save outcome comparison'));
     outcome.onsubmit = async event => {
       event.preventDefault(); event.submitter.disabled = true;
-      try { await api(`/api/strategy/${draft.id}/outcomes`, Object.fromEntries([...new FormData(outcome)].map(([key, value]) => [key.replace('outcome-', ''), value]))); await refresh(); }
-      catch (error) { el('strategy-status').textContent = error.message; } finally { event.submitter.disabled = false; }
+      try {
+        const values = Object.fromEntries(new FormData(outcome)), hypotheses = list(proposal.hypotheses);
+        let parsed; try { parsed = JSON.parse(await report.files[0].text()); } catch { throw new Error('Choose the JSON report downloaded from the Coursay operator page'); }
+        await api(`/api/strategy/${draft.id}/outcomes`, { reviewer: values['outcome-reviewer'], report: parsed, recommendation: values['outcome-recommendation'],
+          unresolved: values['outcome-unresolved'].split('\n').map(line => line.trim()).filter(Boolean),
+          comparisons: hypotheses.map((_, index) => ({ observed: values[`outcome-observed-${index}`], feedback: values[`outcome-feedback-${index}`], assessment: values[`outcome-assessment-${index}`] })) });
+        await refresh();
+      } catch (error) { el('strategy-status').textContent = error.message; } finally { event.submitter.disabled = false; }
     };
     root.append(outcome);
     const provenance = node('details'); provenance.append(node('summary', 'Models, claim audit, reviews & outcomes'), node('pre', JSON.stringify(draft, null, 2))); root.append(provenance);

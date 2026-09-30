@@ -102,6 +102,16 @@ _Avoid_: visitor, user, session
 One allowlisted record of a page view, interaction or outcome. It never identifies a person.
 _Avoid_: tracking, analytics hit
 
+**Landing experiment**:
+A pre-registered randomized comparison of a control and one treatment wording of the landing page, assigned by Document. Its result is an interval or an inconclusive result, never an automatic winner.
+_Avoid_: A/B winner, split test
+
+**Variant**:
+The control or the treatment of a Landing experiment. Its version changes with its copy.
+
+**Eligible exposure**:
+A Document that showed its assigned Variant and is neither automated nor internal. Only eligible exposures enter the comparison.
+
 ### Site feedback
 
 **Feedback response**:
@@ -124,4 +134,8 @@ A proposed explanation of how an observed structure might help communicate Cours
 A proposal linking source observations, supported product facts, an original script and a measurement definition. Approval records human review, the owner's production and distribution choices, and the actual launch action.
 
 **Experiment outcome**:
-An operator-reported measurement and feedback, with an evidence reference and a proposed change for the next campaign brief.
+The comparison of each Content hypothesis of a Campaign brief with an imported aggregate report and self-selected feedback, with a revised recommendation and unresolved explanations. Its counts are site-wide for the window: campaign attribution is unknown, and it does not show that the brief caused them.
+
+**Aggregate report**:
+The Coursay operator report downloaded for content planning. Content planning imports only its allowlisted counts and identifiers.
+_Avoid_: export, dump
