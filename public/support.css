@@ -1,0 +1,10 @@
+.site-support { position: fixed; right: 1rem; bottom: 1rem; z-index: 40; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 0.5rem; max-width: calc(100vw - 2rem); }
+.support-toggle { box-shadow: var(--ring), var(--shadow-float); }
+.support-panel { width: min(22rem, calc(100vw - 2rem)); max-height: calc(100vh - 6rem); overflow-y: auto; padding: 1rem; border-radius: var(--radius-pane); background: var(--raised); box-shadow: var(--ring), var(--shadow-float); display: grid; gap: 0.5rem; }
+.support-panel h2 { font-size: 1rem; margin: 0; }
+.support-panel form { display: grid; gap: 0.5rem; }
+.support-panel fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
+.support-panel legend { font-weight: 600; margin-bottom: 0.25rem; }
+.support-choice { display: flex; gap: 0.5rem; align-items: center; }
+.support-panel textarea, .support-panel input:not([type=radio], [type=checkbox]) { width: 100%; }
+@media (forced-colors: active) { .support-panel, .support-toggle { border: 1px solid CanvasText; } }

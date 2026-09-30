@@ -20,6 +20,9 @@ export const limits = {
   // Owner-delegated defaults of 2026-09-30 for first-party measurement (#23).
   measurementEventBytes: 4 * 1024,
   measurementEventsPerMinute: 1200,
+  // Owner-delegated default of 2026-09-30 for contextual feedback (#21).
+  feedbackPerMinute: 60,
+  feedbackBytes: 8 * 1024,
 };
 
 // Every rate-limit prefix that is keyed by a user ID. Account deletion removes the
@@ -40,7 +43,7 @@ export function userRateLimitKeys(userId: string): RateLimitKey[] {
 }
 
 // Project-wide limits for public collection. No IP address or other identifier is stored.
-export function siteRateLimitKey(name: "measure"): RateLimitKey {
+export function siteRateLimitKey(name: "measure" | "feedback"): RateLimitKey {
   return `site:${name}` as RateLimitKey;
 }
 

@@ -1,3 +1,4 @@
+import { feedbackCategories, feedbackQuestions, feedbackStatuses, pageFeature } from './feedback-questions.js';
 import { heatGridSize } from './measurement-contract.js';
 
 // Private operator views. Data loads only with the operator token, which stays in this tab's memory.
@@ -38,29 +39,70 @@ function reportMarkup(report) {
     <h2>Limitations</h2><ul>${report.limitations.map(line => `<li>${esc(line)}</li>`).join('')}</ul>`;
 }
 
+const option = (value, selected, label = value) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(label)}</option>`;
+const select = (id, name, label, values, selected, any) => `<label for="${id}">${label}</label><select id="${id}" name="${name}">${any ? option('', selected, any) : ''}${values.map(value => option(value, selected)).join('')}</select>`;
+
+function feedbackMarkup(records) {
+  if (!records.length) return '<p>No feedback matches these filters.</p>';
+  return records.map((record, index) => `<form class="triage-record setup-form" data-id="${esc(record.id)}"><p class="small muted">${esc(record.created_at)} · ${esc(record.surface)} · ${esc(record.activity)} · ${esc(record.question_id)} v${esc(record.question_version)}</p>
+    <p><strong>${record.answer === null ? 'No answer chosen' : esc(feedbackQuestions[record.feature]?.version === record.question_version ? feedbackQuestions[record.feature].answers[record.answer] : record.answer)}</strong></p>${record.response_text ? `<blockquote>${esc(record.response_text)}</blockquote>` : ''}
+    ${select(`feedback-${index}-category`, 'category', 'Category', feedbackCategories, record.category, 'Not categorized')}${select(`feedback-${index}-status`, 'status', 'Status', feedbackStatuses, record.status)}
+    <label for="feedback-${index}-resolution">Resolution</label><textarea id="feedback-${index}-resolution" name="resolution" rows="2">${esc(record.resolution ?? '')}</textarea>
+    <div class="actions"><button class="button secondary small" type="submit">Save triage</button><p role="status"></p></div></form>`).join('');
+}
+
+const operatorFetch = async (path, body) => {
+  const response = await fetch(path, { headers: { authorization: `Bearer ${view.token}`, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+  const data = await response.json();
+  if (!response.ok) throw Error(data.error || 'The request failed.');
+  return data;
+};
+
 export function operatorScreen() {
-  return `<div class="page-title"><div><p class="eyebrow">Private operator</p><h1>Operator reports</h1><p>Reports load only with the private operator token. The token stays in this tab’s memory.</p></div></div>
-  <div id="operator"><form id="operator-form" class="setup-form operator-form"><label for="operator-token">Operator token</label><input id="operator-token" type="password" autocomplete="off" required value="${esc(view.token)}">
+  return `<div class="page-title"><div><p class="eyebrow">Private operator</p><h1>Operator reports</h1><p>Reports and triage load only with the private operator token. The token stays in this tab’s memory.</p></div></div>
+  <div id="operator"><div class="setup-form operator-form"><label for="operator-token">Operator token</label><input id="operator-token" type="password" autocomplete="off" value="${esc(view.token)}"></div>
+  <form id="operator-form" class="setup-form operator-form"><h2>Measurement report</h2>
     <label for="operator-start">Window start</label><input id="operator-start" type="datetime-local" required value="${esc(view.start)}">
     <label for="operator-end">Window end</label><input id="operator-end" type="datetime-local" required value="${esc(view.end)}">
     <p class="small muted">Times use this browser’s time zone. Choose the window explicitly; there is no default.</p>
     <button class="button primary" type="submit">Load report</button><p id="operator-status" role="status"></p></form>
-  <div id="operator-report">${view.report ? reportMarkup(view.report) : ''}</div></div>`;
+  <div id="operator-report">${view.report ? reportMarkup(view.report) : ''}</div>
+  <section class="operator-triage" aria-labelledby="feedback-triage-heading"><h2 id="feedback-triage-heading">Feedback triage</h2>
+    <form id="feedback-filter-form" class="setup-form operator-form">${select('feedback-filter-status', 'status', 'Feedback status', feedbackStatuses, '', 'Any status')}${select('feedback-filter-feature', 'feature', 'Feedback feature', Object.keys(feedbackQuestions), '', 'Any feature')}${select('feedback-filter-surface', 'surface', 'Feedback page', Object.keys(pageFeature), '', 'Any page')}
+      <button class="button primary" type="submit">Load feedback</button><p id="feedback-load-message" role="status"></p></form>
+    <div id="feedback-records"></div></section></div>`;
 }
 
 export function mountOperator(root) {
+  root.querySelector('#operator-token').addEventListener('input', event => { view.token = event.target.value; });
+  root.querySelector('#feedback-filter-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const status = root.querySelector('#feedback-load-message');
+    const query = new URLSearchParams(new FormData(event.target));
+    try {
+      const { records } = await operatorFetch(`/api/feedback/records?${query}`);
+      root.querySelector('#feedback-records').innerHTML = feedbackMarkup(records);
+      status.textContent = `${records.length} feedback records loaded.`;
+    } catch (error) { status.textContent = error.message; }
+  });
+  root.querySelector('#feedback-records').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.target;
+    const status = form.querySelector('[role=status]');
+    try {
+      await operatorFetch('/api/feedback/records', { id: form.dataset.id, category: form.elements.category.value || null, status: form.elements.status.value, resolution: form.elements.resolution.value });
+      status.textContent = 'Saved.';
+    } catch (error) { status.textContent = error.message; }
+  });
   root.querySelector('#operator-form').addEventListener('submit', async event => {
     event.preventDefault();
     const status = root.querySelector('#operator-status');
-    view.token = root.querySelector('#operator-token').value;
     view.start = root.querySelector('#operator-start').value;
     view.end = root.querySelector('#operator-end').value;
     status.textContent = 'Loading…';
     try {
       const query = new URLSearchParams({ start: new Date(view.start).toISOString(), end: new Date(view.end).toISOString() });
-      const response = await fetch(`/api/measure/report?${query}`, { headers: { authorization: `Bearer ${view.token}` } });
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error || 'The report could not load.');
+      const data = await operatorFetch(`/api/measure/report?${query}`);
       view.report = data;
       root.querySelector('#operator-report').innerHTML = reportMarkup(data);
       status.textContent = 'Report loaded.';

@@ -102,6 +102,12 @@ _Avoid_: visitor, user, session
 One allowlisted record of a page view, interaction or outcome. It never identifies a person.
 _Avoid_: tracking, analytics hit
 
+### Site feedback
+
+**Feedback response**:
+An anonymous answer to the contextual question of one page: a preset, a comment, or both. It is not a Correction and does not change a Finding.
+_Avoid_: review, rating
+
 ### Content research
 
 **Source observation**:

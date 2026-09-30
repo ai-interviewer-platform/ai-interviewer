@@ -10,7 +10,8 @@ the existing application state, sample fixtures, and personal adapter.
 `styles.css`, `discovery.css`, and `practice.css` (existing feature layouts),
 then `revision.css` (Revision 2 screen composition and material mapping) and
 `screens-v2.css` (the supplied Home and Profile v2 layouts), `landing.css` and
-`operator.css` (private operator reports and the landing heatmap grid).
+`operator.css` (private operator reports and the landing heatmap grid), and
+`support.css` (the sitewide Feedback control, fixed at the lower right).
 Shared timing and color roles remain in `design-system.css`.
 
 

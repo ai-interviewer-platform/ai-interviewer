@@ -14,7 +14,7 @@ Decided under the owner's delegation of 2026-09-30, on the baseline of `docs/lan
 |---|---|
 | Analytics provider | First-party only: the Coursay Worker (Cloudflare) receives events at `POST /api/measure` and stores them in Neon PostgreSQL. No third-party analytics, session replay or heatmap provider. |
 | Heatmap provider and surface | First-party. Landing page only (`#landing`). Clicks bucketed to a 20 × 20 grid plus a named zone; no coordinates, element text, screenshots or replay. |
-| Surface coverage | Every route emits `page_viewed` with its allowlisted name. Sensitive surfaces (sample and personal workspaces, reviews, account pages) keep event coverage and are excluded from the heatmap. |
+| Surface coverage | Every route emits `page_viewed` with its allowlisted name. Sensitive surfaces (sample and personal workspaces, reviews, account pages) keep event coverage and are excluded from the heatmap. The feedback control sends no measurement events. |
 | Consent and disclosure | No cookie, browser storage or cross-page identifier. Disclosed in the privacy notice and the cookies page. Global Privacy Control or Do Not Track sends nothing. The server flag and operator token gate collection. |
 | Operator access | Jack Cao only, through the private operator token (`WAITLIST_OPERATOR_TOKEN`), shared by every operator API. `#operator` is a public page shell with no data: reports load only after the token is entered, and the token stays in tab memory. This replaces the #20 choice of no operator page, because a heatmap is not inspectable as JSON. |
 | Retention | Measurement events: until project retirement. No numeric retention period is set. Feedback (#21) and bug reports (#22) record their own retention. |

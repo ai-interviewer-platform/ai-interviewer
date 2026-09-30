@@ -4,6 +4,7 @@ import { personalCollectionEnabled, personalCollectionUnavailable } from "./data
 import { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } from "./deepgram";
 import { emailConfigured } from "./email";
 import type { Env } from "./env";
+import { feedbackEnabled, feedbackRequest } from "./feedback";
 import { boundedRequest, checkOrigin, json, serverUnavailable, unauthorized } from "./http";
 import { measurementEnabled, measurementRequest } from "./measurement";
 import { logOperationalEvent } from "./observability";
@@ -53,7 +54,8 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
   const url = new URL(request.url);
   if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
   if (url.pathname === "/api/personal-availability" && request.method === "GET") return availability(env);
-  if (url.pathname === "/api/site-config" && request.method === "GET") return json({ measurementEnabled: measurementEnabled(env) });
+  if (url.pathname === "/api/site-config" && request.method === "GET") return json({ measurementEnabled: measurementEnabled(env), feedbackEnabled: feedbackEnabled(env) });
+  if (url.pathname === "/api/feedback" || url.pathname === "/api/feedback/records") return feedbackRequest(request, env, dependencies.database);
   if (url.pathname === "/api/measure" || url.pathname === "/api/measure/report") return measurementRequest(request, env, dependencies.database);
   if (url.pathname === '/api/landing-config' || url.pathname === '/api/waitlist' || url.pathname.startsWith('/api/waitlist/')) return waitlistRequest(request, env, dependencies.database);
   if (!personalCollectionEnabled(env)) return serverUnavailable(personalCollectionUnavailable);
