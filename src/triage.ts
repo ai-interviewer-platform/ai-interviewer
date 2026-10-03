@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import { badRequest, json, serverUnavailable } from './http';
+import { badRequest, json } from './http';
 
 // The newest 200 triage records of a table, filtered by exact allowlisted column values.
 export async function listTriageRecords(pool: Pool, table: 'feedback_responses' | 'bug_reports', columns: string, query: URLSearchParams, filters: Record<string, readonly string[]>): Promise<Response> {
@@ -12,10 +12,6 @@ export async function listTriageRecords(pool: Pool, table: 'feedback_responses' 
     values.push(value);
     conditions.push(`${name} = $${values.length}`);
   }
-  try {
-    const records = await pool.query(`SELECT ${columns} FROM ${table} ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT 200`, values);
-    return json({ records: records.rows });
-  } catch {
-    return serverUnavailable('Records could not load. Try again.');
-  }
+  const records = await pool.query(`SELECT ${columns} FROM ${table} ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT 200`, values);
+  return json({ records: records.rows });
 }

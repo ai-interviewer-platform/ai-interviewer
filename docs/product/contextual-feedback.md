@@ -40,7 +40,7 @@ The test also checks that every page in `public/measurement-contract.js` has a f
 ## Verification
 
 `node test/feedback-integration.mjs` needs a disposable local `DATABASE_URL`. It exercises the real request handler, PostgreSQL and a browser. It covers:
-- the collection gate, origin check, question versions and answer semantics
+- question versions and answer semantics (the shared collection gate is checked by `test/site-collection-gate-integration.mjs`)
 - the session-independent contract, private triage, filters, immutability and deletion
 - the keyboard and focus behavior, dismissal and failure states
 - a question on every page and coexistence with the Correction flow

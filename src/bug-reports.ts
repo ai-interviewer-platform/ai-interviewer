@@ -1,21 +1,15 @@
-import type { Pool } from 'pg';
 import { bugContactPurpose, bugStatuses, bugSurfaces, bugTextLimit, closedBugStatuses, diagnosticErrorLimit, diagnosticValues, operatorContact, secretPattern } from '../public/bug-report-contract.js';
 import { pageFeature } from '../public/feedback-questions.js';
 import { pageActivity } from '../public/measurement-contract.js';
-import type { Env } from './env';
-import { badRequest, boundedRequest, checkOrigin, isEmailAddress, isRecord, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable } from './http';
-import { isOperator, operatorRequired } from './operator';
-import { consumeRate, limits, siteRateLimitKey } from './security';
+import { badRequest, isEmailAddress, isRecord, json, nonnegativeSafeInteger, notFound } from './http';
+import { collectionApproved } from './operator';
+import { limits } from './security';
+import type { CollectionPolicy, SiteInput } from './site-collection';
 import { listTriageRecords } from './triage';
 
 const columns = 'id, reference, surface, feature, activity, expected, actual, steps, diagnostics, contact_email, contact_purpose, status, investigation, resolution, created_at, updated_at';
-const unavailable = () => serverUnavailable('Your report was not saved. Your text is still here; try again.');
 // A field error names its form field, so the form can mark and focus it.
 const invalid = (field: string, error: string) => json({ error, field }, { status: 400 });
-
-export function bugReportsEnabled(env: Env) {
-  return env.BUG_REPORT_COLLECTION_APPROVED === 'true' && Boolean(env.WAITLIST_OPERATOR_TOKEN);
-}
 
 // Keeps only allowlisted diagnostic values. A bad value is dropped, never a reason to refuse a report.
 function allowlistedDiagnostics(value: unknown) {
@@ -28,27 +22,9 @@ function allowlistedDiagnostics(value: unknown) {
   return kept;
 }
 
-export async function bugReportRequest(request: Request, env: Env, database: () => Pool): Promise<Response> {
-  const url = new URL(request.url);
-  const operatorPath = url.pathname === '/api/bug-reports/records';
-  if (operatorPath && !isOperator(request, env)) return operatorRequired();
-  if (!operatorPath && !bugReportsEnabled(env)) return serverUnavailable('Bug reports are not collected here yet.');
-  const originError = checkOrigin(request, env.BETTER_AUTH_URL);
-  if (originError) return originError;
-  if (operatorPath && request.method === 'GET') return listTriageRecords(database(), 'bug_reports', columns, url.searchParams, { status: bugStatuses, surface: bugSurfaces, feature: [...new Set(Object.values(pageFeature)), 'other'] });
-  if (request.method !== 'POST') return notFound();
-  const bounded = await boundedRequest(request, limits.bugReportsBytes);
-  if (bounded instanceof Response) return bounded;
-  const body = await requestBody(bounded);
-  if (!body) return badRequest('Send the report as JSON.');
-  try {
-    return operatorPath ? await triage(database(), body) : await save(database(), body);
-  } catch {
-    return unavailable();
-  }
-}
+const records = ({ url, database }: SiteInput) => listTriageRecords(database(), 'bug_reports', columns, url.searchParams, { status: bugStatuses, surface: bugSurfaces, feature: [...new Set(Object.values(pageFeature)), 'other'] });
 
-async function save(pool: Pool, body: Record<string, unknown>) {
+async function save({ body, database }: SiteInput) {
   // Free text is stored as written, except that anything shaped like a secret is replaced.
   const text = (field: string) => { const value = body[field]; return typeof value === 'string' && value.trim() ? value.replace(secretPattern, '[removed]') : ''; };
   const surface = typeof body.surface === 'string' && bugSurfaces.includes(body.surface) ? body.surface : null;
@@ -60,16 +36,16 @@ async function save(pool: Pool, body: Record<string, unknown>) {
   if (email && !isEmailAddress(email)) return invalid('contactEmail', 'Enter a reply address, such as name@example.com, or leave it empty.');
   if (email && body.contactConsent !== true) return invalid('contactConsent', 'Agree to the reply purpose, or remove the reply address.');
   if (!email && body.contactConsent === true) return invalid('contactEmail', 'Enter the reply address, or clear the reply checkbox.');
-  if (!(await consumeRate(pool, siteRateLimitKey('bug-report'), 60, limits.bugReportsPerMinute)).allowed) return json({ error: `Reports are busy. Try again in a minute, or email ${operatorContact}.` }, { status: 429 });
   const reference = `BR-${crypto.randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`;
-  await pool.query(`INSERT INTO bug_reports (id, reference, surface, feature, activity, expected, actual, steps, diagnostics, contact_email, contact_purpose)
+  await database().query(`INSERT INTO bug_reports (id, reference, surface, feature, activity, expected, actual, steps, diagnostics, contact_email, contact_purpose)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
   [crypto.randomUUID(), reference, surface, pageFeature[surface as keyof typeof pageFeature] ?? 'other', pageActivity[surface as keyof typeof pageActivity] ?? 'none',
     text('expected'), text('actual'), text('steps') || null, JSON.stringify(allowlistedDiagnostics(body.diagnostics)), email || null, email ? bugContactPurpose : null]);
   return json({ reference }, { status: 201 });
 }
 
-async function triage(pool: Pool, body: Record<string, unknown>) {
+async function triage({ body, database }: SiteInput) {
+  const pool = database();
   if (typeof body.id !== 'string' || !body.id) return badRequest('Choose a bug report.');
   if (body.action === 'delete') {
     await pool.query('DELETE FROM bug_reports WHERE id = $1', [body.id]);
@@ -95,3 +71,15 @@ async function triage(pool: Pool, body: Record<string, unknown>) {
     WHERE id = $1 RETURNING ${columns}`, [body.id, body.status, investigation, resolution, closing]);
   return json({ record: updated.rows[0] });
 }
+
+export const bugReportPolicy: CollectionPolicy = {
+  configKey: 'bugReportsEnabled',
+  enabled: env => collectionApproved(env.BUG_REPORT_COLLECTION_APPROVED, env),
+  routes: { 'POST /api/bug-reports': { handle: save }, 'GET /api/bug-reports/records': { handle: records, operator: true }, 'POST /api/bug-reports/records': { handle: triage, operator: true } },
+  bytes: limits.bugReportsBytes,
+  perMinute: limits.bugReportsPerMinute,
+  rateKey: 'bug-report',
+  closed: 'Bug reports are not collected here yet.',
+  busy: `Reports are busy. Try again in a minute, or email ${operatorContact}.`,
+  unavailable: 'Your report was not saved. Your text is still here; try again.',
+};

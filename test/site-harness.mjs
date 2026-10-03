@@ -34,8 +34,9 @@ export async function siteHarness(name, env) {
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${server.address().port}`;
-  // Calls the handler directly. `body` undefined sends a GET.
-  const request = (path, body, headers = {}, overrides = {}) => handleRequest(new Request(base + path, { method: body === undefined ? 'GET' : 'POST', headers: { origin: base, 'content-type': 'application/json', ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), { ...configured(), ...overrides }, {}, dependencies);
+  // Calls the handler directly. `body` undefined sends a GET; a string body is sent as is.
+  // `database` replaces the real pool, for example with one that fails when it is touched.
+  const request = (path, body, headers = {}, overrides = {}, database = dependencies.database) => handleRequest(new Request(base + path, { method: body === undefined ? 'GET' : 'POST', headers: { origin: base, 'content-type': 'application/json', ...headers }, ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }) }), { ...configured(), ...overrides }, {}, { ...dependencies, database });
   const operator = async (path, body) => (await request(path, body, { authorization: `Bearer ${operatorToken}` })).json();
   async function close() {
     await new Promise(done => server.close(done));

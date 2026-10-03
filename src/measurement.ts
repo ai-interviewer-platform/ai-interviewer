@@ -3,9 +3,10 @@ import { actions, activities, authorities, eligibilities, eventNames, heatGridSi
 import type { Env } from './env';
 import { experimentReport } from './experiment';
 import { experimentSlug as slug, versionPattern as version } from '../public/experiment.js';
-import { badRequest, boundedRequest, checkOrigin, json, notFound, requestBody, serverUnavailable } from './http';
-import { isOperator, operatorRequired } from './operator';
-import { consumeRate, limits, siteRateLimitKey } from './security';
+import { badRequest, json } from './http';
+import { collectionApproved } from './operator';
+import { limits } from './security';
+import type { CollectionPolicy, SiteInput } from './site-collection';
 
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const automatedAgent = /bot|crawl|spider|slurp|headless|lighthouse|preview/i;
@@ -23,27 +24,19 @@ const measurementLimitations = [
 ];
 
 export function measurementEnabled(env: Env) {
-  return env.MEASUREMENT_COLLECTION_APPROVED === 'true' && Boolean(env.WAITLIST_OPERATOR_TOKEN);
+  return collectionApproved(env.MEASUREMENT_COLLECTION_APPROVED, env);
 }
 
-export async function measurementRequest(request: Request, env: Env, database: () => Pool): Promise<Response> {
-  const url = new URL(request.url);
-  if (url.pathname === '/api/measure/report' && request.method === 'GET') {
-    if (!isOperator(request, env)) return operatorRequired();
-    const start = new Date(url.searchParams.get('start') ?? '');
-    const end = new Date(url.searchParams.get('end') ?? '');
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return badRequest('Choose an explicit start and end.');
-    if (start >= end) return badRequest('Choose a start before the end.');
-    return json(await report(database(), env, start, end));
-  }
-  if (url.pathname !== '/api/measure' || request.method !== 'POST') return notFound();
-  if (!measurementEnabled(env)) return serverUnavailable('Measurement is off.');
-  const originError = checkOrigin(request, env.BETTER_AUTH_URL);
-  if (originError) return originError;
-  const bounded = await boundedRequest(request, limits.measurementEventBytes);
-  if (bounded instanceof Response) return bounded;
-  const body = await requestBody(bounded);
-  if (!body || body.version !== 'coursay-outcomes-v1' || body.attribution !== 'unknown' || typeof body.id !== 'string' || !uuid.test(body.id)
+function reportRequest({ url, env, database }: SiteInput) {
+  const start = new Date(url.searchParams.get('start') ?? '');
+  const end = new Date(url.searchParams.get('end') ?? '');
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return badRequest('Choose an explicit start and end.');
+  if (start >= end) return badRequest('Choose a start before the end.');
+  return report(database(), env, start, end).then(json);
+}
+
+async function save({ body, database, userAgent }: SiteInput) {
+  if (body.version !== 'coursay-outcomes-v1' || body.attribution !== 'unknown' || typeof body.id !== 'string' || !uuid.test(body.id)
     || !listed(eventNames, body.name) || !Object.hasOwn(pageActivity, body.surface as string) || !listed(activities, body.activity) || !listed(actions, body.action)
     || !listed(authorities, body.authority) || (body.exposureId !== null && !(typeof body.exposureId === 'string' && uuid.test(body.exposureId)))) return badRequest('Send an allowlisted event.');
   const click = body.name === 'landing_click';
@@ -52,20 +45,26 @@ export async function measurementRequest(request: Request, env: Env, database: (
   if (exposure && !(typeof body.experiment === 'string' && slug.test(body.experiment) && typeof body.variant === 'string' && slug.test(body.variant)
     && typeof body.variantVersion === 'string' && version.test(body.variantVersion) && listed(eligibilities, body.eligibility))) return badRequest('Send an allowlisted event.');
   // Crawlers and headless browsers that run the page are excluded from experiments whatever the page reported.
-  const eligibility = exposure && automatedAgent.test(request.headers.get('user-agent') ?? '') ? 'automation' : body.eligibility;
-  try {
-    const pool = database();
-    if (!(await consumeRate(pool, siteRateLimitKey('measure'), 60, limits.measurementEventsPerMinute)).allowed) return json({ error: 'Measurement is busy.' }, { status: 429 });
-    await pool.query(`INSERT INTO measurement_events (id, name, surface, activity, action, authority, exposure_id, zone, cell_x, cell_y, viewport, experiment_id, variant, variant_version, eligibility)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      ON CONFLICT (id) DO UPDATE SET duplicate_count = measurement_events.duplicate_count + 1`,
-    [body.id, body.name, body.surface, body.activity, body.action, body.authority, body.exposureId, click ? body.zone : null, click ? body.cellX : null, click ? body.cellY : null, click ? body.viewport : null,
-      exposure ? body.experiment : null, exposure ? body.variant : null, exposure ? body.variantVersion : null, exposure ? eligibility : null]);
-    return json({ accepted: true }, { status: 202 });
-  } catch {
-    return serverUnavailable('Measurement is unavailable.');
-  }
+  const eligibility = exposure && automatedAgent.test(userAgent) ? 'automation' : body.eligibility;
+  await database().query(`INSERT INTO measurement_events (id, name, surface, activity, action, authority, exposure_id, zone, cell_x, cell_y, viewport, experiment_id, variant, variant_version, eligibility)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    ON CONFLICT (id) DO UPDATE SET duplicate_count = measurement_events.duplicate_count + 1`,
+  [body.id, body.name, body.surface, body.activity, body.action, body.authority, body.exposureId, click ? body.zone : null, click ? body.cellX : null, click ? body.cellY : null, click ? body.viewport : null,
+    exposure ? body.experiment : null, exposure ? body.variant : null, exposure ? body.variantVersion : null, exposure ? eligibility : null]);
+  return json({ accepted: true }, { status: 202 });
 }
+
+export const measurementPolicy: CollectionPolicy = {
+  configKey: 'measurementEnabled',
+  enabled: measurementEnabled,
+  routes: { 'POST /api/measure': { handle: save }, 'GET /api/measure/report': { handle: reportRequest, operator: true } },
+  bytes: limits.measurementEventBytes,
+  perMinute: limits.measurementEventsPerMinute,
+  rateKey: 'measure',
+  closed: 'Measurement is off.',
+  busy: 'Measurement is busy.',
+  unavailable: 'Measurement is unavailable.',
+};
 
 async function report(pool: Pool, env: Env, start: Date, end: Date) {
   const window = [start.toISOString(), end.toISOString()];
