@@ -1,11 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 import { withTimeline } from "./attempt-timeline";
 import { databaseForInvocation } from "./database";
-import { DEEPGRAM_VOICE_PROVIDER, voiceSettings } from "./deepgram";
+import { DEEPGRAM_VOICE_PROVIDER } from "./deepgram";
 import type { Env } from "./env";
 import { json } from "./http";
 import { limits } from "./security";
 import { loadCodingContext } from "./interviewer-turn";
+import { voiceSettings } from "./voice-settings";
 import { releaseVoice, reserveVoice } from "./voice-budget";
 import { logOperationalEvent } from "./observability";
 
