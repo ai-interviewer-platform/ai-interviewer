@@ -4,8 +4,7 @@ import { withTransaction } from "./transaction";
 import { deepgramVoiceEnabled } from "./deepgram";
 import { limits } from "./security";
 import { runnerFor, type RunOutcome } from "./runner";
-import { reviewProviderConfigured } from "./review-provider";
-import { logOperationalEvent } from "./observability";
+import { dispatchReview, reviewConfigured } from "./review-queue";
 import { answerInterviewerTurn, type UndeliveredReason } from "./interviewer-turn";
 import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
@@ -243,7 +242,7 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
 }
 
 async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
-  if (!reviewProviderConfigured(env) || !env.REVIEW_QUEUE?.send) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
+  if (!reviewConfigured(env)) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
   // The Submission Checkpoint. A retried finish with the same event metadata finds the recorded one.
   const submission = await withTimeline(pool, attempt.id, async (timeline, client) => {
     const recorded = await timeline.record("code_checkpoint", body, { checkpointType: "submission", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "submission" } });
@@ -264,24 +263,12 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
       await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
       return { status: "finished", reviewId } as const;
     }));
-  let reviewId: string;
-  if (finished.status === "closed") {
-    // A finished Attempt: dispatch its Review again if the first dispatch was lost.
-    const review = await pool.query<{ id: string }>("SELECT id FROM reviews WHERE attempt_id = $1", [attempt.id]);
-    if (!review.rows[0]) return notFound();
-    reviewId = review.rows[0].id;
-  } else if (finished.status === "finished") {
-    reviewId = finished.reviewId;
-  } else {
-    return notRecorded(finished, "Stable finish event metadata is required.");
-  }
-  const claim = await pool.query("UPDATE reviews SET dispatch_claimed_at = now() WHERE id = $1 AND status = 'pending' AND (dispatch_claimed_at IS NULL OR dispatch_claimed_at < now() - interval '60 seconds') RETURNING id", [reviewId]);
-  const dispatch = claim.rows.length ? "queued" : "already dispatched";
-  if (claim.rows.length) {
-    try { await env.REVIEW_QUEUE.send({ reviewId }); }
-    catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
-  }
-  return json({ reviewId, dispatch, recoveryDispatch: finished.status === "closed", submissionCheck: await loadSubmissionCheck(pool, attempt.id) });
+  if (finished.status !== "finished" && finished.status !== "closed") return notRecorded(finished, "Stable finish event metadata is required.");
+  // A closed Attempt is a finish retry: it dispatches the Review again if the first dispatch was lost.
+  const dispatch = await dispatchReview(pool, env.REVIEW_QUEUE, attempt.id);
+  if (dispatch.status === "missing") return notFound();
+  if (dispatch.status === "failed") return serverUnavailable("Review dispatch failed. Retry finishing this attempt.");
+  return json({ reviewId: dispatch.reviewId, dispatch: dispatch.status, recoveryDispatch: finished.status === "closed", submissionCheck: await loadSubmissionCheck(pool, attempt.id) });
 }
 
 async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
