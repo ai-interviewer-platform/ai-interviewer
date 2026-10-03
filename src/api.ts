@@ -7,6 +7,7 @@ import { runnerFor, type RunOutcome } from "./runner";
 import { reviewProviderConfigured } from "./review-provider";
 import { logOperationalEvent } from "./observability";
 import { INTERVIEWER_MODEL, modelText } from "./llm";
+import { loadCodingContext } from "./interviewer-turn";
 import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
 import type { SessionResolver } from "./request-handler";
@@ -184,13 +185,12 @@ async function interviewerReply(pool: Pool, env: Env, attempt: AttemptRow, trigg
   if (Number(turns.rows[0].count) >= limits.modelTurnsPerAttempt) return { reply: null, replyError: "This attempt reached its interviewer reply limit, so no reply was generated." };
   if (!(await consumeRate(pool, userRateLimitKey("model", attempt.user_id), 60 * 60, limits.accountModelTurnsPerHour)).allowed) return { reply: null, replyError: "Too many interviewer replies this hour, so no reply was generated." };
 
-  const [problem, run, transcript] = await Promise.all([
+  const [problem, codingContext, transcript] = await Promise.all([
     pool.query<{ title: string; prompt: string; clarification_guidance: string; help_guidance: string }>("SELECT title, prompt, clarification_guidance, help_guidance FROM problems WHERE id = $1", [attempt.problem_id]),
-    pool.query("SELECT status, tests_passed, tests_failed, test_results, stderr, runner_error FROM code_runs WHERE attempt_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1", [attempt.id]),
+    loadCodingContext(pool, attempt.id, attempt.user_id),
     pool.query<{ speaker: string; text: string }>("SELECT speaker, text FROM transcript_segments WHERE attempt_id = $1 ORDER BY end_offset_ms DESC, id DESC LIMIT 20", [attempt.id]),
   ]);
-  const latestRun = run.rows[0] ? clip(JSON.stringify(run.rows[0]), 4000) : "No run yet.";
-  const system = `${INTERVIEWER_RULES[attempt.mode]}\n${COMMON_RULES}\n\nProblem: ${problem.rows[0]?.title}\n${clip(problem.rows[0]?.prompt ?? "", 8000)}\n\nAuthored clarification guidance: ${problem.rows[0]?.clarification_guidance}\nAuthored help guidance: ${problem.rows[0]?.help_guidance}\n\n<current_code>\n${clip(attempt.draft_source, 16000)}\n</current_code>\n\n<latest_visible_test_run>\n${latestRun}\n</latest_visible_test_run>`;
+  const system = `${INTERVIEWER_RULES[attempt.mode]}\n${COMMON_RULES}\n\nProblem: ${problem.rows[0]?.title}\n${clip(problem.rows[0]?.prompt ?? "", 8000)}\n\nAuthored clarification guidance: ${problem.rows[0]?.clarification_guidance}\nAuthored help guidance: ${problem.rows[0]?.help_guidance}\n\n<coding_context>\n${codingContext}\n</coding_context>`;
   const messages: Array<{ role: "user" | "assistant"; content: string }> = transcript.rows.reverse().map((segment) => ({ role: segment.speaker === "candidate" ? "user" : "assistant", content: clip(segment.text, 2000) }));
   while (messages[0]?.role === "assistant") messages.shift();
   if (helpCategory) messages.push({ role: "user", content: HELP_REQUESTS[helpCategory] });

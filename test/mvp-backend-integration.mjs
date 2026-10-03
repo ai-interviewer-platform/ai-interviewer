@@ -17,12 +17,12 @@ const { pool: database, drop } = await testDatabase("mvp_test");
 const directory = await mkdtemp(join(tmpdir(), "mvp-backend-integration-"));
 
 try {
-  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/attempt-timeline.ts", "src/voice-context.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+  await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/attempt-timeline.ts", "src/interviewer-turn.ts", "src/runner.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
   const { handleRequest } = await import(pathToFileURL(join(directory, "request-handler.mjs")));
   const handle = withSessions(handleRequest, fakeSessions({ userId: request => request.headers.get("x-test-user") ?? "owner" }));
   const { processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   const { withTimeline } = await import(pathToFileURL(join(directory, "attempt-timeline.mjs")));
-  const { loadVoiceCodingContext } = await import(pathToFileURL(join(directory, "voice-context.mjs")));
+  const { loadCodingContext } = await import(pathToFileURL(join(directory, "interviewer-turn.mjs")));
   const { inMemoryRunner } = await import(pathToFileURL(join(directory, "runner.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner', 'MVP Fixture', 'mvp@example.invalid'), ('other', 'Other Fixture', 'other-mvp@example.invalid')");
   let dispatchedReviewId;
@@ -77,10 +77,10 @@ try {
   assert.equal(transcript.status, "recorded");
   const help = await call("POST", `${path}/help`, { category: "hint", ...metadata("help") });
   assert.equal(help.status, 202);
-  const context = JSON.parse(await loadVoiceCodingContext(database, attemptId, "owner"));
+  const context = JSON.parse(await loadCodingContext(database, attemptId, "owner"));
   assert.equal(context.latestVisibleRun.status, "passed");
   assert.equal(context.latestHelpRequest.category, "hint");
-  assert.equal(await loadVoiceCodingContext(database, attemptId, "other"), null);
+  assert.equal(await loadCodingContext(database, attemptId, "other"), null);
 
   const reviewKey = env.REVIEW_PROVIDER_API_KEY;
   delete env.REVIEW_PROVIDER_API_KEY;
@@ -116,7 +116,7 @@ try {
   const retryId = (await retried.json()).attemptId;
   const retry = (await database.query("SELECT mode, input_mode, source_attempt_id, source_checkpoint_id FROM attempts WHERE id = $1", [retryId])).rows[0];
   assert.deepEqual(retry, { mode: "coach", input_mode: "voice", source_attempt_id: attemptId, source_checkpoint_id: checkpointId });
-  assert.equal(JSON.parse(await loadVoiceCodingContext(database, attemptId, "owner")).status, "unavailable");
+  assert.equal(JSON.parse(await loadCodingContext(database, attemptId, "owner")).status, "unavailable");
   assert.equal((await call("GET", path, undefined, "other")).status, 403);
   console.log("MVP backend integration passed: voice evidence, failed/passed runs, bounded context, finish, evidence-backed review, retrieval, and voice retry.");
 } finally {

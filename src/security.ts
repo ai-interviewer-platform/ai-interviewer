@@ -12,8 +12,9 @@ export const limits = {
   voiceCommands: 1200,
   pendingTranscripts: 50,
   voiceFunctionCalls: 30,
-  voiceContextSourceBytes: 10 * 1024,
-  voiceContextBytes: 16 * 1024,
+  // The Coding context of both Input modes (#51): the Draft, then the whole context.
+  codingContextDraftBytes: 10 * 1024,
+  codingContextBytes: 16 * 1024,
   modelTurnsPerAttempt: 40,
   accountModelTurnsPerHour: 60,
   accountReviewsPerDay: 20,
@@ -26,6 +27,10 @@ export const limits = {
   // Owner-delegated defaults of 2026-09-30 for bug reports (#22).
   bugReportsPerMinute: 30,
   bugReportsBytes: 32 * 1024,
+  // The waitlist limit accepted in #49 for the shared Site collection gate (#50). The 4 KiB
+  // body limit matches measurement events; a waitlist request is an email address and a version.
+  waitlistPerMinute: 30,
+  waitlistBytes: 4 * 1024,
 };
 
 // Every rate-limit prefix that is keyed by a user ID. Account deletion removes the
@@ -46,7 +51,7 @@ export function userRateLimitKeys(userId: string): RateLimitKey[] {
 }
 
 // Project-wide limits for public collection. No IP address or other identifier is stored.
-export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report"): RateLimitKey {
+export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report" | "waitlist"): RateLimitKey {
   return `site:${name}` as RateLimitKey;
 }
 

@@ -5,7 +5,7 @@ import { DEEPGRAM_VOICE_PROVIDER, voiceSettings } from "./deepgram";
 import type { Env } from "./env";
 import { json } from "./http";
 import { limits } from "./security";
-import { loadVoiceCodingContext } from "./voice-context";
+import { loadCodingContext } from "./interviewer-turn";
 import { releaseVoice, reserveVoice } from "./voice-budget";
 import { logOperationalEvent } from "./observability";
 
@@ -103,7 +103,7 @@ export class VoiceSession extends DurableObject<Env> {
               if (typeof fn !== "object" || fn === null || fn.name !== "get_coding_context" || fn.client_side !== true
                 || typeof fn.id !== "string" || fn.id.length > 256 || ++functionCalls > limits.voiceFunctionCalls) return close();
               writes = writes.then(async () => {
-                const context = await loadVoiceCodingContext(pool, attempt.id, attempt.user_id);
+                const context = await loadCodingContext(pool, attempt.id, attempt.user_id);
                 if (!context || cancelledFunctions.has(fn.id) || closed) return;
                 const response = { type: "FunctionCallResponse", id: fn.id, name: fn.name, content: context,
                   ...(typeof fn.thought_signature === "string" && fn.thought_signature.length <= 1024 ? { thought_signature: fn.thought_signature } : {}) };

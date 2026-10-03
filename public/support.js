@@ -3,6 +3,7 @@
 // from the URL.
 import { bugContactPurpose, bugSurfaces, bugTextLimit, diagnosticErrorLimit, diagnosticLabels, diagnosticValues, operatorContact as contact } from './bug-report-contract.js';
 import { pageActivity } from './measurement-contract.js';
+import { siteConfig } from './site-config.js';
 
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const currentPage = () => location.hash.replace(/^#\/?/, '').split('?')[0] || 'landing';
@@ -183,7 +184,7 @@ function mountBugReports(config) {
 // An unreachable configuration keeps both controls; the server still refuses collection that is off.
 const bugConfig = { enabled: undefined };
 mountBugReports(bugConfig);
-fetch('/api/site-config').then(response => response.json()).catch(() => ({ feedbackEnabled: true, bugReportsEnabled: true })).then(config => {
+siteConfig().then(config => config ?? { feedbackEnabled: true, bugReportsEnabled: true }).then(config => {
   bugConfig.enabled = config.bugReportsEnabled !== false;
   if (config.feedbackEnabled) import('./feedback-questions.js').then(mountFeedback).catch(() => { /* The bug path stays available. */ });
 });

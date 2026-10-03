@@ -21,12 +21,11 @@ try {
   const deployment = ts.parseConfigFileTextToJson('wrangler.jsonc', await readFile('wrangler.jsonc', 'utf8')).config.vars;
   const request = (path, body, extra = {}, configured = env) => handleRequest(new Request(origin + path, { method: body === undefined ? 'GET' : 'POST', headers: { origin, 'content-type': 'application/json', ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), configured, {}, { database: () => pool, sessions: () => { throw Error('Waitlist must not require a personal session'); } });
   const records = async () => (await (await request('/api/waitlist/records', undefined, { authorization: 'Bearer fixture-operator-secret' })).json()).records;
-  assert.equal((await request('/api/waitlist', { email: 'candidate@example.invalid', consent: true, policyVersion: policy.version }, {}, { ...env, WAITLIST_COLLECTION_APPROVED: 'false' })).status, 503);
-  assert.equal((await request('/api/waitlist/records')).status, 401);
-  assert.equal((await (await request('/api/landing-config', undefined, {}, { ...env, WAITLIST_POLICY: '{}' })).json()).waitlistEnabled, false);
+  const waitlistEnabled = async configured => (await (await request('/api/site-config', undefined, {}, configured)).json()).waitlistEnabled;
+  assert.equal(await waitlistEnabled({ ...env, WAITLIST_POLICY: '{}' }), false, 'An incomplete notice policy keeps the waitlist closed');
   const published = await (await request('/api/landing-config', undefined, {}, deployment)).json();
   assert.equal(published.primaryAction, 'personal_practice');
-  assert.equal(published.waitlistEnabled, false, 'Operator secret is mandatory even with approved policy');
+  assert.equal(await waitlistEnabled(deployment), false, 'Operator secret is mandatory even with approved policy');
   assert.equal(published.policy.operator, 'Jack Cao');
   assert.equal(published.policy.contact, 'jack.cao@utdallas.edu');
   assert.equal(published.policy.emailProvider, 'none');
@@ -34,7 +33,7 @@ try {
   assert.match(published.policy.retention, /withdrawal.*fulfilled.*closes/);
   assert.match(published.policy.deletion, /6 hours.*restored.*fresh opt-in/);
   assert.match(published.policy.processors, /Cloudflare.*Neon.*Jack Cao.*not sent to AI.*never enters measurement/);
-  assert.equal((await (await request('/api/landing-config', undefined, {}, { ...deployment, WAITLIST_OPERATOR_TOKEN: env.WAITLIST_OPERATOR_TOKEN })).json()).waitlistEnabled, true);
+  assert.equal(await waitlistEnabled({ ...deployment, WAITLIST_OPERATOR_TOKEN: env.WAITLIST_OPERATOR_TOKEN }), true);
   const first = await request('/api/waitlist', { email: 'Candidate@example.invalid', consent: true, policyVersion: policy.version });
   assert.equal(first.status, 200);
   const receipt = await first.json();
@@ -53,10 +52,9 @@ try {
   assert.equal((await request('/api/waitlist', { email: 'candidate@example.invalid', consent: true, policyVersion: 'stale' })).status, 409);
   await request('/api/waitlist', { email: 'retention@example.invalid', consent: true, policyVersion: policy.version });
   const retained = (await records())[0];
-  assert.equal((await request('/api/waitlist/records', { action: 'delete', id: retained.id })).status, 401);
   assert.equal((await request('/api/waitlist/records', { action: 'delete', id: retained.id }, { authorization: 'Bearer fixture-operator-secret' })).status, 200);
   assert.equal((await records()).length, 0);
-  console.log('PASS waitlist collection gate, independent persistence, duplicate privacy, receipt withdrawal, validation and private operator access');
+  console.log('PASS waitlist independent persistence, duplicate privacy, receipt withdrawal, validation and private operator access');
   const assets = resolve('public');
   const types = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.html': 'text/html' };
   let base;

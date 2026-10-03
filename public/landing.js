@@ -1,6 +1,7 @@
 import { assignVariant } from './experiment.js';
 import { heatGridSize } from './measurement-contract.js';
 import { documentExposureId, measure, measurementOptedOut } from './measurement.js';
+import { siteConfig } from './site-config.js';
 
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 let exposureEmitted = false;
@@ -67,7 +68,7 @@ export function mountLanding(root) {
     if (!response.ok) throw Error(data.error || 'Unable to save. Check your connection and try again.');
     return data;
   };
-  Promise.all([api('/api/landing-config').catch(() => null), api('/api/personal-availability').catch(() => null)]).then(([config, personal]) => {
+  Promise.all([api('/api/landing-config').catch(() => null), api('/api/personal-availability').catch(() => null), siteConfig()]).then(([config, personal, site]) => {
     if (!active) return;
     policy = config?.policy;
     // A running experiment assigns this document a variant. Opted-out browsers keep the control and send nothing.
@@ -84,7 +85,8 @@ export function mountLanding(root) {
     root.querySelector('#landing-availability').textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice availability is not confirmed. Explore the fictional sample without an account.';
     const actions = root.querySelector('#landing-actions');
     if (ready) actions.insertAdjacentHTML('afterbegin', `<a class="button ${config?.primaryAction === 'personal_practice' ? 'primary' : 'secondary'} pressable" href="#personal" data-launch-action="personal_practice">Start personal practice</a>`);
-    if (config?.waitlistEnabled) {
+    // An unreachable site configuration keeps the form for a published notice; the server still refuses a closed waitlist.
+    if (policy && (site ? site.waitlistEnabled : true)) {
       root.querySelector('#waitlist-unavailable').hidden = true;
       const notice = root.querySelector('#waitlist-policy');
       notice.hidden = false;

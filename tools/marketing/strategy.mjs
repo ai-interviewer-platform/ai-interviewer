@@ -140,7 +140,10 @@ export function strategy({ research, directory, env, fetch = globalThis.fetch })
         if (!response.ok) throw new Error(`Landing action verification HTTP ${response.status}`);
         const policy = await response.json();
         if (!policy.primaryAction || policy.primaryAction !== choices.launchAction) throw new Error('Landing primary action is unchosen or differs from this brief');
-        if (choices.launchAction === 'waitlist' && !policy.waitlistEnabled) throw new Error('Waitlist is not enabled');
+        if (choices.launchAction === 'waitlist') {
+          const site = await fetch(`${base.origin}/api/site-config`, { signal, redirect: 'error' });
+          if (!site.ok || !(await site.json()).waitlistEnabled) throw new Error('Waitlist is not enabled');
+        }
         if (choices.launchAction === 'personal_practice') {
           const availability = await fetch(`${base.origin}/api/personal-availability`, { signal, redirect: 'error' });
           if (!availability.ok) throw new Error('Personal practice is not available');

@@ -34,10 +34,11 @@ export const coursayReport = {
 const comparison = (fields = {}) => ({ reviewer: 'Owner', report: coursayReport, recommendation: 'Show the retry transition.', unresolved: ['Traffic source is unknown.', 'No comparison group ran.'],
   comparisons: [{ observed: '9 of 118 landing documents selected the waitlist; campaign attribution unknown.', feedback: 'Five landing responses were partly clear.', assessment: 'inconclusive' }], ...fields });
 
-export async function strategyFixture(t, providerResult = () => proposal, auditResult = () => safeAudit, landing = { primaryAction: 'waitlist', waitlistEnabled: true }) {
+export async function strategyFixture(t, providerResult = () => proposal, auditResult = () => safeAudit, live = { primaryAction: 'waitlist', waitlistEnabled: true }) {
   const directory = await mkdtemp(join(tmpdir(), 'marketing-strategy-'));
   const app = await serve({ directory, env: { DASHSCOPE_API_KEY: 'fixture', DASHSCOPE_BASE_URL: 'https://dashscope-intl.aliyuncs.com', QWEN_COVERED_USAGE_CONFIRMED: 'true', STRATEGY_LAUNCH_BASE_URL: 'https://coursay.example' }, fetch: async (_url, options) => {
-    if (_url.endsWith('/api/landing-config')) return Response.json(landing);
+    if (_url.endsWith('/api/landing-config')) return Response.json({ primaryAction: live.primaryAction });
+    if (_url.endsWith('/api/site-config')) return Response.json({ waitlistEnabled: live.waitlistEnabled });
     if (_url.endsWith('/api/personal-availability')) return Response.json({ collectionEnabled: true, mvpReady: true });
     const request = JSON.parse(options.body), system = request.messages[0].content;
     const content = system.includes('STRATEGY_GENERATE') ? providerResult(JSON.parse(request.messages[1].content), system)

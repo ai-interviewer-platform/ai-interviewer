@@ -22,6 +22,16 @@ _Avoid_: session (a sign-in session is a different thing)
 The AI that talks with the candidate during an Attempt, in either Mode.
 _Avoid_: bot, agent, coach (coach is a Mode, not a role)
 
+**Interviewer turn**:
+One Interviewer reply to a Candidate's message or Help request, in either Input mode.
+It is recorded as a Transcript segment.
+_Avoid_: completion, model call
+
+**Coding context**:
+The saved Draft, Checkpoints, Runs with their output, and Help requests of an Attempt
+that an Interviewer turn may use. Unsaved changes and hidden test cases are never part of it.
+_Avoid_: editor state, live code
+
 **Mode**:
 How the Interviewer behaves in an Attempt: **mock** (interview conditions) or **coach** (guided practice).
 
@@ -108,6 +118,11 @@ The identity a Candidate uses to access their personal practice records.
 **Sign-in session**:
 An authenticated period of access to an Account; it can span multiple Attempts.
 _Avoid_: Attempt, practice session
+
+**Site collection**:
+The records collected on the public site independently of any Account: Measurement
+events, Feedback responses, Bug reports and Waitlist entries.
+_Avoid_: analytics, telemetry
 
 **Collection policy**:
 The approved purpose, disclosures, access, retention, and deletion rules for a
