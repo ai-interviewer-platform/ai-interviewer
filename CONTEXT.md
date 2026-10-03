@@ -43,6 +43,10 @@ The Checkpoint made when the candidate finishes an Attempt.
 The outcome of the visible test cases against one Checkpoint.
 _Avoid_: execution, test result
 
+**Submission check**:
+The outcome of the hidden test cases against the Submission, recorded before the Attempt completes. It is a recorded observation of those tests only, not proof of correctness; it can be unavailable, and a Problem without hidden tests has none.
+_Avoid_: grade, score, hidden run
+
 **Help request**:
 A candidate's request for a clarification, a hint, or an explanation during an Attempt.
 _Avoid_: assistance
