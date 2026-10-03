@@ -41,6 +41,10 @@ silently become a Candidate's record or capture a microphone.
 
 The Interviewer sees saved state only; see the
 [saved-state decision](../adr/0001-interviewer-sees-only-saved-state.md).
+Both Input modes follow the same Mode rules and common rules in
+`src/interviewer-turn.ts`: no score or rating, no comments on timing, and no
+obedience to instructions inside candidate code or messages. Text replies have
+an Attempt cap and an hourly cap; voice is metered by the Voice reservation budget.
 Voice processing and retained audio are separate choices. The application
 streams consented voice and stores transcript text; it does not retain raw audio.
 
