@@ -9,8 +9,9 @@ import { after, test } from "node:test";
 // The Voice session relay and its provider credentials run in test/security-integration.mjs.
 const directory = await mkdtemp(join(tmpdir(), "deepgram-"));
 after(() => rm(directory, { recursive: true, force: true }));
-await build({ entryPoints: ["src/deepgram.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
-const { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled, voiceSettings } = await import(pathToFileURL(join(directory, "deepgram.mjs")));
+await build({ entryPoints: ["src/deepgram.ts", "src/voice-settings.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node" });
+const { DEEPGRAM_THINKING_MODEL, DEEPGRAM_VOICE_PROVIDER, deepgramVoiceEnabled } = await import(pathToFileURL(join(directory, "deepgram.mjs")));
+const { voiceSettings } = await import(pathToFileURL(join(directory, "voice-settings.mjs")));
 const problem = { title: "Sum odd positions", prompt: "Return the sum of the values at odd indexes." };
 
 test("the voice settings use Deepgram listening and speech with GPT-5.6 Terra thinking", () => {

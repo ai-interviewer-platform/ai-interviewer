@@ -152,7 +152,7 @@ try {
   assert.equal(calls.length, before, "a repeated trigger does not call the model again");
 
   // Undelivered reasons. Each leaves the trigger Event saved and records no reply.
-  assert.deepEqual(await answer("coach", await message("coach", "Hello?"), { ...env, AI: undefined }), { status: "undelivered", reason: "not configured" });
+  assert.deepEqual(await answer("coach", await message("coach", "Hello?"), { ...env, AI: undefined }), { status: "undelivered", reason: "text not configured" });
   reply = () => { throw new Error("3040: Capacity temporarily exceeded"); };
   assert.deepEqual(await answer("coach", await message("coach", "Still there?")), { status: "undelivered", reason: "model failed" });
   reply = () => "unused";
@@ -162,7 +162,7 @@ try {
   await attempt("finished", "text", saved);
   const late = await message("finished", "Last question.");
   await database.query("UPDATE attempts SET status = 'completed' WHERE id = 'finished'");
-  assert.deepEqual(await answer("finished", late), { status: "undelivered", reason: "closed" });
+  assert.deepEqual(await answer("finished", late), { status: "undelivered", reason: "attempt closed" });
   assert.deepEqual(JSON.parse(await loadCodingContext(database, "finished", "owner")), { status: "unavailable", reason: "attempt_not_active" });
 
   // The text turn cap: 40 Interviewer replies for each Attempt.

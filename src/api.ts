@@ -140,12 +140,12 @@ async function attemptDetail(pool: Pool, attempt: AttemptRow, page: number): Pro
 
 // The candidate-facing message for each reason a text Interviewer turn gives no reply.
 const replyErrors: Record<Exclude<UndeliveredReason, "voice ready" | "voice not configured">, string> = {
-  "not configured": "The text interviewer is not configured, so no reply was generated.",
+  "text not configured": "The text interviewer is not configured, so no reply was generated.",
   "attempt limit": "This attempt reached its interviewer reply limit, so no reply was generated.",
   "hourly limit": "Too many interviewer replies this hour, so no reply was generated.",
   "nothing to answer": "There was no message to answer, so no reply was generated.",
   "model failed": "The interviewer could not respond, so no reply was generated.",
-  "closed": "The attempt closed before the reply was saved, so no reply was recorded.",
+  "attempt closed": "The attempt closed before the reply was saved, so no reply was recorded.",
   "not saved": "The reply could not be saved, so no reply was recorded.",
 };
 
