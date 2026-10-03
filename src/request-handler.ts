@@ -41,7 +41,7 @@ function availability(env: Env): Response {
       database: capabilities.databaseConfigured,
       voice: capabilities.voiceConfigured,
       runner: capabilities.runnerConfigured,
-      review: capabilities.reviewConfigured && capabilities.reviewQueueConfigured,
+      review: capabilities.reviewConfigured,
     },
   });
 }
