@@ -1,16 +1,7 @@
+import type { ReviewQueue } from "./review-queue";
+
 export interface HyperdriveBinding {
   connectionString: string;
-}
-
-export interface QueueMessage {
-  id: string;
-  body: unknown;
-  ack(): void;
-  retry(): void;
-}
-
-export interface ReviewQueue {
-  send(body: { reviewId: string }): Promise<void>;
 }
 
 export interface PythonRunner {

@@ -57,6 +57,19 @@ for that adapter's transport format. A future adapter must normalize into the
 same `Finding[]` contract and cannot bypass the shared evidence-ID and field
 validation boundary.
 
+## Review queue
+
+`src/review-queue.ts` owns Review dispatch and consumption. The finish route calls
+`dispatchReview` after the completion transaction: it claims the pending Review,
+sends `{reviewId}`, and releases the claim when the send fails. A claim blocks
+another send for 60 seconds; after that, a finish retry recovers a lost dispatch.
+There is no scheduled sweep. The Worker queue handler calls `consumeReviews`,
+which acknowledges invalid messages, processed Reviews, and permanent failures,
+and retries transient failures. `reviewConfigured` is the one "Review configured"
+rule (a provider and a queue); the finish route and the personal availability
+response both read it. The Cloudflare Queue binding is the production adapter;
+`InMemoryReviewQueue` is the test adapter.
+
 ## Frontend/API contract (unchanged)
 
 All personal endpoints require the authenticated owner's cookie. Writes also
@@ -120,6 +133,9 @@ node --test test/reviews.test.mjs
 
 # Real PostgreSQL constraints/transactions, fake provider, fictional isolated schema
 node test/review-integration.mjs
+
+# Review queue dispatch and consumption with the in-memory queue
+node test/review-queue-integration.mjs
 
 # Existing PostgreSQL security and finish-dispatch concurrency regression tests
 node --env-file=.dev.vars test/security-integration.mjs
