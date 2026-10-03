@@ -12,6 +12,7 @@ import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
 import type { SessionResolver } from "./request-handler";
 import { openTimeline, withTimeline, type TimelineResult } from "./attempt-timeline";
+import { loadSubmissionCheck, runSubmissionCheck } from "./submission-check";
 
 const DISCLOSURE_VERSION = "pending-owner-data-policy";
 
@@ -126,17 +127,18 @@ async function createAttempt(pool: Pool, env: Env, userId: string, body: Record<
 }
 
 async function attemptDetail(pool: Pool, attempt: AttemptRow, page: number): Promise<Response> {
-  const [problem, visibleTests, events, transcripts, checkpoints, runs, review] = await Promise.all([
+  const [problem, visibleTests, events, transcripts, checkpoints, runs, review, submissionCheck] = await Promise.all([
     pool.query("SELECT id, title, topic, difficulty, prompt, starter_code, entry_point, test_contract FROM problems WHERE id = $1", [attempt.problem_id]),
     // Visible tests are shown to the candidate; hidden tests never leave the server.
     pool.query("SELECT id, input_data, expected_output FROM test_cases WHERE problem_id = $1 AND visibility = 'visible' ORDER BY id", [attempt.problem_id]),
     pool.query("SELECT id, event_type, source_id, source_order, occurrence_offset_ms, server_received_at, payload, created_at FROM attempt_events WHERE attempt_id = $1 ORDER BY occurrence_offset_ms, source_id, source_order, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, event_id, speaker, text, end_offset_ms, created_at FROM transcript_segments WHERE attempt_id = $1 ORDER BY end_offset_ms, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, event_id, source_code, checkpoint_type, created_at FROM code_checkpoints WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
-    pool.query("SELECT id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version, created_at FROM code_runs WHERE attempt_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
+    pool.query("SELECT id, checkpoint_id, event_id, status, tests_passed, tests_failed, stdout, stderr, execution_time_ms, runner_error, test_results, run_kind, runner_version, harness_version, created_at FROM code_runs WHERE attempt_id = $1 AND run_kind = 'visible' ORDER BY created_at, id LIMIT $2 OFFSET $3", [attempt.id, limits.pageSize, page * limits.pageSize]),
     pool.query("SELECT id, status, failure_reason, evidence_manifest, created_at, updated_at FROM reviews WHERE attempt_id = $1", [attempt.id]),
+    loadSubmissionCheck(pool, attempt.id),
   ]);
-  return json({ page, hasMore: [events, transcripts, checkpoints, runs].some(result => result.rows.length === limits.pageSize), attempt, problem: problem.rows[0], visibleTests: visibleTests.rows, events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null });
+  return json({ page, hasMore: [events, transcripts, checkpoints, runs].some(result => result.rows.length === limits.pageSize), attempt, problem: problem.rows[0], visibleTests: visibleTests.rows, events: events.rows, transcripts: transcripts.rows, checkpoints: checkpoints.rows, runs: runs.rows, review: review.rows[0] ?? null, submissionCheck });
 }
 
 type InterviewerReply = { eventId: string; speaker: string; text: string; occurrenceOffsetMs: number };
@@ -321,16 +323,26 @@ async function runCode(pool: Pool, env: Env, attempt: AttemptRow, body: Record<s
 
 async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {
   if (!reviewProviderConfigured(env) || !env.REVIEW_QUEUE?.send) return serverUnavailable("Evidence review is not configured. The attempt remains active.");
-  // One transaction: the Submission, the Attempt completion, and the Review.
-  const finished = await withTimeline(pool, attempt.id, async (timeline, client) => {
-    const submission = await timeline.record("code_checkpoint", body, { checkpointType: "submission", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "submission" } });
-    if (submission.status !== "recorded") return submission;
-    await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [attempt.id]);
-    const reviewId = id();
-    const manifest = { attemptId: attempt.id, finalCheckpointId: submission.detailId, frozenAt: new Date().toISOString() };
-    await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
-    return { status: "finished", reviewId } as const;
+  // The Submission Checkpoint. A retried finish with the same event metadata finds the recorded one.
+  const submission = await withTimeline(pool, attempt.id, async (timeline, client) => {
+    const recorded = await timeline.record("code_checkpoint", body, { checkpointType: "submission", draftRevision: timeline.attempt.draft_revision }, { checkpoint: { type: "submission" } });
+    if (recorded.status !== "recorded") return recorded;
+    const source = await client.query<{ source_code: string }>("SELECT source_code FROM code_checkpoints WHERE id = $1", [recorded.detailId]);
+    return { ...recorded, checkpointId: recorded.detailId!, sourceCode: source.rows[0].source_code };
   });
+  // The Submission check runs outside any transaction; then one transaction records it,
+  // completes the Attempt, and creates the Review.
+  const finished = submission.status !== "recorded" ? submission : await runSubmissionCheck(pool, env, { attemptId: attempt.id, problemId: attempt.problem_id, checkpointId: submission.checkpointId, sourceCode: submission.sourceCode })
+    .then((check) => withTimeline(pool, attempt.id, async (timeline, client) => {
+      const envelope = { sourceId: `${body.sourceId}:check`, sourceOrder: body.sourceOrder, occurrenceOffsetMs: body.occurrenceOffsetMs };
+      const recorded = await timeline.record("submission_check", envelope, { checkpointId: submission.checkpointId, state: check.state }, { submissionCheck: { checkpointId: submission.checkpointId, check } });
+      if (recorded.status !== "recorded") return recorded;
+      await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [attempt.id]);
+      const reviewId = id();
+      const manifest = { attemptId: attempt.id, finalCheckpointId: submission.checkpointId, submissionCheckEventId: recorded.eventId, frozenAt: new Date().toISOString() };
+      await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
+      return { status: "finished", reviewId } as const;
+    }));
   let reviewId: string;
   if (finished.status === "closed") {
     // A finished Attempt: dispatch its Review again if the first dispatch was lost.
@@ -348,7 +360,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
     try { await env.REVIEW_QUEUE.send({ reviewId }); }
     catch { logOperationalEvent("warn", "review_dispatch_failed"); await pool.query("UPDATE reviews SET dispatch_claimed_at = NULL WHERE id = $1 AND status = 'pending'", [reviewId]); return serverUnavailable("Review dispatch failed. Retry finishing this attempt."); }
   }
-  return json({ reviewId, dispatch, recoveryDispatch: finished.status === "closed" });
+  return json({ reviewId, dispatch, recoveryDispatch: finished.status === "closed", submissionCheck: await loadSubmissionCheck(pool, attempt.id) });
 }
 
 async function retryFromCheckpoint(pool: Pool, userId: string, attempt: AttemptRow, body: Record<string, unknown>): Promise<Response> {

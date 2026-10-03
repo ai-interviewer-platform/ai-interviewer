@@ -97,7 +97,7 @@ require the exact configured `Origin` and `Content-Type: application/json`.
 
    This is illustrative, not a fixture returned by the application. Additional
    existing database fields/timestamps are retained. Real manifests contain
-   `attemptId`, `finalCheckpointId`, and `frozenAt`.
+   `attemptId`, `finalCheckpointId`, `submissionCheckEventId`, and `frozenAt`.
 
 Statuses are `pending`, `ready`, and `failed`. `ready` with `findings: []` is valid:
 no defensible finding is better than invented feedback. `404` means no review has

@@ -88,6 +88,22 @@ function testResultsMarkup(detail) {
   return `<p role="status"><strong>${escapeHtml(latest.status)}</strong> · ${escapeHtml(latest.tests_passed)} passed, ${escapeHtml(latest.tests_failed)} failed${latest.runner_error ? ` · ${escapeHtml(latest.runner_error)}` : ""}</p><ol class="test-cases">${cases}</ol>${output}${history}`;
 }
 
+// The Submission check of a completed Attempt (CONTEXT.md). Unavailable never shows a count.
+function submissionCheckSentence(check) {
+  if (check?.state === "checked") return `Submission check: passed ${check.passed} of ${check.total} hidden tests.`;
+  if (check?.state === "unavailable") return "The Submission check could not run because the isolated runner was unavailable. Your Submission and its Review are unaffected.";
+  if (check?.state === "no hidden tests") return "This Problem has no hidden tests, so no Submission check ran.";
+  return "";
+}
+
+function submissionCheckMarkup(check) {
+  if (!check) return "";
+  const failures = check.state === "checked" ? Object.entries(check.failures) : [];
+  const list = failures.length ? `<ul class="submission-failures">${failures.map(([category, count]) => `<li>${escapeHtml(category)}: ${escapeHtml(count)} test${count === 1 ? "" : "s"}</li>`).join("")}</ul>` : "";
+  const limit = check.state === "checked" ? `<p class="small muted">Hidden tests try other inputs. Passing them all does not prove the solution correct.</p>` : "";
+  return `<div class="submission-check" role="group" aria-label="Submission check"><p><strong>${escapeHtml(submissionCheckSentence(check))}</strong></p>${list}${limit}</div>`;
+}
+
 function workspaceMarkup(state) {
   const detail = state.attempt;
   const problem = detail.problem;
@@ -97,7 +113,7 @@ function workspaceMarkup(state) {
   const disabled = detail.attempt.status === "completed" ? "disabled" : "";
   const isVoice = detail.attempt.input_mode === "voice";
   const voiceControl = isVoice ? `<span id="voice-status" class="small muted" role="status">Voice ready</span><button class="button primary small" type="button" data-voice-toggle ${disabled}>Start voice</button>` : "";
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p class="problem-prompt">${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><div class="test-body" tabindex="0" role="region" aria-label="Test results">${runs}${review}</div></section></div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p class="problem-prompt">${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><div class="test-body" tabindex="0" role="region" aria-label="Test results">${submissionCheckMarkup(detail.submissionCheck)}${runs}${review}</div></section></div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
 }
 
 function reviewMarkup(state) {
@@ -291,13 +307,13 @@ export function mountPersonal(root) {
         } finally { control.disabled = false; control.textContent = "Run visible tests"; }
       }
       else if (control.hasAttribute("data-finish")) {
-        control.disabled = true;
+        control.disabled = true; control.textContent = "Checking your submission…";
         try {
           const result = await session.finish();
           personalOutcome("practice_completed");
           await openAttempt(state.attempt.attempt.id);
-          showError(`Attempt completed. Review dispatch: ${result.dispatch}.`);
-        } finally { control.disabled = false; }
+          showError(["Attempt completed.", submissionCheckSentence(result.submissionCheck), `Review dispatch: ${result.dispatch}.`].filter(Boolean).join(" "));
+        } finally { control.disabled = false; control.textContent = "Finish interview"; }
       }
       else if (control.hasAttribute("data-help")) { const result = await session.help("hint"); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }

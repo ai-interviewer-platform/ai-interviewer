@@ -41,12 +41,23 @@ export function createAttemptSession({ api, attempt, editorSource }) {
 
   const afterSave = (send) => async (...values) => { await saveChangedDraft(); return send(...values); };
 
+  // A finish whose response was lost may have recorded the Submission. Its retry sends
+  // the same Event fields, so the server reuses that Submission and its check.
+  let pendingFinish = null;
+  async function finish() {
+    const attemptId = current().id;
+    if (pendingFinish?.attemptId !== attemptId) pendingFinish = { attemptId, fields: eventFields("finish") };
+    const result = await post("/finish", pendingFinish.fields);
+    pendingFinish = null;
+    return result;
+  }
+
   return {
     saveChangedDraft,
     message: afterSave((text) => post("/messages", { text, ...eventFields("message") })),
     help: afterSave((category) => post("/help", { category, ...eventFields("help") })),
     run: afterSave(() => post("/run", eventFields("run"))),
-    finish: afterSave(() => post("/finish", eventFields("finish"))),
+    finish: afterSave(finish),
     detail: (attemptId, page = 0) => api(page ? `${url(attemptId)}?page=${page}` : url(attemptId)),
     review: (attemptId) => api(`${url(attemptId)}/review`),
     related: () => api(`${url()}/related`),

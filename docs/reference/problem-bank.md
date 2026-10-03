@@ -39,7 +39,9 @@ used because their problem statements are not openly licensed.
 
 Three tests are `visible` (run by **Run visible tests** and shown to the
 candidate), chosen to cover as many distinct expected answers as possible; the
-rest are stored as `hidden` for a future submission check.
+rest are `hidden` and run as the Submission check when an Attempt finishes
+([API reference](backend-api.md#finish-and-the-submission-check)). The largest
+hidden set must stay within the runner's 16-test request limit.
 Every problem uses the `positional JSON arguments` runner contract.
 
 Topic and difficulty are keyword and code-size heuristics. They are adequate for

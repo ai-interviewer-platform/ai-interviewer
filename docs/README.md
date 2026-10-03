@@ -34,7 +34,7 @@ Runtime assets keep their URLs; this layout does not require moving application 
 | `reference/` | [API](reference/backend-api.md), [reviews](reference/review-processing.md), [runner](reference/python-runner.md), [problem sources/licenses](reference/problem-bank.md) |
 | `operations/` | [Development](operations/development.md), [deployment](operations/production-deployment.md), [environment sharing](operations/sharing-development-env.md) |
 | `design/` | [Visual/motion rules](design/design-system.md), brand sources in `brand/`, original design specimen in `reference/` |
-| `adr/` | Hard-to-reverse decisions and rationale; [saved-state boundary](adr/0001-interviewer-sees-only-saved-state.md) |
+| `adr/` | Hard-to-reverse decisions and rationale; [saved-state boundary](adr/0001-interviewer-sees-only-saved-state.md), [Submission check categories](adr/0002-submission-check-records-outcome-categories-only.md) |
 | `agents/` | [Domain-doc use](agents/domain.md), [issue tracker](agents/issue-tracker.md), [triage labels](agents/triage-labels.md) |
 | [archive/](archive/README.md) | Dated audits and superseded status records; historical evidence only |
 

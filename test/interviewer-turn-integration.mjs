@@ -37,12 +37,12 @@ try {
     await timeline.record("code_run", { sourceId: "run-1", sourceOrder: 2, occurrenceOffsetMs: 20 }, {}, { run: { checkpointId: checkpoint.detailId, result: runResult } });
     return checkpoint.detailId;
   });
-  // A visible Run, a later submission Run with hidden-test output on the same Checkpoint,
+  // A visible Run, a later Submission check on the same Checkpoint,
   // and an unsaved Draft change: a save from a stale editor that the server refuses.
   const seed = async (attemptId) => {
     const checkpointId = await visibleRun(attemptId, result("failed", "visible-a", "VISIBLE_RUN_ERROR"));
     await database.query("INSERT INTO attempt_events (id, attempt_id, event_type, source_id, source_order, occurrence_offset_ms, payload) VALUES ($1, $2, 'code_run', 'submission-run', 3, 30, '{}')", [`${attemptId}-submission-run`, attemptId]);
-    await database.query("INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, stderr, test_results, run_kind, runner_version, harness_version, created_at) VALUES ($1, $2, $3, $1, 'failed', 'HIDDEN_RUN_ERROR', '[{\"testId\":\"hidden-case\",\"outcome\":\"failed\"}]', 'submission', 'test', 'test', now() + interval '1 minute')", [`${attemptId}-submission-run`, attemptId, checkpointId]);
+    await database.query("INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, tests_passed, tests_failed, test_results, run_kind, check_state, runner_version, harness_version, created_at) VALUES ($1, $2, $3, $1, 'failed', 0, 1, '[{\"testId\":\"hidden-case\",\"category\":\"HIDDEN_RUN_ERROR\"}]', 'submission', 'checked', 'test', 'test', now() + interval '1 minute')", [`${attemptId}-submission-run`, attemptId, checkpointId]);
     const stale = await call("PATCH", attemptId, "draft", { source: unsaved, expectedRevision: 7, sourceId: "stale-save", sourceOrder: 4, occurrenceOffsetMs: 40 });
     assert.equal(stale.status, 409);
   };
