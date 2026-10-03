@@ -5,7 +5,6 @@ import { deepgramVoiceEnabled } from "./deepgram";
 import { limits } from "./security";
 import { runnerFor, type RunOutcome } from "./runner";
 import { dispatchReview, reviewConfigured } from "./review-queue";
-import { logOperationalEvent } from "./observability";
 import { answerInterviewerTurn, type UndeliveredReason } from "./interviewer-turn";
 import type { Env } from "./env";
 import { badRequest, boolean, forbidden, json, nonnegativeSafeInteger, notFound, requestBody, serverUnavailable, string } from "./http";
