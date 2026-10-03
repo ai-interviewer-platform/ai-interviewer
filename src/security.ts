@@ -12,8 +12,9 @@ export const limits = {
   voiceCommands: 1200,
   pendingTranscripts: 50,
   voiceFunctionCalls: 30,
-  voiceContextSourceBytes: 10 * 1024,
-  voiceContextBytes: 16 * 1024,
+  // The Coding context of both Input modes (#51): the Draft, then the whole context.
+  codingContextDraftBytes: 10 * 1024,
+  codingContextBytes: 16 * 1024,
   modelTurnsPerAttempt: 40,
   accountModelTurnsPerHour: 60,
   accountReviewsPerDay: 20,

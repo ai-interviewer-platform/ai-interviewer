@@ -166,18 +166,19 @@ No additional repository code is required before a valid key is supplied. The
 server owns the key and relay; the browser never receives it. The relay enforces
 ownership, active voice attempts, reservation/account/project quotas, bounded
 commands/audio/transcripts, verified provider provenance, and a 15-minute session
-deadline. Coding context is loaded server-side only when the model calls
-`get_coding_context`; it is limited to the owned active attempt, 10 KiB source
-and a 16 KiB total response, latest checkpoint, latest visible run outcomes, and
-latest help category. It excludes hidden tests, raw runner output/errors,
-unsaved code, other users, and completed attempts.
+deadline. The Coding context is loaded server-side only when the model calls
+`get_coding_context`. It is the same bounded Coding context that the text
+Interviewer reads, limited to the owned active Attempt; see the
+[saved-state decision](../adr/0001-interviewer-sees-only-saved-state.md) and
+`codingContextDraftBytes` and `codingContextBytes` in `src/security.ts`.
 
 Local commands after adding the key to `.dev.vars` without displaying it:
 
 ```sh
 npm run db:local:start
 npm run db:local:verify
-node --test test/deepgram-voice-contract.test.mjs test/voice-context.test.mjs
+node --test test/deepgram-voice-contract.test.mjs
+node --env-file-if-exists=.dev.vars test/interviewer-turn-integration.mjs
 node --env-file-if-exists=.dev.vars test/security-integration.mjs
 npm run dev
 ```
