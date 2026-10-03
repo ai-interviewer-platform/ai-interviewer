@@ -63,7 +63,7 @@ defensively.
 | `GET /api/catalog` | None while collection enabled / O | None | `200 {problems:[Problem]}` | Returns active, non-sample problems. Verified without a cookie; reference solutions are not exposed. |
 | `POST /api/attempts` | Required / CJ | Creation body below | `201 {attemptId}` | Observed `400` for missing consent or unavailable problem. Other invalid fields also produce `400` by implementation. |
 | `GET /api/attempts?page=0` | Required / C | None | `200 {attempts:[AttemptSummary],page,hasMore}` | Observed `400` for negative page. Only the current user's attempts were returned. |
-| `GET /api/attempts/:id?page=0` | Owner / C | None | `200 {attempt,problem,events,transcripts,checkpoints,runs,review,page,hasMore}` | Observed `401` without cookie; `403` for another user **and** nonexistent attempt. |
+| `GET /api/attempts/:id?page=0` | Owner / C | None | `200 {attempt,problem,events,transcripts,checkpoints,runs,review,submissionCheck,page,hasMore}` | Observed `401` without cookie; `403` for another user **and** nonexistent attempt. `runs` holds visible Runs only; `submissionCheck` is `null` until the Attempt completes with a Submission check. |
 | `PATCH /api/attempts/:id/draft` | Owner / CJ | Draft body below | `200 {draftRevision,updatedAt}` | Observed `403` for another user; `409` for stale revision; `400` for malformed JSON or `text/plain`. |
 
 `Problem` includes `id`, `title`, `topic`, `difficulty`, `prompt`, `starter_code`,
@@ -141,6 +141,8 @@ that stale and unauthorized writes did not change the saved source/revision.
 | `POST /api/attempts/:id/messages` | Owner / CJ | Message body below | `201 {eventId}` | Observed `400` for invalid message/metadata. Same `sourceId` repeated returned the same event ID and only one transcript row. |
 | `POST /api/attempts/:id/help` | Owner / CJ | Help body below | `202 {eventId,delivered:false,voiceReady:false,message}` for this text attempt | Records a request only; no AI guidance was generated. Invalid category/metadata is `400` by implementation, not exercised. |
 | `GET /api/attempts/:id/related` | Owner / C | None | `200 {relatedProblems:[{id,title,topic,relationship_reason,attempted_before}]}` | An empty array is allowed. Relationships are authored catalog data. |
+| `POST /api/attempts/:id/finish` | Owner / CJ | Event metadata (`sourceId`, `sourceOrder`, `occurrenceOffsetMs`) | `200 {reviewId,dispatch,recoveryDispatch,submissionCheck}` | `503` when Review processing is not configured; the Attempt stays active. The Runner never refuses a finish. Covered by `test/submission-check-integration.mjs`. |
+| `GET /api/me/export` | Required / C | None | `200` JSON attachment with one array per personal table | `runs` includes Submission checks (`run_kind = 'submission'`) with their categories only. Hidden test definitions and reference solutions are never exported. |
 | `GET /api/attempts/:id/review` | Owner / C | None | **Only the missing-review case was verified:** `404 {"error":"Not found."}` | Existing-review success is code-inspected only: `200 {review,findings}`. No external review generation tested. |
 
 Message body:
@@ -171,6 +173,42 @@ is required: `sourceId` is a stable event identifier; `sourceOrder` and
 for different events. Retain the same message ID when retrying the same message.
 The transcript appears in detail as `{id,event_id,speaker,text,end_offset_ms,
 created_at}`. A recorded help request is not delivered help; check `delivered`.
+
+### Finish and the Submission check
+
+Finishing records the Submission Checkpoint, runs the Problem's hidden test
+cases against it with the existing Runner outside any database transaction, then
+in one transaction records the Submission check (a Run with `run_kind =
+'submission'` and a `submission_check` Event), completes the Attempt, and creates
+the pending Review. Its evidence manifest names `submissionCheckEventId`.
+See the glossary and [ADR 0002](../adr/0002-submission-check-records-outcome-categories-only.md).
+
+Retry a finish with the **same** event metadata. A retry reuses the recorded
+Submission, so an Attempt has exactly one Submission and one Submission check.
+Finishing a completed Attempt only redispatches its Review (`recoveryDispatch:
+true`) and returns the recorded check.
+
+`submissionCheck` (finish and detail responses) is:
+
+```json
+{ "state": "checked", "passed": 4, "total": 6, "failures": { "wrong answer": 1, "TypeError": 1 } }
+```
+
+- `checked`: `passed` of `total` hidden tests, and the count of each failure
+  category. A category is `wrong answer`, an allowlisted built-in Python
+  exception class name, `timeout`, or `other error` (a candidate-defined
+  exception, a missing callable, a non-JSON return value, a process exit, or a
+  test the run deadline skipped).
+- `unavailable`: the Runner is not configured, gave no result, returned
+  `runner_error` at any point, or ran out of memory. `passed` and `total` are
+  `null`, `failures` is `{}`, and no partial counts are stored.
+- `no hidden tests`: the Problem has none, so the Runner was not called.
+  `passed` and `total` are `null`.
+
+The stored Run keeps each hidden test as `{testId, category}` only, with no
+output, stdout, stderr, message text, or execution time. No response contains
+hidden inputs or expected values. The Evidence limit never refuses the
+Submission check Event, because it closes the Attempt.
 
 ## Error handling and pagination
 

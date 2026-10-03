@@ -3,8 +3,10 @@
 This implements the existing `PYTHON_RUNNER` contract twice: a local Docker
 controller for development and a [hosted runner](#hosted-runner) on Cloudflare
 Containers for production. Product/security authority remains
-[product and architecture](../product/contract.md). It does not implement
-hidden tests, reviews, or frontend changes. The local implementation and the
+[product and architecture](../product/contract.md). The runner does not know
+which tests are hidden: the app sends visible tests for a Run and hidden tests
+for the Submission check at finish. It implements no reviews or frontend
+changes. The local implementation and the
 production transport boundary are intentionally separate.
 
 ## Production architecture boundary

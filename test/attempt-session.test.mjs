@@ -72,3 +72,21 @@ test("the client builds the Attempt URLs for reads, a Retry, and a Correction", 
     ["POST", "/api/attempts/attempt%2F1/review/findings/finding%2F1/corrections", { reason: "Disagree" }],
   ]);
 });
+
+test("a retried finish sends the same Event fields, so the server records one Submission", async () => {
+  const sent = [];
+  let failures = 1;
+  const row = { id: "attempt-1", status: "active", draft_source: "def f():\n    return 1\n", draft_revision: 1, created_at: new Date().toISOString() };
+  const api = async (path, options = {}) => {
+    sent.push({ path, body: options.body });
+    if (path.endsWith("/finish") && failures-- > 0) throw new Error("The connection dropped.");
+    return {};
+  };
+  const session = createAttemptSession({ api, attempt: () => row, editorSource: () => row.draft_source });
+  await assert.rejects(session.finish(), /connection dropped/);
+  await session.finish();
+  await session.finish();
+  const finishes = sent.filter(({ path }) => path.endsWith("/finish")).map(({ body }) => body);
+  assert.deepEqual(finishes[1], finishes[0], "the retry repeats the failed request");
+  assert.notEqual(finishes[2].sourceId, finishes[0].sourceId, "a finish after a success is a new request");
+});

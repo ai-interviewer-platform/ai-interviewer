@@ -363,5 +363,8 @@ dialog > .actions { margin-top: 1.5rem; }
 .test-case { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--divider); border-radius: 8px; overflow-wrap: anywhere; }
 .test-case.failed { border-color: var(--error); background: var(--error-soft); }
 .test-case pre, .test-body details pre { margin: 0; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.8rem; max-height: 12rem; overflow: auto; }
+.submission-check { display: grid; gap: 0.35rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid var(--divider); border-radius: 8px; overflow-wrap: anywhere; }
+.submission-check p, .submission-failures { margin: 0; }
+.submission-failures { padding-left: 1.25rem; }
 .catalog-filters { flex-wrap: wrap; align-items: center; margin-bottom: 0.75rem; }
 .problem-prompt { white-space: pre-line; }

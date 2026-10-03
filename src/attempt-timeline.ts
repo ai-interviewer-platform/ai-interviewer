@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import type { AttemptRow } from "./api";
 import type { RunnerResult } from "./runner";
+import type { SubmissionCheck } from "./submission-check";
 import { nonnegativeSafeInteger } from "./http";
 import { limits } from "./security";
 import { withTransaction } from "./transaction";
@@ -15,9 +16,11 @@ export type EventDetail =
   | { helpRequest: { category: "clarification" | "hint" | "explanation" } }
   // A Checkpoint freezes the Draft of the locked Attempt.
   | { checkpoint: { type: "run" | "save" | "submission" | "retry_source" } }
-  | { run: { checkpointId: string; result: RunnerResult } };
+  | { run: { checkpointId: string; result: RunnerResult } }
+  // The Submission check closes the Attempt, so the evidence limit never refuses it.
+  | { submissionCheck: { checkpointId: string; check: SubmissionCheck } };
 
-const detailTables = { transcript: "transcript_segments", helpRequest: "assistance_events", checkpoint: "code_checkpoints", run: "code_runs" } as const;
+const detailTables = { transcript: "transcript_segments", helpRequest: "assistance_events", checkpoint: "code_checkpoints", run: "code_runs", submissionCheck: "code_runs" } as const;
 
 export type RecordResult =
   | { status: "recorded"; eventId: string; detailId: string | null }
@@ -56,7 +59,7 @@ export async function openTimeline(client: PoolClient, attemptId: string): Promi
     const existing = await client.query<{ id: string }>("SELECT id FROM attempt_events WHERE attempt_id = $1 AND source_id = $2", [attempt.id, sourceId]);
     if (existing.rows[0]) return { status: "recorded", eventId: existing.rows[0].id, detailId: await existingDetail(client, existing.rows[0].id, detail) };
     const count = await client.query<{ count: string }>("SELECT count(*) FROM attempt_events WHERE attempt_id = $1", [attempt.id]);
-    if (Number(count.rows[0].count) >= limits.eventsPerAttempt) return { status: "limit reached" };
+    if (!(detail && "submissionCheck" in detail) && Number(count.rows[0].count) >= limits.eventsPerAttempt) return { status: "limit reached" };
 
     const eventId = crypto.randomUUID();
     await client.query(
@@ -81,6 +84,16 @@ export async function openTimeline(client: PoolClient, attemptId: string): Promi
       await client.query(
         "INSERT INTO code_checkpoints (id, attempt_id, event_id, source_code, checkpoint_type) VALUES ($1, $2, $3, $4, $5)",
         [detailId, attempt.id, eventId, attempt.draft_source, detail.checkpoint.type],
+      );
+    } else if ("submissionCheck" in detail) {
+      // Only the test ID and the category of each hidden test; no output or message text.
+      const { checkpointId, check } = detail.submissionCheck;
+      const checked = check.state === "checked" ? check : null;
+      await client.query(
+        `INSERT INTO code_runs (id, attempt_id, checkpoint_id, event_id, status, tests_passed, tests_failed, test_results, run_kind, check_state, runner_version, harness_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'submission', $9, $10, $11)`,
+        [detailId, attempt.id, checkpointId, eventId, checked?.status ?? null, checked ? checked.results.filter((test) => test.category === "passed").length : null,
+          checked ? checked.results.filter((test) => test.category !== "passed").length : null, JSON.stringify(checked?.results ?? []), check.state, checked?.runnerVersion ?? null, checked?.harnessVersion ?? null],
       );
     } else {
       const { checkpointId, result } = detail.run;

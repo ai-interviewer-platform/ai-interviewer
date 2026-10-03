@@ -8,7 +8,8 @@ relationships and boundaries.
 
 1. A Candidate starts an Attempt on a Problem in mock or coach Mode.
 2. The Attempt records conversation, saved code, Checkpoints, Runs, and Help requests.
-3. Completion freezes a Submission and the Evidence available to its Review.
+3. Completion runs the Submission check, then freezes the Submission, its
+   Submission check, and the Evidence available to its Review.
 4. Each Finding cites that Evidence and distinguishes observation from interpretation.
 5. A Retry starts a new coach Attempt from a supported earlier Checkpoint.
 
@@ -17,7 +18,9 @@ not erase a completed Attempt. Retry preserves the original Attempt and its
 record; it does not restore a running process or hidden model state.
 
 Coursay does not infer lasting ability, hiring outcomes, or struggle from timing.
-Visible test results do not establish hidden-test correctness. A Help request
+Visible test results do not establish hidden-test correctness. A Submission
+check is a recorded observation of the hidden tests only, never proof of
+correctness; an unavailable check is never shown as a count. A Help request
 does not prove help was delivered. A Correction remains distinguishable from
 the original Finding.
 

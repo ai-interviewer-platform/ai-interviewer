@@ -53,11 +53,25 @@ try {
     console.log(`PASS API -> HTTP controller -> isolated Python -> PostgreSQL: ${status}`);
   }
   const before = Number((await database.query("SELECT count(*) FROM code_runs")).rows[0].count);
+  const realRunner = env.PYTHON_RUNNER;
   env.PYTHON_RUNNER = { fetch: async () => new Response("{broken") };
   const rejected = await handle(new Request("https://app.example/api/attempts/fictional-attempt/run", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ sourceId: crypto.randomUUID(), sourceOrder: ++order, occurrenceOffsetMs: order }) }), env, {}, database);
   assert.equal(rejected.status, 503);
   assert.equal(Number((await database.query("SELECT count(*) FROM code_runs")).rows[0].count), before);
   console.log("PASS malformed runner result preserves checkpoint without recording a verdict");
+  env.PYTHON_RUNNER = realRunner;
+  // Finishing runs the hidden tests in the real container and keeps only their categories.
+  await database.query(`INSERT INTO test_cases (id, problem_id, input_data, expected_output, visibility) VALUES
+    ('fictional-hidden-pass', 'sum-odd-positions-v1', '{"args":[[3,5,7,9]]}', '14', 'hidden'),
+    ('fictional-hidden-type', 'sum-odd-positions-v1', '{"args":[[1,"x"]]}', '0', 'hidden'),
+    ('fictional-hidden-wrong', 'sum-odd-positions-v1', '{"args":[[0,1]]}', '2', 'hidden')`);
+  await call("draft", { source: correct.replace("solve", "sum_odd_positions"), expectedRevision: 2 }, "PATCH");
+  Object.assign(env, { REVIEW_PROVIDER_API_KEY: "fictional-key", REVIEW_PROVIDER_MODEL: "fixture-model", REVIEW_QUEUE: { send: async () => {} } });
+  const finished = await call("finish", {});
+  assert.deepEqual(finished.submissionCheck, { state: "checked", passed: 1, total: 3, failures: { TypeError: 1, "wrong answer": 1 } });
+  const [check] = (await database.query("SELECT check_state, status, stdout, stderr, test_results FROM code_runs WHERE attempt_id = 'fictional-attempt' AND run_kind = 'submission'")).rows;
+  assert.deepEqual(check, { check_state: "checked", status: "failed", stdout: "", stderr: "", test_results: [{ testId: "fictional-hidden-pass", category: "passed" }, { testId: "fictional-hidden-type", category: "TypeError" }, { testId: "fictional-hidden-wrong", category: "wrong answer" }] });
+  console.log("PASS finish -> hidden tests in isolated Python -> Submission check categories in PostgreSQL");
 } finally {
   await new Promise(resolve => server.close(resolve));
   globalThis.Request = NativeRequest;

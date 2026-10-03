@@ -58,6 +58,7 @@ jobs:
           node test/bug-report-integration.mjs
           node test/attempt-timeline-integration.mjs
           node test/attempt-lifecycle-integration.mjs
+          node test/submission-check-integration.mjs
           node test/review-integration.mjs
           node test/review-queue-integration.mjs
           node test/security-integration.mjs

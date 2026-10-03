@@ -12,7 +12,9 @@ const { pool: database, drop } = await testDatabase("review_test", { problemBank
 const directory = await mkdtemp(join(tmpdir(), "review-postgres-"));
 const originalFetch = globalThis.fetch;
 let dispatched = [];
-const env = { ...providerEnv, BETTER_AUTH_URL: "https://app.example", REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
+// Finishing runs the Submission check; its hidden test definitions must never reach the provider.
+const PYTHON_RUNNER = { fetch: async request => Response.json({ status: "passed", testResults: (await request.json()).tests.map(test => ({ testId: test.testId, outcome: "passed", actualOutput: test.expectedOutput })), runnerVersion: "fixture", harnessVersion: "fixture" }) };
+const env = { ...providerEnv, BETTER_AUTH_URL: "https://app.example", PYTHON_RUNNER, REVIEW_QUEUE: { send: async body => dispatched.push(body) } };
 try {
   await build({ entryPoints: ["src/request-handler.ts", "src/api.ts", "src/worker.ts"], outdir: directory, outExtension: { ".js": ".mjs" }, bundle: true, format: "esm", platform: "node",
     // The Worker bundle includes better-auth, whose PostgreSQL driver uses require.
@@ -25,13 +27,14 @@ try {
   const handle = withSessions(handleRequest);
   const { processReview } = await import(pathToFileURL(join(directory, "api.mjs")));
   await database.query("INSERT INTO users (id, display_name, email) VALUES ('owner','Fixture','owner@example.invalid'), ('other','Other','other@example.invalid')");
+  await database.query(`INSERT INTO test_cases (id, problem_id, input_data, expected_output, visibility) VALUES ('hidden-fixture', 'sum-odd-positions-v1', '{"args":[["HIDDEN_DO_NOT_SEND"]]}', '"HIDDEN_DO_NOT_SEND"', 'hidden')`);
   async function seed(name, owner = "owner", before = async () => {}) {
     await database.query("INSERT INTO attempts (id,user_id,problem_id,mode,input_mode,status,setup_context,consent_at,disclosure_version,practice_goal,draft_source) VALUES ($1,$2,'sum-odd-positions-v1','mock','text','active','{}',now(),'test','Do not send this private goal','def sum_odd_positions(values): return sum(values[1::2])')", [name, owner]);
     const events = [["text", "candidate_text", {}], ["checkpoint", "code_checkpoint", {}], ["run", "code_run", {}], ["help", "help_requested", {}], ["legacy", "interviewer_voice", {}], ["verified", "interviewer_voice", { verified: true }], ["hidden", "code_run", {}]];
     for (const [suffix, type, payload] of events) await database.query("INSERT INTO attempt_events (id,attempt_id,event_type,source_id,source_order,occurrence_offset_ms,payload) VALUES ($1,$2,$3,$1,0,0,$4)", [`${name}-${suffix}`, name, type, payload]);
     for (const [suffix, speaker] of [["text", "candidate"], ["legacy", "interviewer"], ["verified", "interviewer"]]) await database.query("INSERT INTO transcript_segments (id,attempt_id,event_id,speaker,text,end_offset_ms) VALUES ($1,$2,$3,$4,$5,0)", [`${name}-${suffix}-segment`, name, `${name}-${suffix}`, speaker, suffix === "legacy" ? "UNVERIFIED_DO_NOT_SEND" : "Discuss odd indexes"]);
     await database.query("INSERT INTO code_checkpoints (id,attempt_id,event_id,source_code,checkpoint_type) VALUES ($1,$2,$3,'def solve(values): return sum(values[1::2])','run')", [`${name}-code`, name, `${name}-checkpoint`]);
-    for (const kind of ["visible", "submission"]) await database.query("INSERT INTO code_runs (id,attempt_id,checkpoint_id,event_id,status,tests_passed,test_results,run_kind,runner_version,harness_version) VALUES ($1,$2,$3,$4,'passed',1,$5,$6,'fixture','fixture')", [`${name}-${kind}`, name, `${name}-code`, `${name}-${kind === "visible" ? "run" : "hidden"}`, JSON.stringify([{ testId: kind === "visible" ? "sum-odd-empty-v1" : "HIDDEN_DO_NOT_SEND", outcome: "passed", actualOutput: 0 }]), kind]);
+    await database.query("INSERT INTO code_runs (id,attempt_id,checkpoint_id,event_id,status,tests_passed,tests_failed,test_results,run_kind,runner_version,harness_version) VALUES ($1,$2,$3,$4,'passed',1,0,$5,'visible','fixture','fixture')", [`${name}-visible`, name, `${name}-code`, `${name}-run`, JSON.stringify([{ testId: "sum-odd-empty-v1", outcome: "passed", actualOutput: 0 }])]);
     await database.query("INSERT INTO assistance_events (id,attempt_id,event_id,category,offered,accepted,delivered,content) VALUES ($1,$2,$3,'hint',true,true,false,'')", [`${name}-help-record`, name, `${name}-help`]);
     await before(name);
     if (owner !== "owner") return;
