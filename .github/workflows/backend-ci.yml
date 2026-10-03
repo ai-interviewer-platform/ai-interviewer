@@ -50,6 +50,7 @@ jobs:
       - name: PostgreSQL integration
         run: |
           node test/request-pipeline-integration.mjs
+          node test/site-collection-gate-integration.mjs
           node test/waitlist-integration.mjs
           node test/measurement-integration.mjs
           node test/experiment-integration.mjs

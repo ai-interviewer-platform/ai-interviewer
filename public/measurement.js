@@ -1,4 +1,5 @@
 import { actions, activities, eventNames, pageActivity, queueLimit } from './measurement-contract.js';
+import { siteConfig } from './site-config.js';
 
 // Shared, opt-in adapter seam. No cookies, identity or browser storage.
 // The first-party transport runs only when the server enables measurement and the
@@ -28,7 +29,7 @@ export function startFirstPartyMeasurement() {
   const queue = event => { if (queued.length < queueLimit) queued.push(event); };
   const send = event => fetch('/api/measure', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(event) });
   adapter = queue;
-  fetch('/api/site-config').then(response => response.json()).catch(() => null).then(config => {
+  siteConfig().then(config => {
     if (adapter !== queue) return;
     adapter = config?.measurementEnabled ? send : undefined;
     for (const event of queued) Promise.resolve(adapter?.(event)).catch(() => {});

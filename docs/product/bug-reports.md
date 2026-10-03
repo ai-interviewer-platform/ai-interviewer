@@ -42,4 +42,4 @@ Decided under the owner's delegation of 2026-09-30. The shared collection, acces
 
 ## Verification
 
-`node test/bug-report-integration.mjs` needs a disposable local `DATABASE_URL`. It exercises the real request handler, PostgreSQL and a browser, and covers every journey in the matrix.
+`node test/bug-report-integration.mjs` needs a disposable local `DATABASE_URL`. It exercises the real request handler, PostgreSQL and a browser, and covers every journey in the matrix. `node test/site-collection-gate-integration.mjs` checks the shared Site collection gate: closed collection, origin, body limit, JSON, rate limit and Operator access.

@@ -26,6 +26,10 @@ export const limits = {
   // Owner-delegated defaults of 2026-09-30 for bug reports (#22).
   bugReportsPerMinute: 30,
   bugReportsBytes: 32 * 1024,
+  // The waitlist limit accepted in #49 for the shared Site collection gate (#50). The 4 KiB
+  // body limit matches measurement events; a waitlist request is an email address and a version.
+  waitlistPerMinute: 30,
+  waitlistBytes: 4 * 1024,
 };
 
 // Every rate-limit prefix that is keyed by a user ID. Account deletion removes the
@@ -46,7 +50,7 @@ export function userRateLimitKeys(userId: string): RateLimitKey[] {
 }
 
 // Project-wide limits for public collection. No IP address or other identifier is stored.
-export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report"): RateLimitKey {
+export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report" | "waitlist"): RateLimitKey {
   return `site:${name}` as RateLimitKey;
 }
 

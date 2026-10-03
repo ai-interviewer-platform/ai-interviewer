@@ -37,6 +37,8 @@ Set `LANDING_PRIMARY_ACTION` to the owner's choice: `waitlist` or `personal_prac
 
 Missing/incomplete policy or missing operator secret disables new collection. Withdrawal and authenticated operator deletion remain available after collection is switched off. The actual waitlist disclosures are published in the configured policy and public privacy notice. Additional analytics/heatmap processing requires its own #23 disclosure and implementation; this configuration enables neither analytics nor automatic outreach.
 
+Joining and withdrawing share a project-wide limit of 30 requests per minute, with no IP address or other identifier stored, and a 4 KiB body limit (#50). Past the limit the page shows that the waitlist is busy.
+
 Operator API, private bearer token required:
 
 - `GET /api/waitlist/records`: persisted entries and independent anonymous outcome records. Use this authenticated JSON view/export; no public operator dashboard.
@@ -71,6 +73,6 @@ Every report must record explicit `start`/`end` timestamps, cohort eligibility, 
 
 ## Verification
 
-`npm run test:waitlist` requires a disposable local `DATABASE_URL`; the test harness creates and removes its own schema. Browser exercises real request handler and PostgreSQL: server-confirmed signup, duplicate privacy, reload, withdrawal, operator export/deletion, missing policy, validation, failure recovery and analytics outage isolation. Desktop/mobile accessibility and screenshots use synthetic `.invalid` addresses in an isolated database and the configured public policy. Fixtures prove behavior and configured-policy disclosure, not conversion results. The documented owner delegation is the authority for the actual policy choices.
+`npm run test:waitlist` requires a disposable local `DATABASE_URL`; the test harness creates and removes its own schema. Browser exercises real request handler and PostgreSQL: server-confirmed signup, duplicate privacy, reload, withdrawal, operator export/deletion, missing policy, validation, failure recovery and analytics outage isolation. Desktop/mobile accessibility and screenshots use synthetic `.invalid` addresses in an isolated database and the configured public policy. `node test/site-collection-gate-integration.mjs` checks the shared Site collection gate, including the waitlist rate limit and withdrawal while closed. Fixtures prove behavior and configured-policy disclosure, not conversion results. The documented owner delegation is the authority for the actual policy choices.
 
 Generated evidence: `.local/marketing/landing-desktop.png`, `landing-mobile.png`. The Backend CI PostgreSQL job includes this browser/API check.
