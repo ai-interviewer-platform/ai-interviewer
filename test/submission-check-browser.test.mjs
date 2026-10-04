@@ -61,6 +61,7 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
           payload = { reviewId: 'fixture-review', dispatch: 'queued', recoveryDispatch: false, submissionCheck };
         }
         else if (path === '/api/attempts/fixture-attempt') payload = detail();
+        else if (path === '/api/attempts/fixture-attempt/review') payload = { review: { id: 'fixture-review', status: reviewStatus }, findings: [] };
         else payload = {};
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
       });
@@ -122,6 +123,24 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
       assert.ok(!text.includes(DISCLAIMER));
       await axe('no hidden tests');
       console.log('Passed: no hidden tests state');
+      for (const check of [
+        { state: 'checked', passed: 4, total: 6, failures: { 'wrong answer': 1, TypeError: 1 } },
+        { state: 'unavailable', passed: null, total: null, failures: {} },
+        { state: 'no hidden tests', passed: null, total: null, failures: {} },
+      ]) {
+        submissionCheck = check;
+        for (const review of ['pending', 'failed', 'ready']) {
+          reviewStatus = review;
+          await open();
+          const expected = await page.getByRole('group', { name: 'Submission check' }).innerText();
+          await page.getByRole('button', { name: 'Inspect review' }).focus();
+          await page.getByRole('button', { name: 'Inspect review' }).press('Enter');
+          await page.getByRole('heading', { name: `Review ${review}`, exact: true }).waitFor();
+          assert.equal(await page.getByRole('group', { name: 'Submission check' }).count(), 1);
+          assert.equal(await page.getByRole('group', { name: 'Submission check' }).innerText(), expected);
+          await axe(`Review ${review}: ${check.state}`);
+        }
+      }
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   });

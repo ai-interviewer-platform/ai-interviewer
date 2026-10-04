@@ -3,7 +3,7 @@ import {
   PermanentReviewError,
   reviewInstructions,
   reviewLimits,
-  reviewOutputSchema,
+  reviewSchemaFor,
   TransientReviewError,
   type ReviewGenerationRequest,
   type ReviewProvider,
@@ -57,7 +57,7 @@ export class OpenAIResponsesReviewProvider implements ReviewProvider {
     this.evaluatorVersion = `openai-responses/evidence-v1/${model}`;
   }
 
-  async generate({ payload }: ReviewGenerationRequest): Promise<unknown> {
+  async generate({ payload, allowedEvidenceIds }: ReviewGenerationRequest): Promise<unknown> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
@@ -69,7 +69,7 @@ export class OpenAIResponsesReviewProvider implements ReviewProvider {
           method: "POST", redirect: "error", signal: controller.signal,
           headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
           body: JSON.stringify({ model: this.model, store: false, max_output_tokens: 6000, instructions: reviewInstructions,
-            input: payload, text: { format: { type: "json_schema", name: "interview_review", strict: true, schema: reviewOutputSchema } },
+            input: payload, text: { format: { type: "json_schema", name: "interview_review", strict: true, schema: reviewSchemaFor(allowedEvidenceIds) } },
           }),
         });
         if (!response.ok) {

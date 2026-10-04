@@ -110,7 +110,7 @@ require the exact configured `Origin` and `Content-Type: application/json`.
 
    This is illustrative, not a fixture returned by the application. Additional
    existing database fields/timestamps are retained. Real manifests contain
-   `attemptId`, `finalCheckpointId`, `submissionCheckEventId`, and `frozenAt`.
+   `attemptId`, `finalCheckpointId`, `submissionCheckEventId`, `submissionCheckState`, and `frozenAt`.
 
 Statuses are `pending`, `ready`, and `failed`. `ready` with `findings: []` is valid:
 no defensible finding is better than invented feedback. `404` means no review has
@@ -124,6 +124,19 @@ nested retries, consistent with the current API.
 Model output has no finding IDs, locators, timestamps, test results, retry IDs,
 practice goal, or assistance context fields. The backend generates IDs and derives
 locators, retry choices, and assistance context from the cited records.
+
+## Submission check evidence
+
+The evidence package includes the manifest's Submission check Event with its state,
+passed and total counts (null when unavailable or there are no hidden tests), and
+per-test `{testId, category}` results. Only these fields are selected; hidden inputs,
+expected values, outputs and message text are never sent to the Review provider.
+The Event ID is an allowed citation. Both provider adapters share the instructions
+and Finding schema: do not state or guess hidden inputs or expected values, and do
+not treat the check as proof of correctness or lasting ability.
+
+The Review page shows the same Submission check summary as the Tests / results
+pane above the Findings, for pending, failed and ready Reviews.
 
 ## Tests without the frontend
 

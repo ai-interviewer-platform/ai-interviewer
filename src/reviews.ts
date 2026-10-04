@@ -11,6 +11,7 @@ type Evidence = {
   transcript: { id: string; speaker: string; text: string } | null;
   checkpoint: { id: string; type: string; source: string } | null;
   run: { id: string; checkpointId: string; status: string; testResults: unknown } | null;
+  submissionCheck: { state: string; passed: number | null; total: number | null; results: Array<{ testId: string; category: string }> } | null;
   assistance: { id: string; category: string; offered: boolean; accepted: boolean; delivered: boolean; content: string } | null;
 };
 type Review = { id: string; attempt_id: string; status: string; evidence_manifest: unknown };
@@ -42,12 +43,18 @@ async function loadEvidence(client: PoolClient, review: Review) {
            'run', CASE WHEN r.id IS NOT NULL THEN jsonb_build_object('id', r.id, 'checkpointId', r.checkpoint_id, 'status', r.status,
              'testsPassed', r.tests_passed, 'testsFailed', r.tests_failed, 'testResults', r.test_results,
              'stdout', r.stdout, 'stderr', r.stderr, 'executionTimeMs', r.execution_time_ms) END,
+           'submissionCheck', CASE WHEN s.id IS NOT NULL THEN jsonb_build_object('state', s.check_state,
+             'passed', s.tests_passed, 'total', s.tests_passed + s.tests_failed,
+             'results', (SELECT coalesce(jsonb_agg(jsonb_build_object('testId', value->>'testId', 'category', value->>'category')), '[]'::jsonb)
+                         FROM jsonb_array_elements(s.test_results))) END,
            'assistance', CASE WHEN h.id IS NOT NULL THEN jsonb_build_object('id', h.id, 'category', h.category,
              'offered', h.offered, 'accepted', h.accepted, 'delivered', h.delivered, 'content', h.content) END) AS evidence
        FROM attempt_events e
        LEFT JOIN transcript_segments t ON t.event_id = e.id AND t.attempt_id = e.attempt_id
        LEFT JOIN code_checkpoints c ON c.event_id = e.id AND c.attempt_id = e.attempt_id
        LEFT JOIN code_runs r ON r.event_id = e.id AND r.attempt_id = e.attempt_id AND r.run_kind = 'visible'
+       LEFT JOIN code_runs s ON s.event_id = e.id AND s.attempt_id = e.attempt_id AND s.run_kind = 'submission'
+         AND e.id = $4 AND s.checkpoint_id = $5
        LEFT JOIN assistance_events h ON h.event_id = e.id AND h.attempt_id = e.attempt_id
        WHERE e.attempt_id = $1
          AND (e.event_type NOT IN ('candidate_voice', 'interviewer_voice') OR e.payload->'verified' = 'true'::jsonb)
@@ -56,12 +63,15 @@ async function loadEvidence(client: PoolClient, review: Review) {
        ORDER BY e.occurrence_offset_ms, e.source_id, e.source_order, e.id LIMIT $2
      ) SELECT CASE WHEN sum(octet_length(evidence::text)) OVER () <= $3 THEN evidence END AS evidence
          FROM selected ORDER BY occurrence_offset_ms, source_id, source_order, id`,
-    [review.attempt_id, reviewLimits.events + 1, reviewLimits.evidenceBytes],
+    [review.attempt_id, reviewLimits.events + 1, reviewLimits.evidenceBytes, manifest.submissionCheckEventId ?? null, manifest.finalCheckpointId],
   );
   if (result.rows.length > reviewLimits.events || result.rows.some(row => row.evidence === null)) throw new PermanentReviewError("Frozen evidence exceeds review processing limits; no evidence was silently truncated.");
   const evidence = result.rows.map(row => row.evidence!);
   const byId = new Map(evidence.map(item => [item.id, item]));
   const final = evidence.find(item => item.checkpoint?.id === manifest.finalCheckpointId && item.checkpoint?.type === "submission");
+  if (manifest.submissionCheckEventId && !byId.get(String(manifest.submissionCheckEventId))?.submissionCheck) {
+    throw new PermanentReviewError("Frozen evidence is missing its Submission check.");
+  }
   if (!final || byId.size !== evidence.length || evidence.some(item => item.run && !evidence.some(other => other.checkpoint?.id === item.run!.checkpointId))) {
     throw new PermanentReviewError("Frozen evidence is missing its submission or linked checkpoint.");
   }

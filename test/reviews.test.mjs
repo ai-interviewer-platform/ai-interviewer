@@ -112,6 +112,18 @@ test("Workers AI constrains evidence IDs to the attempt and returns the unchecke
   assert.deepEqual(input.response_format.json_schema.schema.properties.findings.items.properties.evidenceIds.items.enum, [...allowed]);
 });
 
+test("both Review adapters share the hidden-test guardrails and Finding schema", async () => {
+  let request;
+  globalThis.fetch = async (_url, init) => { request = JSON.parse(init.body); return Response.json(envelope()); };
+  await generate();
+  const AI = workersAI(() => completion(JSON.stringify({ findings: [] })));
+  await generate({ ...env, AI });
+  assert.equal(AI.calls[0].input.messages[0].content, request.instructions);
+  assert.match(request.instructions, /Do not state or guess hidden test inputs or expected values/);
+  assert.match(request.instructions, /Submission check is a recorded observation of those tests only, not proof of correctness or lasting ability/);
+  assert.deepEqual(AI.calls[0].input.response_format.json_schema.schema, request.text.format.schema);
+});
+
 test("Workers AI maps a model error to a permanent or transient Review error by its retry flag", async () => {
   await assert.rejects(generate({ ...env, AI: workersAI(() => completion("{\"findings\": [", "length")) }), (error) => error instanceof PermanentReviewError && /stopped with length/.test(error.message));
   await assert.rejects(generate({ ...env, AI: workersAI(() => completion("")) }), PermanentReviewError);
