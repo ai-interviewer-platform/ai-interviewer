@@ -54,18 +54,21 @@ try {
     const raw = JSON.parse(init.body).input;
     assert.ok(!/UNVERIFIED_DO_NOT_SEND|HIDDEN_DO_NOT_SEND|foreign-|private goal|owner@example/.test(raw));
     const payload = JSON.parse(raw);
+    const check = payload.evidence.find(item => item.type === "submission_check");
+    assert.deepEqual(check.submissionCheck, { state: "checked", passed: 1, total: 1, results: [{ testId: "hidden-fixture", category: "passed" }] });
+    assert.ok(payload.allowedEvidenceIds.includes(check.id));
     assert.ok(payload.allowedEvidenceIds.includes("valid-verified"));
     assert.ok(payload.allowedEvidenceIds.includes("valid-help"));
     assert.equal(payload.evidence.find(item => item.id === "valid-help").assistance.delivered, false);
     const final = payload.evidence.find(item => item.checkpoint?.id === payload.attempt.finalCheckpointId);
     assert.equal(final.checkpoint.type, "submission");
     await new Promise(resolve => setTimeout(resolve, 50));
-    return Response.json(respond("valid"));
+    return Response.json(respond("valid", { evidenceIds: ["valid-text", "valid-checkpoint", "valid-run", check.id] }));
   };
   await Promise.all([processReview(review, env, database), processReview(review, env, database)]);
   await processReview(review, env, database);
   assert.equal(calls, 1);
-  assert.deepEqual(await state(review), { status: "ready", failure_reason: null, findings: 1, citations: 3 });
+  assert.deepEqual(await state(review), { status: "ready", failure_reason: null, findings: 1, citations: 4 });
   const apiReview = await handle(new Request("https://app.example/api/attempts/valid/review"), env, {}, database);
   const detail = await apiReview.json();
   assert.equal(detail.review.status, "ready");
@@ -155,6 +158,23 @@ try {
     assert.deepEqual(actions, [expected, "invalid-ack"]);
   }
   console.log("PASS the Worker queue retries transient failures and acknowledges terminal and invalid messages");
+
+  for (const checkState of ["unavailable", "no hidden tests"]) {
+    await database.query("DELETE FROM security_rate_limits");
+    const reviewId = await seed(`check-${checkState}`, "owner", async (name) => {
+      if (checkState === "unavailable") env.PYTHON_RUNNER = undefined;
+      else await database.query("UPDATE attempts SET problem_id = 'count-rises-v1' WHERE id = $1", [name]);
+    });
+    await processReview(reviewId, env, database, { evaluatorVersion: "fixture", async generate({ payload }) {
+      const check = JSON.parse(payload).evidence.find(item => item.type === "submission_check");
+      assert.deepEqual(check.submissionCheck, { state: checkState, passed: null, total: null, results: [] });
+      const response = await handle(new Request(`https://app.example/api/attempts/check-${checkState}/review`), env, {}, database);
+      assert.equal((await response.json()).review.evidence_manifest.submissionCheckState, checkState);
+      return { findings: [] };
+    } });
+    assert.equal((await state(reviewId)).status, "ready");
+  }
+  console.log("PASS Reviews preserve unavailable and no-hidden-tests reasons without counts");
 } finally {
   globalThis.fetch = originalFetch;
   await drop();

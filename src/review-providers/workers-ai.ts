@@ -3,19 +3,11 @@ import {
   PermanentReviewError,
   reviewInstructions,
   reviewLimits,
-  reviewOutputSchema,
+  reviewSchemaFor,
   TransientReviewError,
   type ReviewGenerationRequest,
   type ReviewProvider,
 } from "../review-provider";
-
-// Enumerating the attempt's own evidence IDs lets constrained decoding rule out
-// foreign or invented citations; the Review processor still checks every one.
-function schemaFor(allowed: Set<string>) {
-  const schema = structuredClone(reviewOutputSchema);
-  schema.properties.findings.items.properties.evidenceIds.items = { type: "string", enum: [...allowed] } as { type: string };
-  return schema;
-}
 
 export class WorkersAIReviewProvider implements ReviewProvider {
   readonly evaluatorVersion = `workers-ai/evidence-v1/${REVIEW_MODEL}`;
@@ -29,7 +21,7 @@ export class WorkersAIReviewProvider implements ReviewProvider {
       text = await modelText(this.ai, REVIEW_MODEL, {
         max_completion_tokens: 6000,
         reasoning_effort: "none",
-        response_format: { type: "json_schema", json_schema: { name: "interview_review", strict: true, schema: schemaFor(allowedEvidenceIds) } },
+        response_format: { type: "json_schema", json_schema: { name: "interview_review", strict: true, schema: reviewSchemaFor(allowedEvidenceIds) } },
         messages: [{ role: "system", content: reviewInstructions }, { role: "user", content: payload }],
       }, { attempts: 1, timeoutMs: reviewLimits.timeoutMs });
     } catch (error) {

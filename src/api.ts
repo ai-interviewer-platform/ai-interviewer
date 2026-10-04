@@ -259,7 +259,7 @@ async function finishAttempt(pool: Pool, env: Env, attempt: AttemptRow, body: Re
       if (recorded.status !== "recorded") return recorded;
       await client.query("UPDATE attempts SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1", [attempt.id]);
       const reviewId = id();
-      const manifest = { attemptId: attempt.id, finalCheckpointId: submission.checkpointId, submissionCheckEventId: recorded.eventId, frozenAt: new Date().toISOString() };
+      const manifest = { attemptId: attempt.id, finalCheckpointId: submission.checkpointId, submissionCheckEventId: recorded.eventId, submissionCheckState: check.state, frozenAt: new Date().toISOString() };
       await client.query("INSERT INTO reviews (id, attempt_id, status, evidence_manifest) VALUES ($1, $2, 'pending', $3::jsonb)", [reviewId, attempt.id, JSON.stringify(manifest)]);
       return { status: "finished", reviewId } as const;
     }));
