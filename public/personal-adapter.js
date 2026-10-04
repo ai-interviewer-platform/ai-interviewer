@@ -2,6 +2,7 @@ import { accountMenu } from './account-menu.js';
 import { brandWordmark, beginBrandLoading, setBrandVoice } from './brand.js';
 import { createDeepgramVoiceSession, THINKING_MODEL, VOICE_PROVIDER } from "./voice-agent.js";
 import { createAttemptSession } from "./attempt-session.js";
+import { createPersonalState, navigatePersonal } from "./personal-navigator.js";
 import { measure } from "./measurement.js";
 
 const personalOutcome = (name, authority = "server") => measure(name, { surface: "personal", activity: "personal", authority });
@@ -28,12 +29,13 @@ async function api(path, options = {}) {
 }
 
 function authForm(state) {
+  const signUp = state.authView === 'sign-up';
   if (state.resetToken) return `<form id="personal-reset-form"><h2>Choose a new password</h2><label for="reset-password">New password</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required><p class="small muted">Use at least 8 characters. Other signed-in devices are signed out.</p><button class="button primary" type="submit">Save new password</button></form>`;
   if (state.authView === "forgot") return `<form id="personal-forgot-form"><h2>Reset your password</h2><p class="small muted">Enter the email for your account. We send a reset link that works for one hour.</p><label for="forgot-email">Email</label><input id="forgot-email" name="email" type="email" autocomplete="email" required><div class="actions"><button class="button primary" type="submit">Send reset link</button><button class="button quiet" type="button" data-auth-view="sign-in">Back to sign in</button></div></form>`;
-  return `<div class="segmented" aria-label="Authentication"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form"><div data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required><p class="small muted">Email and password are the only MVP login method.</p><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
+  return `<div class="segmented" aria-label="Authentication"><button class="button ${signUp ? "" : "selected"}" type="button" data-auth-view="sign-in" aria-pressed="${!signUp}">Sign in</button><button class="button ${signUp ? "selected" : ""}" type="button" data-auth-view="sign-up" aria-pressed="${signUp}">Create account</button></div><form id="personal-auth-form"><div data-signup-name ${signUp ? "" : "hidden"}><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name" ${signUp ? "required" : ""}></div><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="${signUp ? "new-password" : "current-password"}" minlength="${signUp ? 8 : 0}" required><p class="small muted">Email and password are the only MVP login method.</p><button class="button primary" type="submit">${signUp ? "Create account" : "Sign in"}</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
 }
 
-function authMarkup(state, message = "") {
+function authMarkup(state, message = state.authMessage) {
   return `<main id="main" class="page-main personal-entry"><section class="empty-state"><span class="eyebrow">Practice, inspect, retry</span><h1>Keep the evidence<br>with the work.</h1><p>Use the guided sample without an account, or sign in to record a personal Python practice attempt.</p><div class="actions"><a class="button secondary" href="#sample"><span>Try the guided sample</span></a></div>${message ? `<p class="form-error" role="status">${escapeHtml(message)}</p>` : ""}</section><section class="setup-form auth-card">${authForm(state)}</section></main>`;
 }
 
@@ -138,11 +140,9 @@ function accountMarkup(state) {
 }
 
 export function mountPersonal(root) {
-  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
-  const requestedPage = new URLSearchParams(location.hash.split('?')[1] ?? '').get('page');
-  if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
+  const params = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  let state = createPersonalState({ page: params.get('page'), auth: params.get('auth'), reset: params.get('reset'), voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL });
   let disposed = false;
-  let authMode = new URLSearchParams(location.hash.split("?")[1] ?? "").get("auth") === "sign-up" ? "sign-up" : "sign-in";
   let voiceSession = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
   const setVoiceStatus = (status) => {
@@ -168,7 +168,6 @@ export function mountPersonal(root) {
   };
   const startVoice = async () => {
     if (!state.attempt || state.attempt.attempt.input_mode !== "voice") throw new Error("This attempt uses text input.");
-    if (voiceSession?.active) { stopVoice(); return; }
     voiceSession = createDeepgramVoiceSession({
       attempt: state.attempt.attempt,
       onStatus: setVoiceStatus,
@@ -181,13 +180,11 @@ export function mountPersonal(root) {
   };
   const render = () => {
     if (disposed) return;
-    if (!state.attempt || state.page !== "workspace" || state.selectedProblemId) stopVoice();
     const footer = root.closest('.app-content')?.querySelector('.page-footer');
     if (footer) { footer.hidden = Boolean(state.user && (state.selectedProblemId || ['workspace', 'review', 'related'].includes(state.page))); document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`); }
     if (!state.collectionEnabled) { root.innerHTML = collectionUnavailableMarkup(); return; }
     if (state.resetToken || !state.user) {
       root.innerHTML = authMarkup(state);
-      if (!state.resetToken && authMode === 'sign-up') root.querySelector('[data-auth-view="sign-up"]')?.click();
       return;
     }
     let content;
@@ -210,40 +207,62 @@ export function mountPersonal(root) {
       if (heading) { const title = document.createElement('h1'); title.textContent = state.page === 'sessions' ? 'Your sessions' : 'Practice roadmap'; heading.replaceWith(title); }
     }
   };
-  const reload = async () => {
-    const availability = await api("/api/personal-availability");
-    state.collectionEnabled = availability.collectionEnabled === true;
-    state.voiceEnabled = availability.voiceEnabled === true;
-    state.voiceProvider = availability.voiceProvider || VOICE_PROVIDER;
-    state.thinkingModel = availability.thinkingModel || THINKING_MODEL;
-    state.emailEnabled = availability.emailEnabled === true;
-    if (!state.collectionEnabled) return;
-    const session = await api("/api/auth/get-session");
-    if (!session?.user) { state.user = null; return; }
-    const [me, catalog, attempts] = await Promise.all([api("/api/me"), api("/api/catalog"), api("/api/attempts")]);
-    state.user = { ...session.user, userId: me.userId };
-    state.catalog = catalog.problems;
-    state.attempts = attempts.attempts; state.historyPage = attempts.page; state.historyMore = attempts.hasMore;
+  const loadAccount = async () => {
+    const availability = await api('/api/personal-availability');
+    const data = { collectionEnabled: availability.collectionEnabled === true,
+      voiceEnabled: availability.voiceEnabled === true, voiceProvider: availability.voiceProvider || VOICE_PROVIDER,
+      thinkingModel: availability.thinkingModel || THINKING_MODEL, emailEnabled: availability.emailEnabled === true, user: null };
+    if (!data.collectionEnabled) return data;
+    const signedIn = await api('/api/auth/get-session');
+    if (!signedIn?.user) return data;
+    const [me, catalog, attempts] = await Promise.all([api('/api/me'), api('/api/catalog'), api('/api/attempts')]);
+    return { ...data, user: { ...signedIn.user, userId: me.userId }, catalog: catalog.problems,
+      attempts: attempts.attempts, historyPage: attempts.page, historyMore: attempts.hasMore };
   };
-  const session = createAttemptSession({ api, attempt: () => state.attempt?.attempt ?? null, editorSource: () => root.querySelector("#personal-code")?.value });
-  const openAttempt = async (attemptId) => {
-    stopVoice();
-    state.attempt = await session.detail(attemptId);
-    if (disposed) return;
-    state.review = state.attempt.review ? await session.review(attemptId).catch(() => null) : null;
-    state.related = [];
-    state.page = "workspace";
-    state.selectedProblemId = null;
-    render();
+  const session = createAttemptSession({ api, attempt: () => state.attempt?.attempt ?? null, editorSource: () => root.querySelector('#personal-code')?.value });
+  const runEffect = async (effect) => {
+    switch (effect.type) {
+      case 'save-draft': await session.saveChangedDraft(); break;
+      case 'stop-voice': stopVoice(); break;
+      case 'start-voice': await startVoice(); break;
+      case 'reload': return { type: 'loaded', data: await loadAccount() };
+      case 'load-attempt': {
+        const detail = await session.detail(effect.attemptId);
+        const review = detail.review ? await session.review(effect.attemptId).catch(() => null) : null;
+        return { type: 'attempt-loaded', detail, review };
+      }
+      case 'load-review': return { type: 'review-loaded', review: await session.review(effect.attemptId) };
+      case 'load-related': return { type: 'related-loaded', related: (await session.related()).relatedProblems };
+      case 'sign-out': await api('/api/auth/sign-out', { method: 'POST', body: {} }); break;
+      case 'url':
+        if (effect.replace) history.replaceState(null, '', '#personal');
+        else history.pushState(null, '', `#personal?page=${effect.page}`);
+        break;
+      case 'location': location.href = effect.href; break;
+    }
   };
+  let pendingTransition = Promise.resolve();
+  const dispatch = (action) => {
+    const run = pendingTransition.catch(() => {}).then(async () => {
+      if (disposed) return;
+      const result = navigatePersonal(state, { ...action, editorSource: root.querySelector('#personal-code')?.value, voiceActive: voiceSession?.active === true });
+      let next = result.state;
+      for (const effect of result.effects) {
+        const completed = await runEffect(effect);
+        if (disposed) return;
+        if (completed) next = navigatePersonal(next, completed).state;
+      }
+      const changed = state !== next;
+      state = next;
+      if (changed) render();
+    });
+    pendingTransition = run;
+    return run;
+  };
+  const openAttempt = (attemptId) => dispatch({ type: 'open-attempt', attemptId });
   const navigate = async (page) => {
-    await session.saveChangedDraft();
-    await reload();
-    if (disposed) return;
-    state.page = page; state.attempt = null; state.selectedProblemId = null;
-    history.pushState(null, '', `#personal?page=${page}`);
-    render();
-    root.querySelector('h1')?.scrollIntoView({ block: 'start' });
+    await dispatch({ type: 'page', page });
+    if (!disposed) root.querySelector('h1')?.scrollIntoView({ block: 'start' });
   };
   root.addEventListener("click", async (event) => {
     const anchor = event.target.closest('a');
@@ -253,8 +272,7 @@ export function mountPersonal(root) {
         const href = anchor.getAttribute('href');
         if (href?.startsWith('#personal?page=')) await navigate(new URLSearchParams(href.split('?')[1]).get('page'));
         else {
-          await session.saveChangedDraft();
-          if (!disposed) location.href = anchor.href;
+          await dispatch({ type: 'leave', href: anchor.href });
         }
       } catch (error) { showError(error.message); }
       return;
@@ -262,40 +280,29 @@ export function mountPersonal(root) {
     const control = event.target.closest("button");
     if (!control) return;
     try {
-      if (control.dataset.authView === "forgot" || (control.dataset.authView && state.authView === "forgot")) {
-        state.authView = control.dataset.authView; authMode = "sign-in";
-        root.innerHTML = authMarkup(state);
-        root.querySelector(".auth-card input[type=email]")?.focus();
-      } else if (control.dataset.authView) {
-        authMode = control.dataset.authView;
-        root.querySelector("[data-signup-name]").hidden = authMode !== "sign-up";
-        root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
-        // Better Auth's default minimum password length.
-        root.querySelector("#auth-password").minLength = authMode === "sign-up" ? 8 : 0;
-        root.querySelector("#auth-name").required = authMode === "sign-up";
-        root.querySelector("#personal-auth-form button[type=submit]").textContent = authMode === "sign-up" ? "Create account" : "Sign in";
-        root.querySelectorAll("[data-auth-view]").forEach((button) => { const selected = button.dataset.authView === authMode; button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected)); });
-      } else if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(control.dataset.personalPage)) await navigate(control.dataset.personalPage);
-      else if (control.dataset.personalPage === "workspace") { state.page = "workspace"; render(); }
-      else if (control.dataset.personalPage === "review") { state.page = "review"; render(); }
-      else if (control.dataset.startProblem) { state.attempt = null; state.selectedProblemId = control.dataset.startProblem; render(); }
-      else if (control.hasAttribute("data-more-problems")) { state.catalogFilter.limit += 30; render(); root.querySelector("[data-more-problems]")?.focus(); }
+      if (control.dataset.authView) {
+        const values = root.querySelector('#personal-auth-form') ? new FormData(root.querySelector('#personal-auth-form')) : null;
+        await dispatch({ type: 'auth-view', view: control.dataset.authView });
+        if (values) for (const [name, value] of values) { const input = root.querySelector(`#personal-auth-form [name="${name}"]`); if (input) input.value = value; }
+        root.querySelector('.auth-card input[type=email]')?.focus();
+      } else if (control.dataset.personalPage) await navigate(control.dataset.personalPage);
+      else if (control.dataset.startProblem) await dispatch({ type: 'select-problem', problemId: control.dataset.startProblem });
+      else if (control.hasAttribute('data-more-problems')) { await dispatch({ type: 'more-problems' }); root.querySelector('[data-more-problems]')?.focus(); }
       else if (control.hasAttribute("data-more-attempts")) {
         const page = await api(`/api/attempts?page=${state.historyPage + 1}`);
-        state.attempts.push(...page.attempts); state.historyPage = page.page; state.historyMore = page.hasMore; render();
+        await dispatch({ type: 'history-loaded', data: page });
       }
       else if (control.hasAttribute("data-more-evidence")) {
         const page = await session.detail(state.attempt.attempt.id, state.attempt.page + 1);
-        for (const key of ["events", "transcripts", "checkpoints", "runs"]) state.attempt[key].push(...page[key]);
-        state.attempt.page = page.page; state.attempt.hasMore = page.hasMore; render();
+        await dispatch({ type: 'evidence-loaded', data: page });
       }
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
-      else if (control.hasAttribute("data-open-review")) { state.page = "review"; render(); }
-      else if (control.hasAttribute("data-open-related")) { state.related = (await session.related()).relatedProblems; state.page = "related"; render(); }
-      else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
-      else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
+      else if (control.hasAttribute("data-open-review")) await navigate("review");
+      else if (control.hasAttribute("data-open-related")) await dispatch({ type: "open-related" });
+      else if (control.hasAttribute("data-voice-toggle")) await dispatch({ type: "voice" });
+      else if (control.dataset.startRelated) await dispatch({ type: "select-problem", problemId: control.dataset.startRelated });
       else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); personalOutcome("retry_started"); await openAttempt(result.attemptId); }
-      else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
+      else if (control.hasAttribute("data-sign-out")) await dispatch({ type: 'sign-out' });
       else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
       else if (control.hasAttribute("data-run")) {
         control.disabled = true; control.textContent = "Running…";
@@ -311,18 +318,17 @@ export function mountPersonal(root) {
         try {
           const result = await session.finish();
           personalOutcome("practice_completed");
-          await openAttempt(state.attempt.attempt.id);
+          await dispatch({ type: 'finish-completed', attemptId: state.attempt.attempt.id });
           showError(["Attempt completed.", submissionCheckSentence(result.submissionCheck), `Review dispatch: ${result.dispatch}.`].filter(Boolean).join(" "));
         } finally { control.disabled = false; control.textContent = "Finish interview"; }
       }
       else if (control.hasAttribute("data-help")) { const result = await session.help("hint"); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
-  root.addEventListener("change", (event) => {
+  root.addEventListener("change", async (event) => {
     const select = event.target.closest?.("[data-catalog-filter]");
     if (!select) return;
-    state.catalogFilter = { ...state.catalogFilter, [select.dataset.catalogFilter]: select.value, limit: 30 };
-    render();
+    await dispatch({ type: 'filter', key: select.dataset.catalogFilter, value: select.value });
     root.querySelector(`[data-catalog-filter="${select.dataset.catalogFilter}"]`)?.focus();
   });
   root.addEventListener("submit", async (event) => {
@@ -333,21 +339,18 @@ export function mountPersonal(root) {
       if (form.id === "personal-auth-form") {
         const data = new FormData(form);
         const email = data.get("email"); const password = data.get("password"); const name = data.get("name");
-        const result = await api(authMode === "sign-up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email", { method: "POST", body: authMode === "sign-up" ? { email, password, name } : { email, password } });
+        const result = await api(state.authView === "sign-up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email", { method: "POST", body: state.authView === "sign-up" ? { email, password, name } : { email, password } });
         // With email verification on, sign-up returns no session token.
-        if (authMode === "sign-up" && !result.token) { authMode = "sign-in"; root.innerHTML = authMarkup(state, "Check your email for a confirmation link, then sign in."); return; }
-        authMode = "sign-in";
-        await reload(); render();
+        if (state.authView === "sign-up" && !result.token) { await dispatch({ type: "auth-view", view: "sign-in", message: "Check your email for a confirmation link, then sign in." }); return; }
+        await dispatch({ type: "auth-view", view: "sign-in" });
+        await dispatch({ type: "reload" });
       } else if (form.id === "personal-forgot-form") {
         await api("/api/auth/request-password-reset", { method: "POST", body: { email: new FormData(form).get("email") } });
-        state.authView = "sign-in";
-        root.innerHTML = authMarkup(state, "If an account uses that email, a reset link is on its way. It works for one hour.");
+        await dispatch({ type: "auth-view", view: "sign-in", message: "If an account uses that email, a reset link is on its way. It works for one hour." });
       } else if (form.id === "personal-reset-form") {
         await api("/api/auth/reset-password", { method: "POST", body: { newPassword: new FormData(form).get("password"), token: state.resetToken } });
         if (disposed) return;
-        state.resetToken = null; state.user = null; authMode = "sign-in"; state.authView = "sign-in";
-        history.replaceState(null, "", "#personal");
-        root.innerHTML = authMarkup(state, "Your password was changed. Sign in with the new password.");
+        await dispatch({ type: 'account-cleared', message: 'Your password was changed. Sign in with the new password.' });
       } else if (form.id === "personal-setup-form") {
         const data = new FormData(form);
         const result = await api("/api/attempts", { method: "POST", body: { problemId: data.get("problemId"), mode: data.get("mode"), inputMode: data.get("inputMode"), saveAudio: false, consent: data.get("consent") === "on", familiarity: "unanswered", practiceGoal: data.get("practiceGoal"), setupContext: { studiedTopics: data.get("studiedTopics"), concern: data.get("concern") } } });
@@ -369,16 +372,21 @@ export function mountPersonal(root) {
         }
       } else if (form.id === "delete-account-form") {
         await api("/api/me", { method: "DELETE", body: { password: new FormData(form).get("password") } });
-        state.user = null; state.attempts = []; state.attempt = null; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; authMode = "sign-in";
-        root.innerHTML = authMarkup(state, "Your account and all of its records were deleted.");
+        await dispatch({ type: 'account-cleared', message: 'Your account and all of its records were deleted.' });
       } else if (form.classList.contains("finding-correction-form")) {
         const reason = new FormData(form).get("reason");
         await session.correctFinding(form.dataset.findingId, reason);
-        state.review = await session.review(state.attempt.attempt.id);
-        render();
+        await dispatch({ type: "page", page: "review" });
       }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
-  (async () => { try { await reload(); render(); } catch (error) { if (disposed) return; state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); if (!state.resetToken && authMode === "sign-up") root.querySelector('[data-auth-view="sign-up"]')?.click(); } })();
-  return () => { disposed = true; stopVoice(); };
+  dispatch({ type: 'reload' }).catch(error => {
+    if (disposed) return;
+    state = navigatePersonal(state, { type: 'loaded', data: { user: null } }).state;
+    root.innerHTML = authMarkup(state, state.resetToken ? '' : error instanceof Error ? error.message : 'The data service is unavailable.');
+  });
+  return () => {
+    disposed = true;
+    for (const effect of navigatePersonal(state, { type: 'dispose' }).effects) void runEffect(effect);
+  };
 }

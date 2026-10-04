@@ -43,6 +43,7 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
       let reviewStatus = 'pending';
       let releaseFinish;
       const finishes = [];
+      const draftsAfterFinish = [];
       const detail = () => ({ attempt: { id: 'fixture-attempt', created_at: new Date().toISOString(), mode: 'mock', status, input_mode: 'text', draft_source: problem.starter_code, draft_revision: 1 }, problem, transcripts: [], runs: [], events: [], checkpoints: [], visibleTests: [], review: status === 'completed' ? { status: reviewStatus, failure_reason: reviewStatus === 'failed' ? 'Fictional failure.' : null } : null, submissionCheck, hasMore: false });
       await page.route('**/api/**', async route => {
         const request = route.request();
@@ -62,6 +63,10 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
         }
         else if (path === '/api/attempts/fixture-attempt') payload = detail();
         else if (path === '/api/attempts/fixture-attempt/review') payload = { review: { id: 'fixture-review', status: reviewStatus }, findings: [] };
+        else if (path.endsWith('/draft') && status === 'completed') {
+          draftsAfterFinish.push(request.postDataJSON());
+          return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'Attempt is completed.' }) });
+        }
         else payload = {};
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
       });
@@ -89,9 +94,11 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
       assert.equal(await checking.isDisabled(), true);
       await checking.click({ force: true });
       await axe('finishing');
+      await page.locator('#personal-code').fill('edited while finish waited');
       releaseFinish();
       await page.locator('#personal-error').getByText(/Attempt completed/).waitFor();
       assert.equal(finishes.length, 1, 'one finish request');
+      assert.deepEqual(draftsAfterFinish, [], 'completion refresh never writes to the frozen Attempt');
       assert.match(await page.locator('#personal-error').innerText(), /Submission check: passed 4 of 6 hidden tests\./);
       console.log('Passed: finishing state');
 
