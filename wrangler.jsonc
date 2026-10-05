@@ -11,6 +11,22 @@
   },
   // keep_vars preserves dashboard variables (e.g. PERSONAL_DATA_COLLECTION_APPROVED) across deploys.
   "keep_vars": true,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    },
+    "issue_detection": {
+      "enabled": false
+    }
+  },
   "vars": {
     "BETTER_AUTH_URL": "https://ai-interviewer.jack-cao.workers.dev",
     "LANDING_PRIMARY_ACTION": "personal_practice",
