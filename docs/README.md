@@ -66,7 +66,7 @@ schema stays tracked because migrations and application types depend on it.
 Keep secrets and machine state local: `.env*` except the root `.env.example`,
 `.dev.vars*` except the root example, `.neon`, `.local/`, `.wrangler/`, dependency
 installs, `.scratch/`, `.firecrawl/`, `.playwright-cli/`, and `output/` are ignored.
-`public/voice-agent.js` is rebuilt by Wrangler or `npm run build:voice`;
+`public/voice-agent.js` and `public/code-editor.js` are rebuilt by Wrangler or `npm run build:browser`;
 worker type declarations and design thumbnails are generated.
 
 Before committing, inspect `git status --short` and the staged diff. Ignore rules

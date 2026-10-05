@@ -82,7 +82,8 @@ test('finishing shows "Checking your submission…", then the Tests / results pa
       // Finishing: the button says what is happening and cannot be pressed twice.
       submissionCheck = { state: 'checked', passed: 4, total: 6, failures: { 'wrong answer': 1, TypeError: 1 } };
       await open();
-      const finish = page.getByRole('button', { name: 'Finish interview' });
+      page.once('dialog', (dialog) => dialog.accept());
+      const finish = page.getByRole('button', { name: 'Submit code' });
       await finish.click();
       const checking = page.getByRole('button', { name: 'Checking your submission…' });
       await checking.waitFor();

@@ -107,23 +107,38 @@ function pythonValue(value) {
   return typeof value === "string" ? JSON.stringify(value) : String(value);
 }
 
-function testResultsMarkup(detail) {
-  const tests = detail.visibleTests ?? [];
-  const call = (test) => `${detail.problem.entry_point}(${(test?.input_data?.args ?? []).map(pythonValue).join(", ")})`;
-  const latest = detail.runs.at(-1);
-  if (!latest) {
-    const pending = tests.map((test) => `<li class="test-case"><code>${escapeHtml(call(test))}</code><span class="small muted">Expected <code>${escapeHtml(pythonValue(test.expected_output))}</code></span></li>`).join("");
-    return `<p class="small muted">Run the visible tests to create an immutable checkpoint.</p><ol class="test-cases">${pending}</ol>`;
-  }
-  const byId = new Map(tests.map((test) => [test.id, test]));
-  const cases = (latest.test_results ?? []).map((result) => {
+const testCall = (detail, test) => `${detail.problem.entry_point}(${(test?.input_data?.args ?? []).map(pythonValue).join(", ")})`;
+const passIcon = icon('<path d="m5 10.5 3.5 3.5 6.5-8"/>');
+const failIcon = icon('<path d="m6 6 8 8m0-8-8 8"/>');
+
+// Run results follow the HackerRank pattern: a summary, a vertical list of
+// sample test cases, and the input and outputs of the selected case.
+function runResultsMarkup(detail, run) {
+  const byId = new Map((detail.visibleTests ?? []).map((test) => [test.id, test]));
+  const results = run.test_results ?? [];
+  const failed = results.filter((result) => result.outcome !== "passed").length;
+  const heading = run.status === "runner_error" ? "Runner error" : failed ? "Wrong answer" : "All sample tests passed";
+  const summary = run.runner_error || (failed ? `${failed} of ${results.length} sample tests did not pass.` : `${results.length} of ${results.length} sample tests passed. Submit your code when you are ready.`);
+  const selected = Math.max(0, results.findIndex((result) => result.outcome !== "passed"));
+  const tabs = results.map((result, index) => `<button type="button" role="tab" class="test-case ${escapeHtml(result.outcome)}" id="case-tab-${index}" aria-controls="case-${index}" aria-selected="${index === selected}" tabindex="${index === selected ? 0 : -1}">${result.outcome === "passed" ? passIcon : failIcon}Test case ${index}<span class="sr-only"> ${escapeHtml(result.outcome)}</span></button>`).join("");
+  const panels = results.map((result, index) => {
     const test = byId.get(result.testId);
-    const actual = Object.hasOwn(result, "actualOutput") ? ` · got <code>${escapeHtml(pythonValue(result.actualOutput))}</code>` : "";
-    return `<li class="test-case ${escapeHtml(result.outcome)}"><strong>${escapeHtml(result.outcome)}</strong> <code>${escapeHtml(call(test))}</code><span class="small">Expected <code>${escapeHtml(pythonValue(test?.expected_output))}</code>${actual}</span>${result.error ? `<pre>${escapeHtml(result.error)}</pre>` : ""}</li>`;
+    const actual = Object.hasOwn(result, "actualOutput") ? pythonValue(result.actualOutput) : "No output";
+    return `<div class="case-detail" role="tabpanel" id="case-${index}" aria-labelledby="case-tab-${index}" tabindex="0" ${index === selected ? "" : "hidden"}><dl><dt>Input</dt><dd><pre>${escapeHtml(testCall(detail, test))}</pre></dd><dt>Your output</dt><dd><pre>${escapeHtml(actual)}</pre></dd><dt>Expected output</dt><dd><pre>${escapeHtml(pythonValue(test?.expected_output))}</pre></dd>${result.error ? `<dt>Error</dt><dd><pre>${escapeHtml(result.error)}</pre></dd>` : ""}</dl></div>`;
   }).join("");
-  const output = [["stdout", latest.stdout], ["stderr", latest.stderr]].filter(([, text]) => text).map(([name, text]) => `<details><summary>${name}</summary><pre>${escapeHtml(text)}</pre></details>`).join("");
-  const history = detail.runs.length > 1 ? `<p class="small muted">${detail.runs.length} runs recorded; showing the latest.</p>` : "";
-  return `<p role="status"><strong>${escapeHtml(latest.status)}</strong> · ${escapeHtml(latest.tests_passed)} passed, ${escapeHtml(latest.tests_failed)} failed${latest.runner_error ? ` · ${escapeHtml(latest.runner_error)}` : ""}</p><ol class="test-cases">${cases}</ol>${output}${history}`;
+  const output = [["Standard output", run.stdout], ["Standard error", run.stderr]].filter(([, text]) => text).map(([name, text]) => `<details><summary>${name}</summary><pre>${escapeHtml(text)}</pre></details>`).join("");
+  const cases = results.length ? `<div class="case-layout"><div class="case-list" role="tablist" aria-orientation="vertical" aria-label="Sample test cases">${tabs}</div><div class="case-details">${panels}</div></div>` : "";
+  return `<div class="run-summary" data-outcome="${failed || run.status === "runner_error" ? "failed" : "passed"}" role="status"><strong>${heading}</strong><span>${escapeHtml(summary)}</span></div>${cases}${output}`;
+}
+
+function runHistoryMarkup(detail) {
+  if (!detail.runs.length) return `<p class="small muted">No runs yet. Run your code to check it against the sample tests.</p>`;
+  const rows = detail.runs.map((run, index) => {
+    const time = run.created_at ? new Date(run.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+    const total = run.tests_passed + run.tests_failed;
+    return `<li><span class="session-status" data-status="${escapeHtml(run.status)}"><i aria-hidden="true"></i>${escapeHtml(sentenceCase(run.status.replace("_", " ")))}</span><span>${escapeHtml(run.tests_passed)}/${escapeHtml(total)} sample tests</span><span class="small muted">Run ${index + 1}${time ? ` · ${escapeHtml(time)}` : ""}</span><button class="button quiet small" type="button" data-show-run="${index}">View<span class="sr-only"> run ${index + 1}</span></button></li>`;
+  }).reverse().join("");
+  return `<ol class="run-history">${rows}</ol>`;
 }
 
 // The Submission check of a completed Attempt (CONTEXT.md). Unavailable never shows a count.
@@ -142,16 +157,35 @@ function submissionCheckMarkup(check) {
   return `<div class="submission-check" role="group" aria-label="Submission check"><p><strong>${escapeHtml(submissionCheckSentence(check))}</strong></p>${list}${limit}</div>`;
 }
 
+function resultsMarkup(state) {
+  const detail = state.attempt;
+  const run = detail.runs[state.runIndex ?? detail.runs.length - 1];
+  const review = detail.review ? `<p class="small">Review: <strong>${escapeHtml(detail.review.status)}</strong>${detail.review.failure_reason ? ` · ${escapeHtml(detail.review.failure_reason)}` : ""} <button class="button quiet small" type="button" data-open-review>Inspect review</button></p>` : "";
+  return `${submissionCheckMarkup(detail.submissionCheck)}${review}${run ? runResultsMarkup(detail, run) : ""}`;
+}
+
+const WORKSPACE_TABS = [["problem", "Problem"], ["voice", "Voice"], ["discussion", "Discussion"], ["submissions", "Submissions"]];
+
 function workspaceMarkup(state) {
   const detail = state.attempt;
   const problem = detail.problem;
   const transcript = detail.transcripts.map((segment) => `<div class="message"><div class="speaker">${escapeHtml(segment.speaker)}<time>${escapeHtml(segment.end_offset_ms)} ms</time></div><p>${escapeHtml(segment.text)}</p></div>`).join("") || `<p class="small muted">No conversation messages recorded yet.</p>`;
-  const runs = testResultsMarkup(detail);
-  const review = detail.review ? `<p class="small">Review: <strong>${escapeHtml(detail.review.status)}</strong>${detail.review.failure_reason ? ` · ${escapeHtml(detail.review.failure_reason)}` : ""} <button class="button quiet small" type="button" data-open-review>Inspect review</button></p>` : "";
   const disabled = detail.attempt.status === "completed" ? "disabled" : "";
   const isVoice = detail.attempt.input_mode === "voice";
-  const voiceControl = isVoice ? `<span id="voice-status" class="small muted" role="status">Voice ready</span><button class="button primary small" type="button" data-voice-toggle ${disabled}>Start voice</button>` : "";
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button><button class="button secondary small" type="button" data-finish ${disabled}>Finish interview</button></div></div><div class="workspace"><div class="left-column"><section class="problem-pane pane"><div class="panel-top"><span>Problem</span><span class="small muted">Original authored revision</span></div><div class="problem-scroll"><p class="problem-prompt">${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p></div></section><section class="conversation-pane pane"><div class="panel-top"><span>Conversation</span><div class="actions">${voiceControl}<button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? `Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved.` : "Messages are stored as text evidence."}</p></div></section></div><div class="right-column"><section class="editor-pane pane"><div class="panel-top"><span>Code</span><div class="actions"><span class="small muted">Python</span><button class="button primary small" type="button" data-run ${disabled}>Run visible tests</button></div></div><label class="sr-only" for="personal-code">Python source code</label><textarea id="personal-code" class="code-editor" spellcheck="false" ${disabled}>${escapeHtml(detail.attempt.draft_source)}</textarea></section><section class="tests-pane pane"><div class="panel-top"><span>Tests / results</span></div><div class="test-body" tabindex="0" role="region" aria-label="Test results">${submissionCheckMarkup(detail.submissionCheck)}${runs}${review}</div></section></div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+  const tabs = WORKSPACE_TABS.filter(([id]) => id !== "voice" || isVoice);
+  const current = tabs.some(([id]) => id === state.leftTab) ? state.leftTab : "problem";
+  const rail = `<div class="workspace-rail" role="tablist" aria-orientation="vertical" aria-label="Workspace panels">${tabs.map(([id, label]) => `<button type="button" role="tab" id="tab-${id}" aria-controls="panel-${id}" aria-selected="${id === current}" tabindex="${id === current ? 0 : -1}" data-workspace-tab="${id}">${label}</button>`).join("")}</div>`;
+  const panel = (id, body) => `<div class="workspace-panel" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" ${id === current ? "" : "hidden"}>${body}</div>`;
+  const samples = (detail.visibleTests ?? []).map((test, index) => `<div class="example"><strong class="small">Sample test ${index}</strong><dl><dt>Input</dt><dd><code>${escapeHtml(testCall(detail, test))}</code></dd><dt>Expected output</dt><dd><code>${escapeHtml(pythonValue(test.expected_output))}</code></dd></dl></div>`).join("");
+  const problemPanel = panel("problem", `<div class="problem-scroll"><h2>${escapeHtml(problem.title)}</h2><p class="small muted">${[problem.topic, problem.difficulty].filter(Boolean).map(escapeHtml).join(" · ")}</p><p class="problem-prompt">${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p>${samples ? `<h3>Sample tests</h3>${samples}` : ""}</div>`);
+  const voicePanel = isVoice ? panel("voice", `<div class="voice-panel"><p class="eyebrow">Voice interviewer</p><p id="voice-status" role="status">Voice ready</p><button class="button primary" type="button" data-voice-toggle ${disabled}>Start voice</button><p class="small muted">Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved. The conversation appears in Discussion.</p></div>`) : "";
+  const discussionPanel = panel("discussion", `<div class="panel-top"><span>Discussion</span><button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? "Typed messages go to the live voice interviewer." : "Messages are stored as text evidence."}</p></div>`);
+  const submissionsPanel = panel("submissions", `<div class="problem-scroll"><h2>Submissions</h2>${detail.submissionCheck ? `<p><strong>${escapeHtml(submissionCheckSentence(detail.submissionCheck))}</strong></p>` : ""}${runHistoryMarkup(detail)}</div>`);
+  const hasResults = detail.runs.length || detail.submissionCheck || detail.review;
+  const editor = `<section class="editor-pane pane"><div class="panel-top"><span>Language <span class="language-pill">Python 3</span></span><div class="actions"><button class="icon-button" type="button" data-reset-code aria-label="Reset to starter code" title="Reset to starter code" ${disabled}>${icon('<path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5"/>')}</button></div></div><div class="code-host" id="code-host"></div><div class="editor-status"><span>Esc then Tab leaves the editor</span><span data-cursor>Line: 1 Col: 1</span></div></section>`;
+  const actions = `<div class="editor-actions"><button class="button secondary" type="button" data-run ${disabled}>Run code</button><button class="button primary" type="button" data-finish ${disabled}>Submit code</button></div>`;
+  const results = `<section class="tests-pane pane" aria-label="Test results" ${hasResults ? "" : "hidden"}><div class="test-body">${resultsMarkup(state)}</div></section>`;
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button></div></div><div class="coding-workspace" style="--left-width:${state.leftWidth}%">${rail}<section class="workspace-left pane">${problemPanel}${voicePanel}${discussionPanel}${submissionsPanel}</section><div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="${Math.round(state.leftWidth)}" data-splitter></div><div class="workspace-right">${editor}${actions}${results}</div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
 }
 
 function reviewMarkup(state) {
@@ -181,18 +215,20 @@ function accountMarkup(state) {
 }
 
 export function mountPersonal(root) {
-  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
+  const state = { user: null, catalog: [], attempts: [], attempt: null, review: null, related: [], collectionEnabled: false, voiceEnabled: false, voiceProvider: VOICE_PROVIDER, thinkingModel: THINKING_MODEL, page: "home", selectedProblemId: null, catalogFilter: { topic: "", difficulty: "", limit: 30 }, emailEnabled: false, authView: "sign-in", leftTab: "problem", leftWidth: 40, runIndex: undefined, resetToken: new URLSearchParams(location.hash.split("?")[1] ?? "").get("reset") };
   const requestedPage = new URLSearchParams(location.hash.split('?')[1] ?? '').get('page');
   if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
   let disposed = false;
   let authMode = new URLSearchParams(location.hash.split("?")[1] ?? "").get("auth") === "sign-up" ? "sign-up" : "sign-in";
   let voiceSession = null;
+  let editor = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
   const setVoiceStatus = (status) => {
     setBrandVoice(status);
     const labels = { connecting: "Connecting…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking", reconnecting: "Reconnecting…", stopped: "Voice ready" };
     const statusNode = root.querySelector("#voice-status");
     if (statusNode) { statusNode.textContent = labels[status] ?? status; statusNode.dataset.voiceState = status; }
+    root.querySelector("#tab-voice")?.toggleAttribute("data-live", Boolean(voiceSession?.active));
     const button = root.querySelector("[data-voice-toggle]");
     if (button) button.textContent = voiceSession?.active ? "Stop voice" : "Start voice";
   };
@@ -224,6 +260,7 @@ export function mountPersonal(root) {
   };
   const render = () => {
     if (disposed) return;
+    editor?.destroy(); editor = null;
     if (!state.attempt || state.page !== "workspace" || state.selectedProblemId) stopVoice();
     const footer = root.closest('.app-content')?.querySelector('.page-footer');
     if (footer) { footer.hidden = Boolean(state.user && (state.selectedProblemId || ['workspace', 'review', 'related'].includes(state.page))); document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`); }
@@ -246,6 +283,29 @@ export function mountPersonal(root) {
       content = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
     } else content = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
     root.innerHTML = personalHeader(state) + content;
+    if (root.querySelector("#code-host")) mountEditor();
+  };
+  // The editor bundle loads only when a workspace opens.
+  const mountEditor = async () => {
+    const host = root.querySelector("#code-host");
+    const { createCodeEditor } = await import("./code-editor.js");
+    if (!host.isConnected) return;
+    const cursor = root.querySelector("[data-cursor]");
+    editor = createCodeEditor({ parent: host, doc: state.attempt.attempt.draft_source, readOnly: state.attempt.attempt.status === "completed", label: "Python source code", onCursor: (line, column) => { cursor.textContent = `Line: ${line} Col: ${column}`; } });
+  };
+  const selectTab = (tab) => {
+    for (const other of tab.parentElement.querySelectorAll('[role="tab"]')) {
+      const selected = other === tab;
+      other.setAttribute("aria-selected", String(selected));
+      other.tabIndex = selected ? 0 : -1;
+      root.querySelector(`#${other.getAttribute("aria-controls")}`).hidden = !selected;
+    }
+    if (tab.dataset.workspaceTab) state.leftTab = tab.dataset.workspaceTab;
+  };
+  const resizeColumns = (percent) => {
+    state.leftWidth = Math.min(65, Math.max(25, percent));
+    root.querySelector(".coding-workspace")?.style.setProperty("--left-width", `${state.leftWidth}%`);
+    root.querySelector("[data-splitter]")?.setAttribute("aria-valuenow", String(Math.round(state.leftWidth)));
   };
   const reload = async () => {
     const availability = await api("/api/personal-availability");
@@ -262,10 +322,12 @@ export function mountPersonal(root) {
     state.catalog = catalog.problems;
     state.attempts = attempts.attempts; state.historyPage = attempts.page; state.historyMore = attempts.hasMore;
   };
-  const session = createAttemptSession({ api, attempt: () => state.attempt?.attempt ?? null, editorSource: () => root.querySelector("#personal-code")?.value });
+  const session = createAttemptSession({ api, attempt: () => state.attempt?.attempt ?? null, editorSource: () => editor?.value });
   const openAttempt = async (attemptId) => {
     stopVoice();
+    if (state.attempt?.attempt.id !== attemptId) state.leftTab = "problem";
     state.attempt = await session.detail(attemptId);
+    state.runIndex = undefined;
     if (disposed) return;
     state.review = state.attempt.review ? await session.review(attemptId).catch(() => null) : null;
     state.related = [];
@@ -298,6 +360,7 @@ export function mountPersonal(root) {
     }
     const control = event.target.closest("button");
     if (!control) return;
+    if (control.getAttribute("role") === "tab") { selectTab(control); return; }
     try {
       if (control.dataset.authView === "forgot" || (control.dataset.authView && state.authView === "forgot")) {
         state.authView = control.dataset.authView; authMode = "sign-in";
@@ -336,6 +399,14 @@ export function mountPersonal(root) {
       else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); personalOutcome("retry_started"); await openAttempt(result.attemptId); }
       else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
       else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
+      else if (control.dataset.showRun) {
+        state.runIndex = Number(control.dataset.showRun);
+        const pane = root.querySelector(".tests-pane");
+        pane.querySelector(".test-body").innerHTML = resultsMarkup(state);
+        pane.hidden = false;
+        pane.scrollIntoView({ block: "nearest" });
+      }
+      else if (control.hasAttribute("data-reset-code")) { if (editor && confirm("Reset your code to the starter code? Your current code will be replaced.")) { editor.value = state.attempt.problem.starter_code ?? ""; editor.focus(); } }
       else if (control.hasAttribute("data-run")) {
         control.disabled = true; control.textContent = "Running…";
         try {
@@ -343,19 +414,44 @@ export function mountPersonal(root) {
           await openAttempt(state.attempt.attempt.id);
           showError(`Run recorded: ${result.testsPassed} passed, ${result.testsFailed} failed.`);
           root.querySelector(".tests-pane")?.scrollIntoView({ block: "nearest" });
-        } finally { control.disabled = false; control.textContent = "Run visible tests"; }
+        } finally { control.disabled = false; control.textContent = "Run code"; }
       }
       else if (control.hasAttribute("data-finish")) {
+        if (!confirm("Submit your code and finish the interview? You cannot edit the code after you submit.")) return;
         control.disabled = true; control.textContent = "Checking your submission…";
         try {
           const result = await session.finish();
           personalOutcome("practice_completed");
           await openAttempt(state.attempt.attempt.id);
           showError(["Attempt completed.", submissionCheckSentence(result.submissionCheck), `Review dispatch: ${result.dispatch}.`].filter(Boolean).join(" "));
-        } finally { control.disabled = false; control.textContent = "Finish interview"; }
+        } finally { control.disabled = false; control.textContent = "Submit code"; }
       }
       else if (control.hasAttribute("data-help")) { const result = await session.help("hint"); if (result.voiceReady && voiceSession?.active) voiceSession.sendText("I am requesting a hint."); else { if (result.delivered) await openAttempt(state.attempt.attempt.id); showError(result.message); } }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
+  });
+  // Arrow keys move between tabs (vertical tab lists) and resize the splitter.
+  root.addEventListener("keydown", (event) => {
+    const splitter = event.target.closest?.("[data-splitter]");
+    if (splitter && ["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); resizeColumns(state.leftWidth + (event.key === "ArrowRight" ? 2 : -2)); return; }
+    const tab = event.target.closest?.('[role="tab"]');
+    const keys = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!tab || !keys.includes(event.key)) return;
+    const tabs = [...tab.parentElement.querySelectorAll('[role="tab"]')];
+    const index = tabs.indexOf(tab);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : -1) + tabs.length) % tabs.length;
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  });
+  root.addEventListener("pointerdown", (event) => {
+    const splitter = event.target.closest?.("[data-splitter]");
+    if (!splitter) return;
+    const left = root.querySelector(".workspace-left").getBoundingClientRect().left;
+    const width = splitter.parentElement.getBoundingClientRect().width;
+    splitter.setPointerCapture(event.pointerId);
+    const move = (moveEvent) => resizeColumns(((moveEvent.clientX - left) / width) * 100);
+    splitter.addEventListener("pointermove", move);
+    splitter.addEventListener("lostpointercapture", () => splitter.removeEventListener("pointermove", move), { once: true });
   });
   root.addEventListener("change", (event) => {
     const select = event.target.closest?.("[data-catalog-filter]");
@@ -419,5 +515,5 @@ export function mountPersonal(root) {
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
   (async () => { try { await reload(); render(); } catch (error) { if (disposed) return; state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); if (!state.resetToken && authMode === "sign-up") root.querySelector('[data-auth-view="sign-up"]')?.click(); } })();
-  return () => { disposed = true; stopVoice(); };
+  return () => { disposed = true; stopVoice(); editor?.destroy(); };
 }

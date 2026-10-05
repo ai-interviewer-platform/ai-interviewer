@@ -11,8 +11,8 @@ npm ci
 npm run dev
 ```
 
-Wrangler builds `src/browser/voice-agent.js` before serving or deploying.
-`public/voice-agent.js` is generated and ignored. The sample needs no personal
+Wrangler builds `src/browser/voice-agent.js` and `src/browser/code-editor.js` before serving or deploying.
+`public/voice-agent.js` and `public/code-editor.js` are generated and ignored. The sample needs no personal
 collection. The configured Hyperdrive binding requires local database setup for
 the default Worker preview; the AI binding can call a remote service.
 
