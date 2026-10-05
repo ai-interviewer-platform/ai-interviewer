@@ -31,6 +31,7 @@ worker-configuration.d.ts
 /.scratch/
 /.firecrawl/
 /public/voice-agent.js
+/public/code-editor.js
 **/.thumbnail
 
 # Machine-local editor/agent state; shared skills stay tracked.

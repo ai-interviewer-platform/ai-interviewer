@@ -51,18 +51,19 @@ try {
   await page.locator('#personal-code').waitFor();
   console.log('Passed: setup and consent create an attempt');
 
+  await page.getByRole('tab', { name: 'Discussion' }).click();
   await page.getByLabel('Message the interviewer').fill('I will slice from index one with a step of two.');
   await page.getByRole('button', { name: 'Send message' }).click();
   await page.locator('.messages').getByText('I will slice from index one').waitFor();
 
   await page.locator('#personal-code').fill('def sum_odd_positions(values):\n    return -1\n');
-  await page.getByRole('button', { name: 'Run visible tests' }).click();
+  await page.getByRole('button', { name: 'Run code' }).click();
   await page.locator('#personal-error').getByText(/Run recorded/).waitFor({ timeout: 60_000 });
   assert.match(await alert(), /0 passed, 4 failed/);
   assert.equal(await page.locator('.test-case.failed').count(), 4);
-  assert.match(await page.locator('.test-cases').innerText(), /sum_odd_positions\(\[4, 7, 2, 9\]\)[\s\S]*Expected 16 · got -1/);
+  assert.match(await page.locator('.case-details').textContent(), /sum_odd_positions\(\[4, 7, 2, 9\]\)\s*Your output\s*-1\s*Expected output\s*16/);
   await page.locator('#personal-code').fill('def sum_odd_positions(values):\n    return sum(values[1::2])\n');
-  await page.getByRole('button', { name: 'Run visible tests' }).click();
+  await page.getByRole('button', { name: 'Run code' }).click();
   await page.locator('#personal-error').getByText(/4 passed, 0 failed/).waitFor({ timeout: 60_000 });
   assert.equal(await page.locator('.test-case.passed').count(), 4);
   await axe('workspace');
@@ -80,7 +81,8 @@ try {
   assert.ok(order.lastIndexOf('code_run') < order.indexOf('help_requested'), `Run precedes help: ${order.join(', ')}`);
   console.log('Passed: evidence timeline preserves the order of actions');
 
-  await page.getByRole('button', { name: 'Finish interview' }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Submit code' }).click();
   await page.locator('#personal-error').getByText(/Attempt completed/).waitFor();
   assert.equal(await page.locator('#personal-code').isDisabled(), true);
   let review;
@@ -104,9 +106,9 @@ try {
   await page.getByRole('checkbox', { name: /Allow Deepgram processing/ }).check();
   await page.getByRole('button', { name: 'Start interview' }).click();
   await page.locator('#personal-code').fill('def differ_At_One_Bit_Pos(a, b):\n    return bin(a ^ b).count("1") == 1\n');
-  await page.getByRole('button', { name: 'Run visible tests' }).click();
+  await page.getByRole('button', { name: 'Run code' }).click();
   await page.locator('#personal-error').getByText(/3 passed, 0 failed/).waitFor({ timeout: 60_000 });
-  assert.match(await page.locator('.test-cases').innerText(), /differ_At_One_Bit_Pos\(13, 9\)/);
+  assert.match(await page.locator('.case-details').textContent(), /differ_At_One_Bit_Pos\(13, 9\)/);
   await page.getByRole('button', { name: '← Sessions' }).click();
   console.log('Passed: public-bank problem with several arguments');
 

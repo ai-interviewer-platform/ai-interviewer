@@ -197,12 +197,59 @@ dialog, #problem-drawer { background: var(--raised); border: 0; box-shadow: var(
   @starting-style { :root:not([data-input="keyboard"]):not([data-reduce="true"]) .account-menu[open] .account-menu-panel { opacity: 0; transform: translateY(-4px) scale(.98); } }
 }
 
-/* Personal sessions have no demo pane switcher, so keep every work area reachable. */
+/* Personal coding workspace: HackerRank layout. A vertical tab rail, the selected
+   panel, a resizable splitter, then the editor, its actions, and the test results. */
+.coding-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, var(--left-width, 40%)) 8px minmax(0, 1fr); padding: 0 0.75rem; }
+.workspace-rail { display: flex; flex-direction: column; gap: 4px; padding-right: 8px; }
+.workspace-rail [role="tab"] { position: relative; writing-mode: vertical-rl; transform: rotate(180deg); min-width: 36px; padding: 16px 8px; border: 0; border-left: 2px solid transparent; border-radius: var(--radius-inner); background: transparent; color: var(--ink-2); font: 500 var(--text-small)/1.2 var(--font-ui); cursor: pointer; }
+.workspace-rail [role="tab"]:hover { background: var(--hover); color: var(--ink); }
+.workspace-rail [role="tab"][aria-selected="true"] { border-left-color: var(--accent); background: var(--raised); color: var(--ink); }
+.workspace-rail [data-live]::after { content: ""; position: absolute; left: 50%; top: 6px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--accent); }
+.workspace-left, .workspace-panel:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
+.workspace-panel { flex: 1; }
+.workspace-panel .problem-scroll h2 { margin-bottom: 4px; }
+.example dl, .case-detail dl { display: grid; gap: 4px; margin: 6px 0 0; }
+.example dt, .case-detail dt { color: var(--ink-3); font-size: var(--text-small); }
+.example dd, .case-detail dd { margin: 0 0 6px; }
+.voice-panel { display: grid; justify-items: start; align-content: start; gap: 12px; padding: 1.5rem; }
+.voice-panel #voice-status { margin: 0; font: 600 var(--text-section)/1.35 var(--font-ui); }
+.workspace-right { display: grid; grid-template-rows: minmax(14rem, 1fr) auto auto; gap: 8px; min-width: 0; min-height: 0; }
+.workspace-right .tests-pane { max-height: 34vh; }
+.workspace-right .tests-pane[hidden] { display: none; }
+.language-pill { padding: 4px 10px; border-radius: var(--radius-inner); background: var(--recess); box-shadow: var(--shadow-recess); font-size: var(--text-small); }
+.code-host { flex: 1; min-height: 0; overflow: hidden; background: var(--recess); }
+.code-host:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
+.editor-status { display: flex; justify-content: space-between; white-space: nowrap; gap: 1rem; padding: 4px 12px; border-top: 1px solid var(--divider); color: var(--ink-3); font: var(--text-small)/1.5 var(--font-mono); }
+.editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.run-summary { display: grid; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-left: 3px solid var(--success); border-radius: var(--radius-inner); background: var(--success-soft); }
+.run-summary[data-outcome="failed"] { border-left-color: var(--error); background: var(--error-soft); }
+.run-summary strong { color: var(--success); }
+.run-summary[data-outcome="failed"] strong { color: var(--error); }
+.case-layout { display: grid; grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr); gap: 12px; }
+.case-list { display: flex; flex-direction: column; gap: 4px; }
+.case-list .test-case { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-left: 2px solid transparent; border-radius: var(--radius-inner); background: transparent; color: var(--ink-2); text-align: left; cursor: pointer; }
+.case-list .test-case:hover { background: var(--hover); }
+.case-list .test-case[aria-selected="true"] { border-left-color: var(--accent); background: var(--raised); color: var(--ink); }
+.case-list .test-case.passed svg { color: var(--success); }
+.case-list .test-case:not(.passed) svg { color: var(--error); }
+.case-detail pre { margin: 0; padding: 8px 10px; border-radius: var(--radius-inner); background: var(--recess); white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-code)/1.6 var(--font-mono); max-height: 12rem; overflow: auto; }
+.run-history { display: grid; margin: 12px 0 0; padding: 0; list-style: none; }
+.run-history li { display: grid; grid-template-columns: 7rem 1fr auto auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--divider); font-size: var(--text-small); }
+.session-status[data-status="passed"] > i { background: var(--success); }
+:is(.session-status[data-status="failed"], .session-status[data-status="runner_error"]) > i { background: var(--error); }
 @media (max-width: 64rem) {
-  .personal-workspace .workspace .right-column { display: grid; grid-template-rows: minmax(22rem, auto) minmax(15rem, auto); }
-  .personal-workspace .workspace .conversation-pane { display: flex; }
-  .personal-workspace .workspace .problem-pane { min-height: auto; }
-  .personal-workspace .workspace .conversation-body { min-height: 25rem; }
+  .coding-workspace { display: flex; flex-direction: column; gap: 8px; }
+  .workspace-rail { flex-direction: row; overflow-x: auto; padding: 0; }
+  .workspace-rail [role="tab"] { writing-mode: horizontal-tb; transform: none; padding: 8px 12px; border-left: 0; border-bottom: 2px solid transparent; }
+  .workspace-rail [role="tab"][aria-selected="true"] { border-bottom-color: var(--accent); }
+  .coding-workspace .splitter { display: none; }
+  .workspace-left { min-height: 22rem; max-height: 60vh; }
+  .workspace-right { grid-template-rows: minmax(22rem, auto) auto auto; }
+  .workspace-right .tests-pane { max-height: none; }
+  .case-layout { grid-template-columns: 1fr; }
+  .case-list { flex-direction: row; flex-wrap: wrap; }
+  .run-history li { grid-template-columns: 1fr auto; }
+  .editor-status > :first-child { display: none; }
 }
 
 /* Personal account area: sign-in, sessions, practice list, profile, and settings. */
