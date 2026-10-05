@@ -14,6 +14,7 @@
     "db:local:verify": "node scripts/local-postgres.mjs verify",
     "db:local:verify-auth": "node scripts/verify-better-auth-local.mjs",
     "db:verify:target": "node --env-file-if-exists=.dev.vars scripts/verify-postgres.mjs",
+    "deploy": "node scripts/deploy.mjs",
     "migrate:postgres": "node --env-file-if-exists=.dev.vars scripts/apply-migrations.mjs",
     "check": "npm run build:voice && tsc --noEmit && node --check src/browser/voice-agent.js && node --check public/voice-agent.js && node --check public/app.js && node --check public/personal-adapter.js && node --check public/attempt-session.js && node --check public/model.js && node --check public/discovery.js",
     "pretest": "npm run build:voice",

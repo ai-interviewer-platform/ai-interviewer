@@ -1,7 +1,7 @@
 import { AgentMicrophone, AgentPlayer } from "@deepgram/agents";
 
 export const VOICE_PROVIDER = "deepgram";
-export const THINKING_MODEL = "gpt-5.6-terra";
+export const THINKING_MODEL = "gpt-5.6-luna";
 
 export function createDeepgramVoiceSession({ attempt, onStatus, onTranscript, onError }) {
   let microphone;

@@ -17,6 +17,8 @@ export interface Env {
   PYTHON_RUNNER_URL?: string;
   PYTHON_RUNNER_TOKEN?: string;
   BETTER_AUTH_URL: string;
+  // Deployed commit, set by `npm run deploy`. Absent in local development.
+  GIT_SHA?: string;
   BETTER_AUTH_SECRET: string;
   PERSONAL_DATA_COLLECTION_APPROVED?: string;
   LANDING_PRIMARY_ACTION?: string;

@@ -50,7 +50,7 @@ function availability(env: Env): Response {
 // availability, collection gate, origin, body size limit, session, rate limit, route.
 export async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, dependencies: RequestDependencies): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok" });
+  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok", version: env.GIT_SHA ?? null });
   if (url.pathname === "/api/personal-availability" && request.method === "GET") return availability(env);
   const site = await siteCollectionRequest(request, env, dependencies.database);
   if (site) return site;

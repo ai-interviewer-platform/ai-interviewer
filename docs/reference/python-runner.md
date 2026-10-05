@@ -216,7 +216,7 @@ Wrangler builds `runner/hosted.Dockerfile` with Docker and pushes it:
 
 ```sh
 npm run runner:hosted:deploy
-npm run build:voice && npx wrangler deploy
+npm run deploy
 ```
 
 Costs: Workers Paid includes 375 vCPU-minutes, 25 GiB-hours of memory and

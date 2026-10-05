@@ -42,7 +42,7 @@ fields and snake_case database rows; use the actual names below.
 
 | Method and path | Authentication / headers | Request JSON | Observed success and response shape | Errors and limitations |
 | --- | --- | --- | --- | --- |
-| `GET /api/health` | None / O | None | `200 {"status":"ok"}` | Does not prove database connectivity. |
+| `GET /api/health` | None / O | None | `200 {"status":"ok","version"}`; `version` is the deployed commit, or `null` outside `npm run deploy` | Does not prove database connectivity. |
 | `GET /api/personal-availability` | None / O | None | `200 {collectionEnabled, voiceEnabled, voiceProvider, thinkingModel}` | Availability metadata does not prove provider connectivity. |
 | `POST /api/auth/sign-up/email` | None / J | `{"name":"Fictional Tester","email":"unique-test@example.invalid","password":"<test-password>"}` | `200 {token,user:{id,email,...}}`; `Set-Cookie` | Auth validation/duplicate-email cases were not exercised. Global origin/collection errors apply. Use unique fictional emails. |
 | `POST /api/auth/sign-in/email` | None / J | `{"email":"unique-test@example.invalid","password":"<test-password>"}` | `200 {redirect:false,token,user:{id,email,...}}` without callback URL; `Set-Cookie` | Invalid credentials were not exercised; do not interpret all auth errors as the custom API's `{error}` shape. |
