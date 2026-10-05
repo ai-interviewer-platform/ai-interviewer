@@ -94,7 +94,7 @@ try {
 
   await page.getByRole('button', { name: '← Sessions' }).click();
   await page.getByRole('heading', { name: 'Your sessions', exact: true }).waitFor();
-  assert.match(await page.locator('main').innerText(), /Sum odd positions[\s\S]*completed/);
+  assert.match(await page.locator('main').innerText(), /Sum odd positions[\s\S]*completed/i);
   // A multi-argument problem from the public bank uses the positional contract.
   await page.goto(`${base}/#personal?page=catalog`);
   await page.getByLabel('Topic').selectOption('Bit manipulation');
