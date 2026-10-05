@@ -20,8 +20,8 @@ test("the voice settings use Deepgram listening and speech with GPT-5.6 Terra th
   assert.equal(settings.type, "Settings");
   assert.deepEqual(settings.audio, { input: { encoding: "linear16", sample_rate: 16000 }, output: { encoding: "linear16", sample_rate: 24000, container: "none" } });
   assert.deepEqual(settings.agent.listen.provider, { type: "deepgram", version: "v1", model: "nova-3", language: "en-US", smart_format: true });
-  assert.deepEqual(settings.agent.think.provider, { type: "open_ai", model: "gpt-5.6-terra" });
-  assert.equal(DEEPGRAM_THINKING_MODEL, "gpt-5.6-terra");
+  assert.deepEqual(settings.agent.think.provider, { type: "open_ai", model: "gpt-5.6-luna" });
+  assert.equal(DEEPGRAM_THINKING_MODEL, "gpt-5.6-luna");
   assert.deepEqual(settings.agent.speak.provider, { type: "deepgram", version: "v2", model: "flux-kit-en" });
   assert.deepEqual(settings.agent.think.functions.map(({ name, defer_until_eot }) => ({ name, defer_until_eot })), [{ name: "get_coding_context", defer_until_eot: true }]);
 });

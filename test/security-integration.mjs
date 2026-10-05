@@ -61,7 +61,7 @@ try {
   assert.equal(providerCalls, 1);
   firstProvider.message(JSON.stringify({ type: "Welcome", request_id: "provider-session" }));
   const settings = JSON.parse(firstProvider.sent[0]);
-  assert.equal(settings.agent.think.provider.model, "gpt-5.6-terra");
+  assert.equal(settings.agent.think.provider.model, "gpt-5.6-luna");
   assert.deepEqual(settings.agent.think.functions.map(item => item.name), ["get_coding_context"]);
   firstProvider.message(JSON.stringify({ type: "FunctionCallRequest", functions: [{ id: "context-1", name: "get_coding_context", arguments: "{}", client_side: true, thought_signature: "fixture-signature" }] }));
   for (let index = 0; index < 20 && !firstProvider.sent.some(item => typeof item === "string" && item.includes("FunctionCallResponse")); index++) await new Promise(resolve => setTimeout(resolve, 5));
