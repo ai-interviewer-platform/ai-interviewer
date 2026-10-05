@@ -47,7 +47,9 @@ async function user(label) {
 }
 
 try {
-  assert.equal((await request("GET", "/api/health")).data.status, "ok");
+  const health = (await request("GET", "/api/health")).data;
+  assert.equal(health.status, "ok");
+  assert.equal(health.version, null, "Only npm run deploy stamps a version");
   assert.equal((await request("GET", "/api/personal-availability")).data.collectionEnabled, true, "Local collection must already be enabled for fictional testing.");
   const owner = await user("owner");
   const me = await request("GET", "/api/me", { cookie: owner.cookie });
