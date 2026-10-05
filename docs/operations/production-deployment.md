@@ -60,7 +60,7 @@ fake review output, a mocked Deepgram boundary, and the local Docker runner.
    Durable Object binding, and runner binding.
 6. Create the Deepgram project/key and review-provider project/key/model.
 7. Set the exact production origin, variables, and secrets.
-8. Dry-run, deploy, run non-collecting health checks, then enable collection only
+8. Dry-run, deploy with `npm run deploy`, run non-collecting health checks, then enable collection only
    after policy approval.
 9. Execute the fictional hosted smoke plan and configure operational alerts.
 
@@ -197,7 +197,7 @@ Hosted commands after setting the secret and deploying:
 ```sh
 npx wrangler secret put DEEPGRAM_API_KEY
 npx wrangler deploy --dry-run --env=""
-npx wrangler deploy --env=""
+npm run deploy
 npx wrangler tail ai-interviewer --format=json
 ```
 
@@ -212,6 +212,13 @@ snapshot. It must not claim awareness of unsaved code or hidden tests.
 
 ## Deploy and security checks
 
+`npm run deploy` is the only production deploy. It refuses to run unless the
+working tree is clean and `HEAD` is `origin/main`. It then applies and verifies
+migrations against `DATABASE_URL` before `wrangler deploy`, so the Worker never
+runs ahead of its schema. Set `DATABASE_URL` to the direct migration URL in the
+process environment; the script does not read `.dev.vars`. The deploy stamps the
+commit as `GIT_SHA`, which `/api/health` reports as `version`.
+
 The exact production origin must match `BETTER_AUTH_URL`; verify secure session
 cookies, origin rejection, and sign-out after deployment. Static security/CSP
 headers are defined in `public/_headers` and must be checked on the deployed
@@ -222,7 +229,7 @@ npm run check
 npm run lint
 npm test
 npx wrangler deploy --dry-run --env=""
-npx wrangler deploy --env=""
+npm run deploy
 curl --fail --silent https://<production-origin>/api/health
 curl --fail --silent https://<production-origin>/api/personal-availability
 ```
