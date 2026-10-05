@@ -136,6 +136,11 @@ Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, Profile, and the 
   Citation animation affects its marker only, leaving code and evidence stationary.
 - The personal adapter retains its authenticated flows and voice/data boundaries;
   shared controls, typography, and materials apply there as well.
+- Personal sign-in pairs the introduction with a fixed-width account card. Personal
+  sessions and practice problems are single working planes whose rows share
+  subgrid columns, so status, difficulty, and actions align. Home shows the three
+  latest sessions. Profile and Settings are 44rem columns of planes; account
+  deletion stays behind a disclosure.
 
 ## Verification
 

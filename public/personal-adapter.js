@@ -27,29 +27,67 @@ async function api(path, options = {}) {
   }
 }
 
+const icon = (path) => `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const chevronIcon = icon('<path d="m8 5 5 5-5 5"/>');
+const codeIcon = icon('<path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"/>');
+const sentenceCase = (value) => { const text = String(value ?? ""); return text.charAt(0).toUpperCase() + text.slice(1); };
+const dateLabel = (value) => (value ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
+
 function authForm(state) {
-  if (state.resetToken) return `<form id="personal-reset-form"><h2>Choose a new password</h2><label for="reset-password">New password</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required><p class="small muted">Use at least 8 characters. Other signed-in devices are signed out.</p><button class="button primary" type="submit">Save new password</button></form>`;
-  if (state.authView === "forgot") return `<form id="personal-forgot-form"><h2>Reset your password</h2><p class="small muted">Enter the email for your account. We send a reset link that works for one hour.</p><label for="forgot-email">Email</label><input id="forgot-email" name="email" type="email" autocomplete="email" required><div class="actions"><button class="button primary" type="submit">Send reset link</button><button class="button quiet" type="button" data-auth-view="sign-in">Back to sign in</button></div></form>`;
-  return `<div class="segmented" aria-label="Authentication"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form"><div data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required><p class="small muted">Email and password are the only MVP login method.</p><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
+  if (state.resetToken) return `<form id="personal-reset-form" class="auth-form"><h2>Choose a new password</h2><div class="field"><label for="reset-password">New password</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="reset-password-hint"><p id="reset-password-hint" class="field-hint">Use at least 8 characters. Other signed-in devices are signed out.</p></div><button class="button primary" type="submit">Save new password</button></form>`;
+  if (state.authView === "forgot") return `<form id="personal-forgot-form" class="auth-form"><h2>Reset your password</h2><p class="field-hint">Enter the email for your account. We send a reset link that works for one hour.</p><div class="field"><label for="forgot-email">Email</label><input id="forgot-email" name="email" type="email" autocomplete="email" required></div><button class="button primary" type="submit">Send reset link</button><button class="button quiet" type="button" data-auth-view="sign-in">Back to sign in</button></form>`;
+  return `<div class="segmented auth-switch" role="group" aria-label="Sign in or create an account"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form" class="auth-form"><div class="field" data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><div class="field"><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></div><div class="field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required aria-describedby="auth-password-hint"><p id="auth-password-hint" class="field-hint" data-signup-hint hidden>Use at least 8 characters.</p></div><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
 }
 
 function authMarkup(state, message = "") {
-  return `<main id="main" class="page-main personal-entry"><section class="empty-state"><span class="eyebrow">Practice, inspect, retry</span><h1>Keep the evidence<br>with the work.</h1><p>Use the guided sample without an account, or sign in to record a personal Python practice attempt.</p><div class="actions"><a class="button secondary" href="#sample"><span>Try the guided sample</span></a></div>${message ? `<p class="form-error" role="status">${escapeHtml(message)}</p>` : ""}</section><section class="setup-form auth-card">${authForm(state)}</section></main>`;
+  return `<main id="main" class="page-main personal-entry"><section class="entry-intro"><span class="eyebrow">Practice, inspect, retry</span><h1>Keep the evidence with the work.</h1><p>Use the guided sample without an account, or sign in to record a personal Python practice attempt.</p><a class="button secondary" href="#sample">Try the guided sample</a></section><section class="auth-card" aria-label="Your account">${message ? `<p class="form-error" role="status">${escapeHtml(message)}</p>` : ""}${authForm(state)}</section></main>`;
 }
 
 function collectionUnavailableMarkup() {
   return `<main id="main" class="page-main personal-entry"><section class="empty-state"><span class="eyebrow">Personal practice unavailable</span><h1>Records are not being collected.</h1><p>The owner has not enabled the approved personal-data collection policy for this deployment. Nothing is saved from this screen.</p><div class="actions"><a class="button secondary" href="#sample">Try the guided sample</a></div></section></main>`;
 }
 
-function dashboardMarkup(state) {
-  const attempts = state.attempts.map((attempt) => `<li class="activity-line"><span class="activity-symbol">↳</span><span><strong>${escapeHtml(attempt.title)}</strong><small>${escapeHtml(attempt.mode)} · ${escapeHtml(attempt.status)}${attempt.review_status ? ` · review ${escapeHtml(attempt.review_status)}` : ""}</small></span><button class="button quiet small" type="button" data-open-attempt="${escapeHtml(attempt.id)}">Open</button></li>`).join("");
+const RECENT_SESSIONS = 3;
+
+function sessionRow(attempt, index) {
+  const title = escapeHtml(attempt.title);
+  const meta = [sentenceCase(attempt.mode), attempt.input_mode === "voice" ? "Voice" : "Text", dateLabel(attempt.updated_at)].filter(Boolean).map(escapeHtml).join(" · ");
+  const review = attempt.review_status ? `<span class="muted"> · Review ${escapeHtml(attempt.review_status)}</span>` : "";
+  return `<li class="session-line enter" style="--i:${index}"><span class="session-icon">${codeIcon}</span><span class="session-text"><strong>${title}</strong><small>${meta}</small></span><span class="session-status" data-status="${escapeHtml(attempt.status)}"><i aria-hidden="true"></i>${escapeHtml(sentenceCase(attempt.status))}${review}</span><button class="button secondary small session-open" type="button" data-open-attempt="${escapeHtml(attempt.id)}">${attempt.status === "active" ? "Resume" : "Open"}<span class="sr-only"> ${title}</span>${chevronIcon}</button></li>`;
+}
+
+function sessionsSection(state, { page }) {
+  const attempts = page ? state.attempts : state.attempts.slice(0, RECENT_SESSIONS);
+  const heading = page
+    ? `<div class="page-title"><h1>Your sessions</h1></div>`
+    : `<div class="section-heading"><h2>Recent sessions</h2>${state.attempts.length > RECENT_SESSIONS ? `<a class="button quiet small" href="#personal?page=sessions">View all sessions</a>` : ""}</div>`;
+  const body = attempts.length
+    ? `<ol class="session-list">${attempts.map(sessionRow).join("")}</ol>${page && state.historyMore ? `<button class="button quiet" type="button" data-more-attempts>Load more sessions</button>` : ""}`
+    : `<div class="empty-panel"><p><strong>No sessions yet</strong></p><p>Each practice attempt keeps its code, test runs, and conversation here.</p><button class="button primary small" type="button" data-personal-page="catalog">Choose a problem</button></div>`;
+  return `<section class="home-history">${heading}${body}</section>`;
+}
+
+function catalogSection(state, { page }) {
   const filter = state.catalogFilter;
   const matching = state.catalog.filter((problem) => (!filter.topic || problem.topic === filter.topic) && (!filter.difficulty || problem.difficulty === filter.difficulty));
   const option = (value, selected) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`;
   const topics = [...new Set(state.catalog.map((problem) => problem.topic))].sort();
-  const filters = `<div class="actions catalog-filters"><label>Topic <select data-catalog-filter="topic"><option value="">All topics</option>${topics.map((topic) => option(topic, filter.topic)).join("")}</select></label><label>Difficulty <select data-catalog-filter="difficulty"><option value="">Any difficulty</option>${["Easy", "Medium", "Hard"].map((level) => option(level, filter.difficulty)).join("")}</select></label><span class="small muted" role="status">${matching.length} of ${state.catalog.length} problems</span></div>`;
-  const problems = matching.slice(0, filter.limit).map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.difficulty)}</span><button class="button secondary small" type="button" data-start-problem="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("");
-  return `<main id="main" class="page-main"><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section><section class="home-history"><div class="section-heading"><h2>Recent sessions</h2></div>${attempts ? `<ol class="session-table">${attempts}</ol>${state.historyMore ? `<button class="button quiet" data-more-attempts>Load more sessions</button>` : ""}` : `<p class="empty-inline">Nothing recorded yet. Choose an authored problem when you are ready.</p>`}</section><section class="home-route"><div class="section-heading"><h2>Available practice</h2><button class="button quiet small" type="button" data-personal-page="catalog">Open roadmap</button></div>${filters}<ol class="drawer-problems">${problems}</ol>${matching.length > filter.limit ? `<button class="button quiet" type="button" data-more-problems>Show more problems</button>` : ""}</section></main>`;
+  const filtered = filter.topic || filter.difficulty;
+  const filters = `<div class="catalog-filters"><label class="field">Topic <select data-catalog-filter="topic"><option value="">All topics</option>${topics.map((topic) => option(topic, filter.topic)).join("")}</select></label><label class="field">Difficulty <select data-catalog-filter="difficulty"><option value="">Any difficulty</option>${["Easy", "Medium", "Hard"].map((level) => option(level, filter.difficulty)).join("")}</select></label><span class="catalog-count" role="status">${matching.length} of ${state.catalog.length} problems</span>${filtered ? `<button class="button quiet small" type="button" data-clear-filters>Clear filters</button>` : ""}</div>`;
+  const problems = matching.slice(0, filter.limit).map((problem) => `<li><span class="catalog-text"><strong>${escapeHtml(problem.title)}</strong><small>${escapeHtml(problem.topic)}</small></span><span class="difficulty">${escapeHtml(problem.difficulty)}</span><button class="button secondary small" type="button" data-start-problem="${escapeHtml(problem.id)}">Set up practice<span class="sr-only"> for ${escapeHtml(problem.title)}</span></button></li>`).join("");
+  const heading = page
+    ? `<div class="page-title"><h1>Practice roadmap</h1></div>`
+    : `<div class="section-heading"><h2>Available practice</h2><a class="button quiet small" href="#personal?page=catalog">Open roadmap</a></div>`;
+  const list = problems
+    ? `<ol class="catalog-list">${problems}</ol>${matching.length > filter.limit ? `<button class="button quiet" type="button" data-more-problems>Show more problems</button>` : ""}`
+    : `<div class="empty-panel"><p><strong>No problems match these filters</strong></p><button class="button secondary small" type="button" data-clear-filters>Clear filters</button></div>`;
+  return `<section class="home-route">${heading}${filters}${list}</section>`;
+}
+
+function dashboardMarkup(state) {
+  if (state.page === "sessions") return `<main id="main" class="page-main">${sessionsSection(state, { page: true })}</main>`;
+  if (state.page === "catalog") return `<main id="main" class="page-main">${catalogSection(state, { page: true })}</main>`;
+  return `<main id="main" class="page-main"><section class="focus-work"><div class="focus-top"><span class="eyebrow">Your practice</span><span class="badge accent">Signed in</span></div><div class="focus-body"><p class="small">Python · English</p><h1>Start with the work.<br>Keep the evidence.</h1><p>Personal attempts preserve your code, exact test results, and text conversation. The guided sample remains separate.</p><div class="actions"><button class="button primary" type="button" data-personal-page="catalog">Choose a problem</button><a class="button quiet" href="#sample">Explore the sample</a></div></div></section>${sessionsSection(state, { page: false })}${catalogSection(state, { page: false })}</main>`;
 }
 
 function setupMarkup(state, problem) {
@@ -125,7 +163,7 @@ function reviewMarkup(state) {
 
 function relatedMarkup(state) {
   const related = state.related ?? [];
-  return `<main id="main" class="page-main"><button class="back-link" type="button" data-personal-page="review">← Back to review</button><section class="related-page"><p class="eyebrow">Optional next step</p><h1>Related practice</h1>${related.length ? `<ol class="drawer-problems">${related.map((problem) => `<li><strong>${escapeHtml(problem.title)}</strong><span>${escapeHtml(problem.topic)} · ${escapeHtml(problem.relationship_reason)}</span><span class="small muted">${problem.attempted_before ? "Attempted before" : "New to your record"}</span><button class="button primary small" type="button" data-start-related="${escapeHtml(problem.id)}">Set up practice</button></li>`).join("")}</ol>` : `<p class="empty-inline">There is no authored related problem for this attempt.</p>`}</section></main>`;
+  return `<main id="main" class="page-main"><button class="back-link" type="button" data-personal-page="review">← Back to review</button><section class="related-page"><p class="eyebrow">Optional next step</p><h1>Related practice</h1>${related.length ? `<ol class="catalog-list">${related.map((problem) => `<li><span class="catalog-text"><strong>${escapeHtml(problem.title)}</strong><small>${escapeHtml(problem.topic)} · ${escapeHtml(problem.relationship_reason)}</small></span><span class="small muted">${problem.attempted_before ? "Attempted before" : "New to your record"}</span><button class="button secondary small" type="button" data-start-related="${escapeHtml(problem.id)}">Set up practice<span class="sr-only"> for ${escapeHtml(problem.title)}</span></button></li>`).join("")}</ol>` : `<p class="empty-inline">There is no authored related problem for this attempt.</p>`}</section></main>`;
 }
 
 function personalHeader(state) {
@@ -133,8 +171,13 @@ function personalHeader(state) {
   return `<header class="app-header">${brandWordmark().replace('#welcome', '#personal?page=home')}<nav aria-label="Primary">${nav}</nav><nav class="header-end" aria-label="Account"><a class="button quiet" href="#sample">Guided sample</a>${accountMenu(state.user, { personal: true })}</nav></header>`;
 }
 function accountMarkup(state) {
-  if (state.page === 'profile') return `<main id="main" class="page-main"><section class="setup-form"><h1>Your profile</h1><dl><dt>Display name</dt><dd>${escapeHtml(state.user.name)}</dd><dt>Email</dt><dd>${escapeHtml(state.user.email)}</dd></dl><a class="button secondary" href="#personal?page=settings">Account settings</a></section></main>`;
-  return `<main id="main" class="page-main"><h1>Account settings</h1><section class="setup-form" aria-labelledby="account-heading"><h2 id="account-heading">Your account</h2><p class="small muted">Download everything recorded for this account, or delete the account and all of its records.</p><div class="actions"><a class="button secondary" href="/api/me/export" download>Download my data</a></div><details><summary>Delete account</summary><form id="delete-account-form"><p>This permanently deletes your account, sessions, code, transcripts, test runs, and reviews. It cannot be undone.</p><label for="delete-password">Current password</label><input id="delete-password" name="password" type="password" autocomplete="current-password" required><label class="check-row"><input type="checkbox" name="confirm" required><span>I understand that this cannot be undone.</span></label><button class="button danger" type="submit">Delete account permanently</button></form></details></section></main>`;
+  const { user } = state;
+  if (state.page === 'profile') {
+    const since = dateLabel(user.createdAt);
+    const shortcut = (page, label, detail) => `<li><a href="#personal?page=${page}"><span><strong>${label}</strong><small>${detail}</small></span>${chevronIcon}</a></li>`;
+    return `<main id="main" class="page-main account-page"><div class="page-title"><h1>Your profile</h1></div><section class="account-card profile-card" aria-label="Account identity"><span class="avatar avatar-large" aria-hidden="true">${escapeHtml((user.name || user.email || '?').charAt(0).toUpperCase())}</span><div class="account-identity"><p class="account-name">${escapeHtml(user.name || 'Your account')}</p><p class="account-email">${escapeHtml(user.email)}</p>${since ? `<p class="account-since">Member since ${escapeHtml(since)}</p>` : ''}</div></section><nav aria-label="Account shortcuts"><ul class="account-links">${shortcut('sessions', 'Your sessions', 'Resume or inspect recorded attempts')}${shortcut('catalog', 'Practice roadmap', 'Choose a problem to practice')}${shortcut('settings', 'Account settings', 'Download your data or delete your account')}</ul></nav></main>`;
+  }
+  return `<main id="main" class="page-main account-page"><div class="page-title"><h1>Account settings</h1></div><p class="account-signed-in">Signed in as <strong>${escapeHtml(user.email)}</strong></p><section class="account-card" aria-labelledby="export-heading"><div class="account-card-text"><h2 id="export-heading">Download your data</h2><p>Get a copy of everything recorded for this account: sessions, code, transcripts, test runs, and reviews.</p></div><a class="button secondary" href="/api/me/export" download>Download my data</a></section><section class="account-card danger-card" aria-labelledby="delete-heading"><div class="account-card-text"><h2 id="delete-heading">Delete your account</h2><p>Permanently delete your account and all of its records. This cannot be undone.</p></div><details class="danger-disclosure"><summary class="button danger">Delete account</summary><form id="delete-account-form" class="auth-form"><div class="field"><label for="delete-password">Current password</label><input id="delete-password" name="password" type="password" autocomplete="current-password" required></div><label class="check-row"><input type="checkbox" name="confirm" required><span>I understand that this cannot be undone.</span></label><button class="button danger solid" type="submit">Delete account permanently</button></form></details></section></main>`;
 }
 
 export function mountPersonal(root) {
@@ -203,12 +246,6 @@ export function mountPersonal(root) {
       content = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
     } else content = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
     root.innerHTML = personalHeader(state) + content;
-    if (state.page === 'sessions' || state.page === 'catalog') {
-      root.querySelector('.focus-work')?.remove();
-      root.querySelector(state.page === 'sessions' ? '.home-route' : '.home-history')?.remove();
-      const heading = root.querySelector('.section-heading h2');
-      if (heading) { const title = document.createElement('h1'); title.textContent = state.page === 'sessions' ? 'Your sessions' : 'Practice roadmap'; heading.replaceWith(title); }
-    }
   };
   const reload = async () => {
     const availability = await api("/api/personal-availability");
@@ -269,6 +306,7 @@ export function mountPersonal(root) {
       } else if (control.dataset.authView) {
         authMode = control.dataset.authView;
         root.querySelector("[data-signup-name]").hidden = authMode !== "sign-up";
+        root.querySelector("[data-signup-hint]").hidden = authMode !== "sign-up";
         root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
         // Better Auth's default minimum password length.
         root.querySelector("#auth-password").minLength = authMode === "sign-up" ? 8 : 0;
@@ -279,6 +317,7 @@ export function mountPersonal(root) {
       else if (control.dataset.personalPage === "workspace") { state.page = "workspace"; render(); }
       else if (control.dataset.personalPage === "review") { state.page = "review"; render(); }
       else if (control.dataset.startProblem) { state.attempt = null; state.selectedProblemId = control.dataset.startProblem; render(); }
+      else if (control.hasAttribute("data-clear-filters")) { state.catalogFilter = { topic: "", difficulty: "", limit: 30 }; render(); root.querySelector('[data-catalog-filter="topic"]')?.focus(); }
       else if (control.hasAttribute("data-more-problems")) { state.catalogFilter.limit += 30; render(); root.querySelector("[data-more-problems]")?.focus(); }
       else if (control.hasAttribute("data-more-attempts")) {
         const page = await api(`/api/attempts?page=${state.historyPage + 1}`);
