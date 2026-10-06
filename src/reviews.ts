@@ -10,8 +10,8 @@ type Evidence = {
   id: string; type: string; occurrenceOffsetMs: number;
   transcript: { id: string; speaker: string; text: string } | null;
   checkpoint: { id: string; type: string; source: string } | null;
-  run: { id: string; checkpointId: string; status: string; testResults: unknown } | null;
-  submissionCheck: { state: string; passed: number | null; total: number | null; results: Array<{ testId: string; category: string }> } | null;
+  run: { visibility: "visible"; id: string; checkpointId: string; status: string; testResults: unknown } | null;
+  submissionCheck: { visibility: "hidden"; state: string; passed: number | null; total: number | null; results: Array<{ testId: string; category: string }> } | null;
   assistance: { id: string; category: string; offered: boolean; accepted: boolean; delivered: boolean; content: string } | null;
 };
 type Review = { id: string; attempt_id: string; status: string; evidence_manifest: unknown };
@@ -40,10 +40,10 @@ async function loadEvidence(client: PoolClient, review: Review) {
          jsonb_build_object('id', e.id, 'type', e.event_type, 'occurrenceOffsetMs', e.occurrence_offset_ms,
            'transcript', CASE WHEN t.id IS NOT NULL THEN jsonb_build_object('id', t.id, 'speaker', t.speaker, 'text', t.text) END,
            'checkpoint', CASE WHEN c.id IS NOT NULL THEN jsonb_build_object('id', c.id, 'type', c.checkpoint_type, 'source', c.source_code) END,
-           'run', CASE WHEN r.id IS NOT NULL THEN jsonb_build_object('id', r.id, 'checkpointId', r.checkpoint_id, 'status', r.status,
+           'run', CASE WHEN r.id IS NOT NULL THEN jsonb_build_object('visibility', 'visible', 'id', r.id, 'checkpointId', r.checkpoint_id, 'status', r.status,
              'testsPassed', r.tests_passed, 'testsFailed', r.tests_failed, 'testResults', r.test_results,
              'stdout', r.stdout, 'stderr', r.stderr, 'executionTimeMs', r.execution_time_ms) END,
-           'submissionCheck', CASE WHEN s.id IS NOT NULL THEN jsonb_build_object('state', s.check_state,
+           'submissionCheck', CASE WHEN s.id IS NOT NULL THEN jsonb_build_object('visibility', 'hidden', 'state', s.check_state,
              'passed', s.tests_passed, 'total', s.tests_passed + s.tests_failed,
              'results', (SELECT coalesce(jsonb_agg(jsonb_build_object('testId', value->>'testId', 'category', value->>'category')), '[]'::jsonb)
                          FROM jsonb_array_elements(s.test_results))) END,

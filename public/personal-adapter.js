@@ -117,7 +117,7 @@ function runResultsMarkup(detail, run) {
   const byId = new Map((detail.visibleTests ?? []).map((test) => [test.id, test]));
   const results = run.test_results ?? [];
   const failed = results.filter((result) => result.outcome !== "passed").length;
-  const heading = run.status === "runner_error" ? "Runner error" : failed ? "Wrong answer" : "All sample tests passed";
+  const heading = run.status === "runner_error" ? "Runner error" : results.some(result => result.error) ? "Execution error" : failed ? "Wrong answer" : "All sample tests passed";
   const summary = run.runner_error || (failed ? `${failed} of ${results.length} sample tests did not pass.` : `${results.length} of ${results.length} sample tests passed. Submit your code when you are ready.`);
   const selected = Math.max(0, results.findIndex((result) => result.outcome !== "passed"));
   const tabs = results.map((result, index) => `<button type="button" role="tab" class="test-case ${escapeHtml(result.outcome)}" id="case-tab-${index}" aria-controls="case-${index}" aria-selected="${index === selected}" tabindex="${index === selected ? 0 : -1}">${result.outcome === "passed" ? passIcon : failIcon}Test case ${index}<span class="sr-only"> ${escapeHtml(result.outcome)}</span></button>`).join("");
@@ -128,7 +128,11 @@ function runResultsMarkup(detail, run) {
   }).join("");
   const output = [["Standard output", run.stdout], ["Standard error", run.stderr]].filter(([, text]) => text).map(([name, text]) => `<details><summary>${name}</summary><pre>${escapeHtml(text)}</pre></details>`).join("");
   const cases = results.length ? `<div class="case-layout"><div class="case-list" role="tablist" aria-orientation="vertical" aria-label="Sample test cases">${tabs}</div><div class="case-details">${panels}</div></div>` : "";
-  return `<div class="run-summary" data-outcome="${failed || run.status === "runner_error" ? "failed" : "passed"}" role="status"><strong>${heading}</strong><span>${escapeHtml(summary)}</span></div>${cases}${output}`;
+  const checkpoint = detail.checkpoints.find(item => item.id === run.checkpoint_id);
+  const attribution = checkpoint
+    ? `<p class="small muted">${checkpoint.source_code !== detail.attempt.draft_source ? "Current saved code differs from this run. " : ""}These results describe the tested code below. Run again after editing.</p><details><summary>View tested code</summary><pre>${escapeHtml(checkpoint.source_code)}</pre></details>`
+    : `<p class="small muted">Results for saved checkpoint ${escapeHtml(run.checkpoint_id)}. Load earlier evidence to inspect its code. Run again after editing.</p>`;
+  return `${attribution}<div class="run-summary" data-outcome="${failed || run.status === "runner_error" ? "failed" : "passed"}" role="status"><strong>${heading}</strong><span>${escapeHtml(summary)}</span></div>${cases}${output}`;
 }
 
 function runHistoryMarkup(detail) {
@@ -191,8 +195,11 @@ function workspaceMarkup(state) {
 function reviewMarkup(state) {
   const review = state.review?.review;
   const findings = state.review?.findings ?? [];
+  const empty = review?.status === "pending"
+    ? `<p class="empty-inline">Your review is still processing. Refresh to check for findings.</p><button class="button secondary" type="button" data-open-review>Refresh review</button>`
+    : `<p class="empty-inline">No findings were published. Your attempt and evidence remain available.</p>`;
   const evidence = (finding) => (finding.evidence ?? []).map((item) => `<li><code>${escapeHtml(item.eventId)}</code>${item.locator ? ` · ${escapeHtml(JSON.stringify(item.locator))}` : ""}</li>`).join("") || "<li>No evidence references were published.</li>";
-  return `<main id="main" class="page-main"><button class="back-link button quiet" type="button" data-personal-page="workspace">← Back to attempt</button><section class="finding-head"><p class="eyebrow">Recorded review</p><h1>${review ? `Review ${escapeHtml(review.status)}` : "Review unavailable"}</h1>${submissionCheckMarkup(state.attempt?.submissionCheck)}<p>${escapeHtml(review?.failure_reason || "This review is limited to its recorded evidence; it does not measure lasting ability.")}</p>${findings.map((finding) => `<article class="observation"><h2>${escapeHtml(finding.observation)}</h2><p>${escapeHtml(finding.interpretation || finding.limitations)}</p><p class="small muted">${escapeHtml(finding.limitations)}</p><h3>Evidence</h3><ul>${evidence(finding)}</ul>${finding.is_disputed ? `<p class="badge">Finding disputed</p>` : `<form class="finding-correction-form" data-finding-id="${escapeHtml(finding.id)}"><label>Correct this finding<input name="reason" required></label><button class="button quiet small" type="submit">Submit correction</button></form>`}${finding.retry_checkpoint_id ? `<button class="button primary small" type="button" data-retry-checkpoint="${escapeHtml(finding.retry_checkpoint_id)}">Retry from this checkpoint</button>` : ""}</article>`).join("") || `<p class="empty-inline">No findings were published. Your attempt and evidence remain available.</p>`}<div class="actions"><button class="button secondary" type="button" data-open-related>Explore related practice</button></div></section></main>`;
+  return `<main id="main" class="page-main"><button class="back-link button quiet" type="button" data-personal-page="workspace">← Back to attempt</button><section class="finding-head"><p class="eyebrow">Recorded review</p><h1>${review ? `Review ${escapeHtml(review.status)}` : "Review unavailable"}</h1>${submissionCheckMarkup(state.attempt?.submissionCheck)}<p>${escapeHtml(review?.failure_reason || "This review is limited to its recorded evidence; it does not measure lasting ability.")}</p>${findings.map((finding) => `<article class="observation"><h2>${escapeHtml(finding.observation)}</h2><p>${escapeHtml(finding.interpretation || finding.limitations)}</p><p class="small muted">${escapeHtml(finding.limitations)}</p><h3>Evidence</h3><ul>${evidence(finding)}</ul>${finding.is_disputed ? `<p class="badge">Finding disputed</p>` : `<form class="finding-correction-form" data-finding-id="${escapeHtml(finding.id)}"><label>Correct this finding<input name="reason" required></label><button class="button quiet small" type="submit">Submit correction</button></form>`}${finding.retry_checkpoint_id ? `<button class="button primary small" type="button" data-retry-checkpoint="${escapeHtml(finding.retry_checkpoint_id)}">Retry from this checkpoint</button>` : ""}</article>`).join("") || empty}<div class="actions"><button class="button secondary" type="button" data-open-related>Explore related practice</button></div></section></main>`;
 }
 
 function relatedMarkup(state) {
@@ -392,7 +399,16 @@ export function mountPersonal(root) {
         state.attempt.page = page.page; state.attempt.hasMore = page.hasMore; render();
       }
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
-      else if (control.hasAttribute("data-open-review")) { state.page = "review"; render(); }
+      else if (control.hasAttribute("data-open-review")) {
+        const attemptId = state.attempt.attempt.id;
+        control.disabled = true;
+        try {
+          const review = await session.review(attemptId);
+          if (disposed || state.attempt?.attempt.id !== attemptId) return;
+          state.review = review; state.attempt.review = review.review;
+          state.page = "review"; render();
+        } finally { control.disabled = false; }
+      }
       else if (control.hasAttribute("data-open-related")) { state.related = (await session.related()).relatedProblems; state.page = "related"; render(); }
       else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }

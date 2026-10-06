@@ -55,7 +55,8 @@ try {
     assert.ok(!/UNVERIFIED_DO_NOT_SEND|HIDDEN_DO_NOT_SEND|foreign-|private goal|owner@example/.test(raw));
     const payload = JSON.parse(raw);
     const check = payload.evidence.find(item => item.type === "submission_check");
-    assert.deepEqual(check.submissionCheck, { state: "checked", passed: 1, total: 1, results: [{ testId: "hidden-fixture", category: "passed" }] });
+    assert.deepEqual(check.submissionCheck, { visibility: "hidden", state: "checked", passed: 1, total: 1, results: [{ testId: "hidden-fixture", category: "passed" }] });
+    assert.equal(payload.evidence.find(item => item.run).run.visibility, "visible");
     assert.ok(payload.allowedEvidenceIds.includes(check.id));
     assert.ok(payload.allowedEvidenceIds.includes("valid-verified"));
     assert.ok(payload.allowedEvidenceIds.includes("valid-help"));
@@ -159,6 +160,20 @@ try {
   }
   console.log("PASS the Worker queue retries transient failures and acknowledges terminal and invalid messages");
 
+  const submissionOnly = await seed("submission-only", "owner", async name => {
+    await database.query("DELETE FROM code_runs WHERE attempt_id = $1", [name]);
+  });
+  await processReview(submissionOnly, env, database, { evaluatorVersion: "fixture", async generate({ payload }) {
+    const evidence = JSON.parse(payload).evidence;
+    assert.equal(evidence.filter(item => item.run).length, 0, "submitting does not invent a visible run");
+    assert.deepEqual(evidence.find(item => item.submissionCheck).submissionCheck, {
+      visibility: "hidden", state: "checked", passed: 1, total: 1, results: [{ testId: "hidden-fixture", category: "passed" }],
+    });
+    return { findings: [] };
+  } });
+  assert.equal((await state(submissionOnly)).status, "ready");
+  console.log("PASS a direct Submission exposes hidden outcomes without inventing visible execution");
+
   for (const checkState of ["unavailable", "no hidden tests"]) {
     await database.query("DELETE FROM security_rate_limits");
     const reviewId = await seed(`check-${checkState}`, "owner", async (name) => {
@@ -167,7 +182,7 @@ try {
     });
     await processReview(reviewId, env, database, { evaluatorVersion: "fixture", async generate({ payload }) {
       const check = JSON.parse(payload).evidence.find(item => item.type === "submission_check");
-      assert.deepEqual(check.submissionCheck, { state: checkState, passed: null, total: null, results: [] });
+      assert.deepEqual(check.submissionCheck, { visibility: "hidden", state: checkState, passed: null, total: null, results: [] });
       const response = await handle(new Request(`https://app.example/api/attempts/check-${checkState}/review`), env, {}, database);
       assert.equal((await response.json()).review.evidence_manifest.submissionCheckState, checkState);
       return { findings: [] };

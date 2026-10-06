@@ -120,6 +120,8 @@ test("both Review adapters share the hidden-test guardrails and Finding schema",
   await generate({ ...env, AI });
   assert.equal(AI.calls[0].input.messages[0].content, request.instructions);
   assert.match(request.instructions, /Do not state or guess hidden test inputs or expected values/);
+  assert.match(request.instructions, /submissionCheck with visibility hidden records hidden-test execution, never visible tests/);
+  assert.match(request.instructions, /If no run is supplied, no visible-test execution was recorded/);
   assert.match(request.instructions, /Submission check is a recorded observation of those tests only, not proof of correctness or lasting ability/);
   assert.deepEqual(AI.calls[0].input.response_format.json_schema.schema, request.text.format.schema);
 });
