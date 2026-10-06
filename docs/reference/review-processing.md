@@ -116,10 +116,11 @@ Statuses are `pending`, `ready`, and `failed`. `ready` with `findings: []` is va
 no defensible finding is better than invented feedback. `404` means no review has
 been created. A failed review preserves the completed attempt and its evidence.
 `failure_reason` is a fixed, non-sensitive explanation, not raw provider content.
-A retry checkpoint is supplied only when a cited run/submission checkpoint is
-eligible for the existing retry endpoint, the finding suggests an action, and the
-finding is not `insufficient_evidence`. Findings on a retry attempt do not offer
-nested retries, consistent with the current API.
+A retry checkpoint is supplied only when the finding suggests an action and is
+not `insufficient_evidence`. It is the cited run/submission checkpoint, else the
+checkpoint of a cited run, else the attempt's final submission checkpoint.
+Findings on a retry attempt do not offer nested retries, consistent with the
+current API.
 
 Model output has no finding IDs, locators, timestamps, test results, retry IDs,
 practice goal, or assistance context fields. The backend generates IDs and derives
