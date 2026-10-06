@@ -6,6 +6,7 @@ They are not current release instructions.
 
 | Record | Scope |
 | --- | --- |
+| [Marketing planning](marketing-planning/marketing-ticket-map.md) | Original ticket map, editable diagram, preview, and [marketing plan](marketing-planning/coursay-marketing-plan.pdf); preserved 2026-10-06 |
 | [Launch audit](launch-readiness.md) | September 2026 observations and then-current recommendations |
 | [MVP status](mvp-backend-status.md) | Frozen MVP workstream snapshot |
 | [MVP blockers](mvp-blockers.md) | External prerequisites from that snapshot |
