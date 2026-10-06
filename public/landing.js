@@ -14,7 +14,7 @@ export function landingScreen() {
       <h1 id="landing-title" data-copy-slot="headline">Make your thinking<br>part of the answer.</h1>
       <p class="intro" data-copy-slot="intro">You know enough Python to attempt the problem. Now practice explaining your approach, testing it, and revising what didn’t work.</p>
       <div class="actions" id="landing-actions"><a class="button secondary pressable" href="#sample" data-launch-action="sample">Explore the guided sample</a></div>
-      <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p></div>
+      <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p><button class="button quiet small" type="button" data-check-personal hidden>Check again</button></div>
       <aside class="landing-evidence" aria-label="Fictional review example" data-heat-zone="sample-evidence"><div class="landing-evidence-label">Fictional sample · evidence, not a verdict</div>
         <pre><code>for index, tag in enumerate(tags):
     if tag in seen:
@@ -51,6 +51,7 @@ export function mountLanding(root) {
   try { withdrawal.value = JSON.parse(sessionStorage.getItem('coursay-waitlist-receipt') || 'null')?.receipt || ''; } catch { /* Receipt remains manually usable. */ }
   if (!exposureEmitted) { measure('landing_exposed'); exposureEmitted = true; }
   root.addEventListener('click', event => {
+    if (event.target.closest('[data-check-personal]')) checkPersonal(true);
     const link = event.target.closest('[data-launch-action]');
     if (link) measure('cta_selected', { action: link.dataset.launchAction });
     // Heatmap cells over the landing. Clicks in text fields are masked. A keyboard
@@ -63,12 +64,33 @@ export function mountLanding(root) {
     measure('landing_click', { zone: event.target.closest('[data-heat-zone]')?.dataset.heatZone ?? 'other', cellX: cell(x - bounds.left, bounds.width), cellY: cell(y - bounds.top, bounds.height), viewport: innerWidth < 768 ? 'narrow' : 'wide' });
   });
   const api = async (url, body) => {
-    const response = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(url, body === undefined ? { signal: AbortSignal.timeout(10000) } : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     if (!response.ok) throw Error(data.error || 'Unable to save. Check your connection and try again.');
     return data;
   };
-  Promise.all([api('/api/landing-config').catch(() => null), api('/api/personal-availability').catch(() => null), siteConfig()]).then(([config, personal, site]) => {
+  const landingConfig = api('/api/landing-config').catch(() => null);
+  const actions = root.querySelector('#landing-actions');
+  // Personal availability has its own check, so a failed check offers a retry.
+  const checkPersonal = (retried = false) => {
+    const status = root.querySelector('#landing-availability');
+    const retry = root.querySelector('[data-check-personal]');
+    status.textContent = 'Checking personal practice availability…';
+    Promise.all([landingConfig, api('/api/personal-availability').catch(() => null)]).then(([config, personal]) => {
+      if (!active) return;
+      retry.hidden = Boolean(personal);
+      if (!personal) { status.textContent = 'Personal practice availability could not be checked.'; return; }
+      const ready = personal.collectionEnabled && personal.mvpReady;
+      status.textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice is not open yet. Explore the fictional sample without an account.';
+      // A primary waitlist button stays first.
+      const waitlistButton = actions.querySelector('button[data-launch-action="waitlist"]');
+      if (ready && !actions.querySelector('[data-launch-action="personal_practice"]')) (waitlistButton ?? actions).insertAdjacentHTML(waitlistButton ? 'afterend' : 'afterbegin', `<a class="button ${config?.primaryAction === 'personal_practice' ? 'primary' : 'secondary'} pressable" href="#personal" data-launch-action="personal_practice">Start personal practice</a>`);
+      // The retry button is gone, so focus moves to the first action.
+      if (retried) actions.querySelector('a, button')?.focus();
+    });
+  };
+  checkPersonal();
+  Promise.all([landingConfig, siteConfig()]).then(([config, site]) => {
     if (!active) return;
     policy = config?.policy;
     // A running experiment assigns this document a variant. Opted-out browsers keep the control and send nothing.
@@ -81,10 +103,6 @@ export function mountLanding(root) {
         experimentEmitted = true;
       }
     }
-    const ready = personal?.collectionEnabled && personal?.mvpReady;
-    root.querySelector('#landing-availability').textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice availability is not confirmed. Explore the fictional sample without an account.';
-    const actions = root.querySelector('#landing-actions');
-    if (ready) actions.insertAdjacentHTML('afterbegin', `<a class="button ${config?.primaryAction === 'personal_practice' ? 'primary' : 'secondary'} pressable" href="#personal" data-launch-action="personal_practice">Start personal practice</a>`);
     // An unreachable site configuration keeps the form for a published notice; the server still refuses a closed waitlist.
     if (policy && (site ? site.waitlistEnabled : true)) {
       root.querySelector('#waitlist-unavailable').hidden = true;

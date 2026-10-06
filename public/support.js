@@ -56,6 +56,8 @@ function disclosure(id, label, { render, heading = () => label, available = () =
       toggle.setAttribute('aria-expanded', 'true');
       body.querySelector('input:not([type=checkbox]), textarea, [tabindex]')?.focus();
     },
+    // Renders an open, untouched panel again, for example when its configuration arrives.
+    refresh() { if (!panel.hidden && !hasDraft()) render(control); },
   };
   toggle.addEventListener('click', () => (panel.hidden ? control.expand() : control.collapse()));
   panel.addEventListener('click', event => { if (event.target.closest('[data-support-cancel]')) { body.innerHTML = ''; control.collapse(); toggle.focus(); } });
@@ -124,12 +126,14 @@ function diagnostics() {
   return found;
 }
 
+const bugsClosed = `Bug reports are not collected here yet. Email <a href="mailto:${contact}">${contact}</a> with what you expected and what happened.`;
+
 function mountBugReports(config) {
   const fields = { expected: 'bug-expected', actual: 'bug-actual', steps: 'bug-steps', contactEmail: 'bug-contact', contactConsent: 'bug-consent' };
   let details;
   const bugs = disclosure('bug', 'Report a problem', { render({ body, page }) {
     if (config.enabled === false) {
-      body.innerHTML = `<p tabindex="-1">Bug reports are not collected here yet. Email <a href="mailto:${contact}">${contact}</a> with what you expected and what happened.</p>`;
+      body.innerHTML = `<p tabindex="-1">${bugsClosed}</p>`;
       return;
     }
     details = diagnostics();
@@ -166,6 +170,7 @@ function mountBugReports(config) {
     if (!value('actual').trim()) return markInvalid(form, 'actual', 'Describe what happened instead.');
     if (email && !consent) return markInvalid(form, 'contactConsent', 'Agree to the reply purpose, or remove the reply address.');
     if (!email && consent) return markInvalid(form, 'contactEmail', 'Enter the reply address, or clear the reply checkbox.');
+    if (config.enabled === false) { error.innerHTML = `${bugsClosed} Your text is still here to copy.`; return; }
     const button = form.querySelector('[type=submit]');
     button.disabled = true; button.textContent = 'Sending…'; form.setAttribute('aria-busy', 'true');
     try {
@@ -178,13 +183,21 @@ function mountBugReports(config) {
       button.disabled = false; button.textContent = 'Send report'; form.removeAttribute('aria-busy');
     }
   });
+  return bugs;
 }
 
 // The bug path appears at once and waits for neither configuration nor the feedback module.
 // An unreachable configuration keeps both controls; the server still refuses collection that is off.
 const bugConfig = { enabled: undefined };
-mountBugReports(bugConfig);
+const bugs = mountBugReports(bugConfig);
 siteConfig().then(config => config ?? { feedbackEnabled: true, bugReportsEnabled: true }).then(config => {
   bugConfig.enabled = config.bugReportsEnabled !== false;
+  // A form opened before the configuration arrived becomes the email path when reports are off.
+  // A form with text keeps it and says so at once.
+  if (!bugConfig.enabled) {
+    bugs.refresh();
+    const error = bugs.body.querySelector('#bug-error');
+    if (error) error.innerHTML = `${bugsClosed} Your text is still here to copy.`;
+  }
   if (config.feedbackEnabled) import('./feedback-questions.js').then(mountFeedback).catch(() => { /* The bug path stays available. */ });
 });
