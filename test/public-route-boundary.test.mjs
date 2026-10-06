@@ -41,12 +41,22 @@ test("sample routes use labeled fixtures and the personal route stays fail-close
         await page.goto(`${baseUrl}/#${path}`);
         const body = await page.locator("body").innerText();
         assert.equal(await page.locator('.prototype-bar').count(), 0);
+        assert.match(await page.locator(".sample-banner").innerText(), /fictional data/);
         assert.equal(await page.locator(".page-footer").count(), 0);
         assert.doesNotMatch(body, /Records are not being collected\./);
       }
       await page.goto(`${baseUrl}/#sample`);
       await page.getByRole("button", { name: "Run sample tests", exact: true }).waitFor();
       assert.match(await page.locator("body").innerText(), /Guided sample · not scored/);
+      // Signed out, the primary navigation and every interview setup link open the real app.
+      for (const label of ["Roadmap", "Sessions"]) assert.match(await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: label }).getAttribute("href"), /^#personal\?page=/);
+      await page.goto(`${baseUrl}/#setup?problem=tags`);
+      await page.waitForURL(/#personal\?page=catalog$/);
+      await page.goto(`${baseUrl}/#landing`);
+      await page.locator(".landing").waitFor();
+      assert.equal(await page.locator(".sample-banner").count(), 0);
+      await page.goto(`${baseUrl}/#no-such-page`);
+      await page.waitForURL(/#landing$/);
       await page.goto(`${baseUrl}/#welcome`);
       await page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Sign in" }).click();
       assert.equal(new URL(page.url()).hash, "#personal");

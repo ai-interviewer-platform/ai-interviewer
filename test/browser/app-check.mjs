@@ -46,11 +46,8 @@ try {
   console.log('Passed: complete sample → evidence → retry → result journey');
 
   await page.goto(`${base}/#setup`);
-  await page.getByRole('checkbox', { name: /Allow transcript/ }).uncheck();
-  await page.getByRole('button', { name: 'Start interview preview' }).click();
-  assert.equal(await page.locator('[name="consent"]').getAttribute('aria-invalid'), 'true');
-  await page.getByRole('checkbox', { name: /Allow transcript/ }).check();
-  await page.getByRole('button', { name: 'Start interview preview' }).click();
+  assert.equal(new URL(page.url()).hash, '#personal?page=catalog');
+  await page.goto(`${base}/#interview`);
   await page.getByRole('button', { name: 'Ask for help', exact: true }).click();
   await page.getByRole('button', { name: 'Show the hint', exact: true }).click();
   assert.match(await page.locator('#messages .coach-message').innerText(), /Coach · guidance/);
@@ -62,13 +59,14 @@ try {
   assert.match(await page.locator('.session-row').first().innerText(), /Draft saved/);
   await page.reload();
   assert.match(await page.locator('.session-row').first().innerText(), /Draft saved/);
-  console.log('Passed: storage choice, requested help, escaped local message, save and return');
+  console.log('Passed: setup opens the real catalog; requested help, escaped local message, save and return');
 
   await page.goto(`${base}/#roadmap?topic=sets&view=list`);
   await page.getByRole('link', { name: /Seen-value tracking/ }).click();
   await page.getByRole('dialog', { name: 'Seen-value tracking' }).waitFor();
   await page.getByRole('link', { name: 'Practice', exact: true }).click();
-  await page.getByRole('link', { name: 'Back to roadmap' }).click();
+  await page.waitForURL(/#personal\?page=catalog$/);
+  await page.goBack();
   assert.match(page.url(), /topic=sets&view=list/);
   await page.getByRole('dialog', { name: 'Seen-value tracking' }).waitFor();
   await page.waitForFunction(() => document.querySelector('#problem-drawer').open);

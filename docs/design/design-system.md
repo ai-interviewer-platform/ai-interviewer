@@ -96,7 +96,7 @@ reduced motion, keyboard input, and forced colors disable all logo animation.
 
 ## Screens
 
-Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, Profile, and the private Operator reports (`#operator`, not linked from navigation) use the floating top navbar. The primary group contains Home, Roadmap, and Sessions; the account group contains Preferences, Design system, and the profile avatar.
+Home, Practice, Review, Roadmap, Sessions, Preferences, Profile, and the private Operator reports (`#operator`, not linked from navigation) use the floating top navbar. The primary group contains Home, Roadmap, and Sessions. Roadmap and Sessions open Personal practice, and Home does when signed in; the account group contains Preferences and the profile avatar. Sample screens show a banner that links to Personal practice. Interview setup is part of Personal practice only. The design specimen (`#system`) and its scene picker are served only on localhost.
 
 ## Runtime decisions
 
