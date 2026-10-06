@@ -7,6 +7,8 @@
   "build": { "command": "npm run build:browser" },
   "assets": {
     "directory": "./public",
+    // src/worker.ts serves every non-API path through this binding.
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
   // keep_vars preserves dashboard variables (e.g. PERSONAL_DATA_COLLECTION_APPROVED) across deploys.

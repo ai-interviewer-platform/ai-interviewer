@@ -40,7 +40,7 @@ The alternatives in the table are exclusive where noted.
 | `PERSONAL_DATA_COLLECTION_APPROVED` | Cloudflare variable | Exactly `false` until explicit policy approval, then exactly `true`. |
 | `REVIEW_QUEUE` | Cloudflare binding | Producer binding to `ai-interviewer-review`; the same Worker is its consumer. Declared in `wrangler.jsonc`. |
 | `VOICE_SESSIONS` | Cloudflare binding | Durable Object namespace for class `VoiceSession`; migration tag `v1` is declared. |
-| `ASSETS` | Cloudflare binding | Automatically created from the `assets` block for `./public`. |
+| `ASSETS` | Cloudflare binding | Declared by `assets.binding` in `wrangler.jsonc` for `./public`; `src/worker.ts` serves every non-API path through it. |
 | `CLOUDFLARE_API_TOKEN` | GitHub Actions secret, optional | Only required if a separate deployment workflow is later approved. The current Backend CI does not deploy or consume it. |
 | `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret/variable, optional | Same condition as above. Not required by normal Backend CI. |
 | `ENV_BUNDLE_GPG_BASE64` | GitHub Actions secret | Used only by `share-development-env.yml`; it is not a runtime production credential. |
