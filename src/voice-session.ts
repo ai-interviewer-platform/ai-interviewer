@@ -45,6 +45,9 @@ export class VoiceSession extends DurableObject<Env> {
       if (!provider || Date.now() >= deadline) { provider?.close(); throw new Error("Voice connection failed."); }
       const pair = new WebSocketPair();
       const browser = pair[1];
+      // Workers defaults to Blob input; send() needs ArrayBuffer to preserve PCM frames.
+      provider.binaryType = "arraybuffer";
+      browser.binaryType = "arraybuffer";
       provider.accept(); browser.accept();
       let closed = false;
       let order = 0;
