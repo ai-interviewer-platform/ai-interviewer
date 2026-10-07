@@ -55,6 +55,11 @@ test('workspace submission stays clickable; results identify tested code; review
     assert.match(await page.locator('.test-body').innerText(),/Current saved code differs from this run/);
     await page.getByText('View tested code',{exact:true}).click();
     assert.equal(await page.locator('.test-body details pre').innerText(),testedCode);
+    await page.getByRole('button',{name:'Pause'}).click();
+    await page.getByRole('heading',{name:'Your attempt is paused.'}).waitFor();
+    assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Resume');
+    await page.getByRole('button',{name:'Resume'}).click();
+    await page.locator('.cm-content').waitFor();
     for (const viewport of [{width:1280,height:720},devices['iPhone 13'].viewport]) {
       await page.setViewportSize(viewport);
       await page.locator('[data-finish]').click();

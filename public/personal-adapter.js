@@ -207,7 +207,11 @@ function workspaceMarkup(state) {
   const editor = `<section class="editor-pane pane"><div class="panel-top"><span>Language <span class="language-pill">Python 3</span></span><div class="actions"><button class="icon-button" type="button" data-reset-code aria-label="Reset to starter code" title="Reset to starter code" ${disabled}>${icon('<path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5"/>')}</button></div></div><div class="code-host" id="code-host"></div><div class="editor-status"><span>Esc then Tab leaves the editor</span><span data-cursor>Line: 1 Col: 1</span></div></section>`;
   const actions = `<div class="editor-actions"><button class="button secondary" type="button" data-run ${disabled}>Run code</button><button class="button primary" type="button" data-finish ${disabled}>Submit code</button></div>`;
   const results = `<section class="tests-pane pane" aria-label="Test results" ${hasResults ? "" : "hidden"}><div class="test-body">${resultsMarkup(state)}</div></section>`;
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button></div></div><div class="coding-workspace" style="--left-width:${state.leftWidth}%">${rail}<section class="workspace-left pane">${problemPanel}${voicePanel}${discussionPanel}${submissionsPanel}</section><div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="${Math.round(state.leftWidth)}" data-splitter></div><div class="workspace-right">${editor}${actions}${results}</div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-pause ${disabled}>Pause</button><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button></div></div><div class="coding-workspace" style="--left-width:${state.leftWidth}%">${rail}<section class="workspace-left pane">${problemPanel}${voicePanel}${discussionPanel}${submissionsPanel}</section><div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="${Math.round(state.leftWidth)}" data-splitter></div><div class="workspace-right">${editor}${actions}${results}</div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+}
+
+function pausedMarkup(state) {
+  return `<main id="main" class="page-main"><section class="empty-state"><span class="eyebrow">${escapeHtml(state.attempt.problem.title)}</span><h1>Your attempt is paused.</h1><p>Your code is saved and voice is off. Nothing is recorded until you resume.</p><div class="actions"><button class="button primary" type="button" data-resume>Resume</button><button class="button quiet" type="button" data-save-draft>Save & exit</button></div></section></main>`;
 }
 
 function reviewMarkup(state) {
@@ -245,6 +249,8 @@ export function mountPersonal(root) {
   if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
   let disposed = false;
   let restoring = false;
+  // The editor bundle (about 450 KB) loads in idle time once a signed-in page shows.
+  let editorPrefetched = false;
   let authMode = new URLSearchParams(location.hash.split("?")[1] ?? "").get("auth") === "sign-up" ? "sign-up" : "sign-in";
   let voiceSession = null;
   let editor = null;
@@ -313,15 +319,16 @@ export function mountPersonal(root) {
     else if (state.selectedProblemId) {
       const problem = state.catalog.find((item) => item.id === state.selectedProblemId);
       content = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
-    } else content = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
+    } else content = state.attempt ? (state.paused ? pausedMarkup(state) : workspaceMarkup(state)) : dashboardMarkup(state);
     root.innerHTML = personalHeader(state) + content;
     // Setup is reached from the catalog, so its address is the catalog.
     const hash = state.selectedProblemId ? "#personal?page=catalog"
       : state.attempt && ATTEMPT_VIEWS.includes(state.page) ? `#personal?attempt=${encodeURIComponent(state.attempt.attempt.id)}${state.page === "workspace" ? "" : `&view=${state.page}`}` : null;
     if (hash && location.hash !== hash) history[restoring ? "replaceState" : "pushState"](null, "", hash);
     if (root.querySelector("#code-host")) mountEditor();
+    else if (!editorPrefetched) { editorPrefetched = true; (window.requestIdleCallback ?? setTimeout)(() => import("./code-editor.js").catch(() => {})); }
   };
-  // The editor bundle loads only when a workspace opens.
+  // Mounts the editor; its bundle is usually already prefetched (see render).
   const mountEditor = async () => {
     const host = root.querySelector("#code-host");
     const { createCodeEditor } = await import("./code-editor.js");
@@ -363,6 +370,7 @@ export function mountPersonal(root) {
     stopVoice();
     if (state.attempt?.attempt.id !== attemptId) state.leftTab = "problem";
     state.attempt = await session.detail(attemptId);
+    state.paused = false;
     state.runIndex = undefined;
     if (disposed) return;
     state.review = state.attempt.review ? await session.review(attemptId).catch(() => null) : null;
@@ -447,7 +455,9 @@ export function mountPersonal(root) {
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
       else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); personalOutcome("retry_started"); await openAttempt(result.attemptId); }
       else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
-      else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
+      else if (control.hasAttribute("data-save-draft")) { state.paused = false; await navigate("sessions"); }
+      else if (control.hasAttribute("data-pause")) { stopVoice(); await session.saveChangedDraft(); state.paused = true; render(); root.querySelector("[data-resume]")?.focus(); }
+      else if (control.hasAttribute("data-resume")) { state.paused = false; render(); root.querySelector("[data-pause]")?.focus(); }
       else if (control.dataset.showRun) {
         state.runIndex = Number(control.dataset.showRun);
         const pane = root.querySelector(".tests-pane");
@@ -566,11 +576,14 @@ export function mountPersonal(root) {
   // Opens the Attempt view in the address. Restoring replaces history entries instead of adding them.
   const requested = new URLSearchParams(location.hash.split("?")[1] ?? "");
   const openRequested = async () => {
-    if (!state.user || !requested.get("attempt")) return;
+    const attemptId = requested.get("attempt");
+    if (!state.user || !attemptId) return;
+    // The address opens its Attempt once, so a later sign-in on this page starts at home.
+    requested.delete("attempt");
     const view = requested.get("view");
     restoring = true;
     try {
-      await openAttempt(requested.get("attempt"));
+      await openAttempt(attemptId);
       if (view !== "workspace" && ATTEMPT_VIEWS.includes(view) && state.attempt.review) { await showReview(); if (view === "related") { state.page = "related"; render(); } }
     } catch (error) {
       state.attempt = null; history.replaceState(null, "", "#personal?page=home"); render();
