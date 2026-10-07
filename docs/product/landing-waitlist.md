@@ -46,7 +46,7 @@ Operator API, private bearer token required:
 
 Joining requires email, affirmative purpose consent, current notice version. The server atomically saves the unique normalized email and a `waitlist_joined` outcome. Duplicate submissions return the same response shape and do not expose membership, replace the original receipt or create extra joined outcomes. A receipt from a duplicate request does not control an existing record; UI states this and directs lost-receipt requests to the published contact.
 
-Receipt withdrawal atomically deletes a matching entry and records an anonymous `waitlist_withdrawn` outcome. Repeated or unmatched receipts receive the same confirmation and do not create outcomes. Email is not retained as a tombstone. Browser session storage retains the current email hash and receipt; a matching repeat preserves that receipt, a different email gets its own new receipt. The receipt is shown so candidates can save it outside the tab. Server stores only its SHA-256 hash. No receipt or email enters measurement payloads.
+Receipt withdrawal atomically deletes a matching entry and records an anonymous `waitlist_withdrawn` outcome. Repeated or unmatched receipts receive the same confirmation and do not create outcomes. Email is not retained as a tombstone. Browser local storage retains the current email hash and receipt until withdrawal or cleared site data; a matching repeat preserves that receipt, a different email gets its own new receipt. The page also offers the receipt as a text file. The receipt is shown so candidates can save it, for example as the offered text file. Server stores only its SHA-256 hash. No receipt or email enters measurement payloads.
 
 ## Shared outcome contract for #23
 
