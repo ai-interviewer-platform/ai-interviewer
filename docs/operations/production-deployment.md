@@ -41,6 +41,7 @@ The alternatives in the table are exclusive where noted.
 | `REVIEW_QUEUE` | Cloudflare binding | Producer binding to `ai-interviewer-review`; the same Worker is its consumer. Declared in `wrangler.jsonc`. |
 | `VOICE_SESSIONS` | Cloudflare binding | Durable Object namespace for class `VoiceSession`; migration tag `v1` is declared. |
 | `ASSETS` | Cloudflare binding | Declared by `assets.binding` in `wrangler.jsonc` for `./public`; `src/worker.ts` serves every non-API path through it. |
+| `FORM_VISITOR_LIMITER`, `MEASURE_VISITOR_LIMITER` | Cloudflare binding | Rate Limiting bindings declared in `wrangler.jsonc`: 10 writes per form kind (waitlist, feedback, bug report) and 120 measurement events per IP address per minute. Absent locally, where only the project-wide limits apply. |
 | `CLOUDFLARE_API_TOKEN` | GitHub Actions secret, optional | Only required if a separate deployment workflow is later approved. The current Backend CI does not deploy or consume it. |
 | `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret/variable, optional | Same condition as above. Not required by normal Backend CI. |
 | `ENV_BUNDLE_GPG_BASE64` | GitHub Actions secret | Used only by `share-development-env.yml`; it is not a runtime production credential. |

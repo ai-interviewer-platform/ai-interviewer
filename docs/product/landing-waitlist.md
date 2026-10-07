@@ -37,7 +37,7 @@ Set `LANDING_PRIMARY_ACTION` to the owner's choice: `waitlist` or `personal_prac
 
 Missing/incomplete policy or missing operator secret disables new collection. Withdrawal and authenticated operator deletion remain available after collection is switched off. The actual waitlist disclosures are published in the configured policy and public privacy notice. Additional analytics/heatmap processing requires its own #23 disclosure and implementation; this configuration enables neither analytics nor automatic outreach.
 
-Joining and withdrawing share a project-wide limit of 30 requests per minute, with no IP address or other identifier stored, and a 4 KiB body limit (#50). Past the limit the page shows that the waitlist is busy.
+Joining and withdrawing share a project-wide limit of 30 requests per minute, with no IP address or other identifier stored, and a 4 KiB body limit (#50). A per-visitor limit of 10 requests per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. Past the limit the page shows that the waitlist is busy.
 
 Operator API, private bearer token required:
 

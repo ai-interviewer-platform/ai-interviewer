@@ -23,7 +23,7 @@ Decided under the owner's delegation of 2026-09-30, on the baseline of `docs/pro
 | Processor inventory | Cloudflare (hosting, request processing) and Neon PostgreSQL (storage). Google Fonts receives font requests as before, with no measurement data. No AI processing of measurement, feedback or bug-report records. |
 | Minimization | Allowlisted fields only. The server rejects unknown event names, surfaces, actions and zones and stores only allowlisted columns. No email, receipt, free text, code, transcript, URL, query, referrer, IP address or account identifier. |
 | Outage behavior | Measurement never blocks product, feedback or bug-report work: adapter errors are swallowed, and the server returns 503 when off. |
-| Abuse limit | A project-wide limit of 1200 events per minute (`limits` in `src/security.ts`). Exhausting it drops events, never product work. No identifier is stored for rate limiting. |
+| Abuse limit | A project-wide limit of 1200 events per minute (`limits` in `src/security.ts`). Exhausting it drops events, never product work. No identifier is stored for rate limiting. A per-visitor limit of 120 events per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. |
 
 ## Event contract
 

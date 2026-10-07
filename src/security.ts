@@ -50,7 +50,8 @@ export function userRateLimitKeys(userId: string): RateLimitKey[] {
   return userRateLimitPrefixes.map((prefix) => userRateLimitKey(prefix, userId));
 }
 
-// Project-wide limits for public collection. No IP address or other identifier is stored.
+// Project-wide limits for public collection. No IP address or other identifier is stored;
+// the per-visitor limit is counted by Cloudflare (site-collection.ts).
 export function siteRateLimitKey(name: "measure" | "feedback" | "bug-report" | "waitlist"): RateLimitKey {
   return `site:${name}` as RateLimitKey;
 }
