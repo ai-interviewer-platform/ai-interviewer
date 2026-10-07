@@ -97,6 +97,15 @@ try {
     const event = await page.evaluate(() => window.observed.find(item => item.name === 'waitlist_request_accepted'));
     assert.equal(event.authority, 'server'); assert.equal(event.activity, 'none'); assert.doesNotMatch(JSON.stringify(event), /browser@example|receipt|transcript|code/);
     const firstBrowserReceipt = await page.locator('#waitlist-receipt').inputValue();
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save receipt as a file' }).click()]);
+    assert.equal(download.suggestedFilename(), 'coursay-waitlist-receipt.txt');
+    assert.match(await readFile(await download.path(), 'utf8'), new RegExp(firstBrowserReceipt));
+    // The receipt outlives the tab: a new tab of the same browser still offers it for withdrawal.
+    const laterTab = await page.context().newPage();
+    await laterTab.goto(page.url());
+    await laterTab.locator('#waitlist-withdrawal summary').click();
+    assert.equal(await laterTab.locator('#withdraw-receipt').inputValue(), firstBrowserReceipt);
+    await laterTab.close();
     await page.reload();
     await page.locator('#waitlist-form').waitFor({ state: 'visible' });
     await page.locator('#waitlist-email').fill('second@example.invalid');

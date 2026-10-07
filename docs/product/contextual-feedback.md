@@ -21,14 +21,14 @@ Decided under the owner's delegation of 2026-09-30. The shared collection, acces
 | Retention and deletion | Kept until project retirement, also after resolution: an anonymous response is the product evidence behind its resolution. The operator deletes a record on request (through the published contact) or when its text contains personal data. |
 | Evidence corrections | Separate. On review pages, the form says that it does not change a Finding and points to "Disagree with this feedback", the Correction flow. Sending feedback never disputes a Finding. |
 | Availability | `public/support.js` loads separately from `app.js` and does not use measurement. It stays usable when a feature, the measurement service or `/api/site-config` fails. When the configuration is unreachable, the control appears and the server still refuses while feedback is off. |
-| Abuse limit | 60 responses per minute project-wide (`limits` in `src/security.ts`); no identifier is stored for it. |
+| Abuse limit | 60 responses per minute project-wide (`limits` in `src/security.ts`); no identifier is stored for it. A per-visitor limit of 10 requests per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. |
 
 ## Feedback coverage matrix
 
 | Page (`#…`) | Feature and question | Activity | Test |
 |---|---|---|---|
 | `landing` | landing: "How clear is what Coursay offers?" | none | keyboard, dismissal, error, save; route loop |
-| `setup`, `sample`, `interview`, `retry` | practice: "How did this practice step work for you?" | sample | route loop; save with `app.js` and site configuration unavailable |
+| `sample`, `interview`, `retry` | practice: "How did this practice step work for you?" | sample | route loop; save with `app.js` and site configuration unavailable |
 | `review`, `complete` | review: "How understandable is this review?" with the Correction note | sample | route loop; save beside "Disagree with this feedback" |
 | `welcome`, `roadmap`, `sessions`, `related`, `preferences`, `system`, `demo-profile` | navigation: "How easy was it to find what you needed here?" | sample | route loop |
 | `terms`, `privacy`, `cookies` | policy: "How clear is this page?" | none | route loop |

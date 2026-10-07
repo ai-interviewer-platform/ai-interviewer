@@ -32,10 +32,18 @@ export type CollectionPolicy = {
   unavailable: string;
 };
 
+// One visitor cannot spend the project-wide limit of a kind alone. Cloudflare counts the
+// connecting IP address in memory; it is never stored or sent to a handler.
+async function visitorAllowed(request: Request, env: Env, kind: CollectionPolicy['rateKey']): Promise<boolean> {
+  const limiter = kind === 'measure' ? env.MEASURE_VISITOR_LIMITER : env.FORM_VISITOR_LIMITER;
+  const visitor = request.headers.get('cf-connecting-ip');
+  return !limiter || !visitor || (await limiter.limit({ key: `${kind}:${visitor}` })).success;
+}
+
 const policies: CollectionPolicy[] = [measurementPolicy, feedbackPolicy, bugReportPolicy, waitlistPolicy];
 
 // The one gate for Site collection, in a fixed order: route, Operator token or collection
-// flag, origin, body limit, JSON body, project-wide rate limit, handler. Returns null for
+// flag, origin, body limit, JSON body, visitor and project-wide rate limits, handler. Returns null for
 // paths outside Site collection. Site collection never reads the Sign-in session.
 export async function siteCollectionRequest(request: Request, env: Env, database: () => Pool): Promise<Response | null> {
   const url = new URL(request.url);
@@ -58,6 +66,7 @@ export async function siteCollectionRequest(request: Request, env: Env, database
     body = parsed;
   }
   try {
+    if (write && !route.operator && !(await visitorAllowed(request, env, policy.rateKey))) return json({ error: policy.busy }, { status: 429 });
     if (write && !route.operator && !(await consumeRate(database(), siteRateLimitKey(policy.rateKey), 60, policy.perMinute)).allowed) return json({ error: policy.busy }, { status: 429 });
     return await route.handle({ body, url, env, database, userAgent: request.headers.get('user-agent') ?? '' });
   } catch {

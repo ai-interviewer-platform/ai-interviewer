@@ -3,12 +3,24 @@ import { AgentMicrophone, AgentPlayer } from "@deepgram/agents";
 export const VOICE_PROVIDER = "deepgram";
 export const THINKING_MODEL = "gpt-5.6-luna";
 
+// Browser microphone failures, by DOMException name, as guidance the candidate can act on.
+const microphoneErrors = {
+  NotAllowedError: "Microphone access is blocked. Allow it in your browser's site settings, then select Reconnect voice.",
+  NotFoundError: "No microphone was found. Connect one, then select Reconnect voice.",
+  NotReadableError: "Another app is using the microphone. Close it, then select Reconnect voice.",
+  NotSupportedError: "This browser cannot use a microphone on this page. Try a current Chrome, Edge, Firefox or Safari.",
+};
+
 export function createDeepgramVoiceSession({ attempt, onStatus, onTranscript, onError }) {
+  let starting = false;
+  let cancelled = false;
   let microphone;
   let player;
   let socket;
   let keepAlive;
   const stop = () => {
+    cancelled = true;
+    starting = false;
     clearInterval(keepAlive);
     microphone?.stop(); microphone = undefined;
     const connection = socket; socket = undefined;
@@ -17,18 +29,32 @@ export function createDeepgramVoiceSession({ attempt, onStatus, onTranscript, on
     onStatus("stopped");
   };
   const fail = error => { stop(); onError(error instanceof Error ? error : new Error("Voice connection ended.")); };
+  const microphoneError = error => new Error(microphoneErrors[error?.name] ?? "The microphone could not start. Check the microphone permission of your browser, then select Reconnect voice.");
   return {
     async start() {
-      if (socket) return;
+      if (socket || starting) return;
+      cancelled = false;
+      // Ask for the microphone before connecting, so a refusal spends no voice time.
+      starting = true;
       onStatus("connecting");
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new DOMException("No media devices.", "NotSupportedError");
+        const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+        for (const track of probe.getTracks()) track.stop();
+      } catch (error) { if (!cancelled) fail(microphoneError(error)); return; } finally { starting = false; }
+      if (cancelled) return;
       player = new AgentPlayer({ sampleRate: 24000 });
       const url = new URL(`/api/attempts/${encodeURIComponent(attempt.id)}/voice`, location.origin);
       url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
       const connection = new WebSocket(url);
       socket = connection;
       connection.binaryType = "arraybuffer";
-      connection.onclose = () => { if (socket === connection) fail(new Error("Voice session ended. Your recorded transcript is saved.")); };
-      connection.onerror = fail;
+      // The server refuses the upgrade when the voice allowance is used up or another connection is open.
+      let opened = false;
+      connection.onopen = () => { opened = true; };
+      const ended = () => { if (socket === connection) fail(new Error(opened ? "Voice session ended. Your recorded transcript is saved." : "Voice could not connect. Your voice time may be used up, or voice is open in another tab. Try again later.")); };
+      connection.onclose = ended;
+      connection.onerror = ended;
       connection.onmessage = async ({ data }) => {
         if (socket !== connection) return;
         if (typeof data !== "string") { player?.queue(data); return; }
@@ -38,7 +64,7 @@ export function createDeepgramVoiceSession({ attempt, onStatus, onTranscript, on
             const capture = new AgentMicrophone(frame => { if (socket?.readyState === WebSocket.OPEN) socket.send(frame); }, { sampleRate: 16000 });
             microphone = capture;
             capture.on("error", fail);
-            await capture.start();
+            await capture.start().catch(error => { throw microphoneError(error); });
             if (socket !== connection) { capture.stop(); return; }
             keepAlive = setInterval(() => { if (socket?.readyState === WebSocket.OPEN) socket.send('{"type":"KeepAlive"}'); }, 10000);
             onStatus("listening");
@@ -56,6 +82,6 @@ export function createDeepgramVoiceSession({ attempt, onStatus, onTranscript, on
       if (socket?.readyState !== WebSocket.OPEN) throw new Error("Start voice before sending a message.");
       socket.send(JSON.stringify({ type: "InjectUserMessage", content }));
     },
-    get active() { return Boolean(socket); },
+    get active() { return Boolean(socket) || starting; },
   };
 }

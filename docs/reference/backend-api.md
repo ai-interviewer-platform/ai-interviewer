@@ -126,7 +126,7 @@ return the source in `attempt.draft_source`. A stale revision returns:
 
 ```json
 {
-  "error": "The draft changed elsewhere. Reload before saving again."
+  "error": "This code was saved from another tab or device. Copy your unsaved changes, then reload the page to get the latest saved code."
 }
 ```
 

@@ -77,7 +77,7 @@ async function loadEvidence(client: PoolClient, review: Review) {
   }
   const payload = JSON.stringify({ attempt: { mode: attempt.mode, inputMode: attempt.input_mode, problemPrompt: attempt.prompt, finalCheckpointId: manifest.finalCheckpointId }, allowedEvidenceIds: [...byId.keys()], evidence });
   if (new TextEncoder().encode(payload).byteLength > reviewLimits.evidenceBytes) throw new PermanentReviewError("Frozen evidence exceeds review processing limits; no evidence was silently truncated.");
-  return { payload, byId, canRetry: attempt.source_attempt_id === null };
+  return { payload, byId, canRetry: attempt.source_attempt_id === null, finalCheckpointId: manifest.finalCheckpointId };
 }
 
 export async function processReview(reviewId: string, env: Env, pool: Pool, configuredProvider?: ReviewProvider): Promise<void> {
@@ -101,7 +101,7 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
         throw new PermanentReviewError("The daily review limit for this account was reached; no findings were generated.");
       }
       const provider = configuredProvider ?? reviewProviderFor(env);
-      const { payload, byId, canRetry } = await loadEvidence(client, review);
+      const { payload, byId, canRetry, finalCheckpointId } = await loadEvidence(client, review);
       await client.query("UPDATE reviews SET started_at = now(), evaluator_version = $2, updated_at = now() WHERE id = $1", [reviewId, provider.evaluatorVersion]);
       const allowedEvidenceIds = new Set(byId.keys());
       // Provider adapters normalize transport envelopes only. The Finding checks run
@@ -110,8 +110,11 @@ export async function processReview(reviewId: string, env: Env, pool: Pool, conf
       for (const finding of findings) {
         const findingId = crypto.randomUUID();
         const cited = finding.evidenceIds.map(id => byId.get(id)!);
+        // The retry starts from the cited checkpoint, else the checkpoint of a cited run,
+        // else the final submission: findings usually cite transcript or run events.
         const checkpoint = canRetry && finding.suggested_action && finding.evidence_status !== "insufficient_evidence"
-          ? cited.find(item => item.checkpoint && ["run", "submission"].includes(item.checkpoint.type))?.checkpoint?.id ?? null : null;
+          ? cited.find(item => item.checkpoint && ["run", "submission"].includes(item.checkpoint.type))?.checkpoint?.id
+            ?? cited.find(item => item.run)?.run?.checkpointId ?? finalCheckpointId : null;
         await client.query(
           `INSERT INTO review_findings (id, review_id, observation, interpretation, limitations, suggested_action, criterion, evidence_status, retry_checkpoint_id, practice_goal, assistance_context)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,

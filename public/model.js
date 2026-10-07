@@ -64,8 +64,6 @@ export const scenes = [
   ['Session history', 'sessions', 'Review ready, saved draft, and return'],
   ['Empty history', 'sessions?state=empty', 'A clear first action'],
   ['History unavailable', 'sessions?state=error', 'Recovery without false zero activity'],
-  ['Personal setup', 'setup', 'Goal, topics, and recording choices'],
-  ['Microphone unavailable', 'setup?state=mic', 'Continue with text'],
   ['Guided sample', 'sample', 'Read → run → review → retry'],
   ['Mock interview', 'interview', 'Problem, code, tests, and conversation'],
   ['Expanded conversation', 'interview?state=expanded', 'More transcript space without moving code'],

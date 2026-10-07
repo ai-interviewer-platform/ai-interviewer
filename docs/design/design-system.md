@@ -96,7 +96,7 @@ reduced motion, keyboard input, and forced colors disable all logo animation.
 
 ## Screens
 
-Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, Profile, and the private Operator reports (`#operator`, not linked from navigation) use the floating top navbar. The primary group contains Home, Roadmap, and Sessions; the account group contains Preferences, Design system, and the profile avatar.
+Home, Practice, Review, Roadmap, Sessions, Preferences, Profile, and the private Operator reports (`#operator`, not linked from navigation) use the floating top navbar. The primary group contains Home, Roadmap, and Sessions. Roadmap and Sessions open Personal practice, and Home does when signed in; the account group contains Preferences and the profile avatar. Sample screens show a banner that links to Personal practice. Interview setup is part of Personal practice only. The design specimen (`#system`) and its scene picker are served only on localhost.
 
 ## Runtime decisions
 
@@ -148,7 +148,8 @@ Home, Practice, Review, Roadmap, Sessions, Setup, Preferences, Profile, and the 
   Tab indent with the Esc-then-Tab exit, bracket matching, `Line: X Col: Y`), then
   Run code and Submit code, then the results: a summary, a vertical list of sample
   test cases, and the input, output, and expected output of the selected case.
-  Submit code finishes the attempt after a confirmation. Below 64rem the rail
+  Submit code finishes the attempt after a confirmation. Pause stops voice, saves
+  the Draft, and shows a paused plane with Resume and Save & exit. Below 64rem the rail
   becomes horizontal tabs and the columns stack.
 
 ## Verification

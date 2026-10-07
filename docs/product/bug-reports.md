@@ -22,7 +22,7 @@ Decided under the owner's delegation of 2026-09-30. The shared collection, acces
 | Error states | Missing or invalid fields are marked, described and focused. Server or connection failures keep all text and offer the contact address. |
 | Availability | `public/support.js` loads separately from `app.js`, shows **Report a problem** without waiting for configuration, and does not use measurement or feedback. Pages outside the app report as page `other`. |
 | Retention and deletion | Reports are kept until project retirement; reply addresses only until the report is closed or permission is withdrawn. The operator deletes a report on request or when its text contains personal data. |
-| Abuse limit | 30 reports per minute project-wide (`limits` in `src/security.ts`); no identifier is stored for it. |
+| Abuse limit | 30 reports per minute project-wide (`limits` in `src/security.ts`); no identifier is stored for it. A per-visitor limit of 10 requests per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. |
 
 ## Bug-report coverage matrix
 

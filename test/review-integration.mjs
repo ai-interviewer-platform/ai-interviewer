@@ -78,6 +78,13 @@ try {
   assert.equal(detail.findings[0].retry_checkpoint_id, "valid-code");
   console.log("PASS real finish manifest, scoped evidence, voice provenance, API response, concurrent and repeated delivery");
 
+  const transcriptReview = await seed("transcript");
+  globalThis.fetch = async () => Response.json(respond("transcript", { evidenceIds: ["transcript-text"] }));
+  await processReview(transcriptReview, env, database);
+  const submitted = (await database.query("SELECT id FROM code_checkpoints WHERE attempt_id = 'transcript' AND checkpoint_type = 'submission'")).rows[0].id;
+  assert.equal((await database.query("SELECT retry_checkpoint_id FROM review_findings WHERE review_id = $1", [transcriptReview])).rows[0].retry_checkpoint_id, submitted);
+  console.log("PASS a finding without a cited checkpoint retries from the final submission");
+
   const crossReview = await seed("cross");
   globalThis.fetch = async () => Response.json(respond("cross", { evidenceIds: ["foreign-text"] }));
   await processReview(crossReview, env, database);
@@ -106,7 +113,7 @@ try {
   globalThis.fetch = async () => { assert.fail("Provider must not be called"); };
   await processReview(missing, { ...env, REVIEW_PROVIDER_API_KEY: undefined }, database);
   assert.equal((await state(missing)).status, "failed");
-  assert.equal(dispatched.length, 5);
+  assert.equal(dispatched.length, 6);
   console.log("PASS transient retry recovery and missing configuration fail-closed behavior");
 
   // The Review processor with a fake Review provider: it runs every Finding check.

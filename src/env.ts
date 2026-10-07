@@ -29,6 +29,9 @@ export interface Env {
   MEASUREMENT_COLLECTION_APPROVED?: string;
   FEEDBACK_COLLECTION_APPROVED?: string;
   BUG_REPORT_COLLECTION_APPROVED?: string;
+  // Absent in local development and tests; then only the project-wide limits apply.
+  FORM_VISITOR_LIMITER?: RateLimit;
+  MEASURE_VISITOR_LIMITER?: RateLimit;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   DEEPGRAM_API_KEY?: string;

@@ -56,6 +56,7 @@ test('mocked account navigation, authentication modes, personal session flow, an
         else if (path === '/api/attempts' && request.method() === 'POST') payload = { attemptId };
         else if (path.endsWith('/draft')) { drafts.push(request.postDataJSON().source); payload = { draftRevision: drafts.length + 1 }; }
         else if (path.endsWith('/review')) payload = { review: { status: 'ready' }, findings: [{ id: 'fixture-finding', observation: 'Inspect the return', interpretation: 'A fixture finding.', limitations: 'Mock evidence only.', evidence: [], retry_checkpoint_id: 'fixture-checkpoint' }] };
+        else if (path.endsWith('/related')) payload = { relatedProblems: [] };
         else if (path.endsWith('/retry')) { attemptId = 'fixture-retry'; payload = { attemptId }; }
         else if (path === `/api/attempts/${attemptId}`) payload = detail();
         else { unexpectedRequests.push(`${request.method()} ${path}`); status = 404; payload = { error: 'Unexpected mocked request' }; }

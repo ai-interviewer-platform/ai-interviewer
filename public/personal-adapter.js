@@ -9,6 +9,18 @@ const openedReviews = new Set();
 
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
+// Resolves true when the candidate confirms. Escape and Cancel resolve false.
+function confirmAction(title, message, confirmLabel) {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "confirm-title");
+  dialog.innerHTML = `<h2 id="confirm-title">${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="actions"><button class="button secondary" type="button" data-confirm="">Cancel</button><button class="button primary" type="button" data-confirm="yes">${escapeHtml(confirmLabel)}</button></div>`;
+  const trigger = document.activeElement;
+  dialog.addEventListener("click", (event) => { const choice = event.target.closest("[data-confirm]"); if (choice) dialog.close(choice.dataset.confirm); });
+  document.body.append(dialog);
+  dialog.showModal();
+  return new Promise((resolve) => dialog.addEventListener("close", () => { dialog.remove(); if (trigger?.isConnected) trigger.focus(); resolve(dialog.returnValue === "yes"); }, { once: true }));
+}
+
 async function api(path, options = {}) {
   const finishLoading = beginBrandLoading();
   try {
@@ -31,12 +43,14 @@ const icon = (path) => `<svg width="16" height="16" viewBox="0 0 20 20" fill="no
 const chevronIcon = icon('<path d="m8 5 5 5-5 5"/>');
 const codeIcon = icon('<path d="m6 5-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"/>');
 const sentenceCase = (value) => { const text = String(value ?? ""); return text.charAt(0).toUpperCase() + text.slice(1); };
+// Time since the attempt started, as m:ss.
+const offsetLabel = (ms) => { const seconds = Math.max(0, Math.floor(Number(ms) / 1000) || 0); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`; };
 const dateLabel = (value) => (value ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
 
 function authForm(state) {
   if (state.resetToken) return `<form id="personal-reset-form" class="auth-form"><h2>Choose a new password</h2><div class="field"><label for="reset-password">New password</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="reset-password-hint"><p id="reset-password-hint" class="field-hint">Use at least 8 characters. Other signed-in devices are signed out.</p></div><button class="button primary" type="submit">Save new password</button></form>`;
   if (state.authView === "forgot") return `<form id="personal-forgot-form" class="auth-form"><h2>Reset your password</h2><p class="field-hint">Enter the email for your account. We send a reset link that works for one hour.</p><div class="field"><label for="forgot-email">Email</label><input id="forgot-email" name="email" type="email" autocomplete="email" required></div><button class="button primary" type="submit">Send reset link</button><button class="button quiet" type="button" data-auth-view="sign-in">Back to sign in</button></form>`;
-  return `<div class="segmented auth-switch" role="group" aria-label="Sign in or create an account"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form" class="auth-form"><div class="field" data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><div class="field"><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></div><div class="field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required aria-describedby="auth-password-hint"><p id="auth-password-hint" class="field-hint" data-signup-hint hidden>Use at least 8 characters.</p></div><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
+  return `<div class="segmented auth-switch" role="group" aria-label="Sign in or create an account"><button class="button selected" type="button" data-auth-view="sign-in" aria-pressed="true">Sign in</button><button class="button" type="button" data-auth-view="sign-up" aria-pressed="false">Create account</button></div><form id="personal-auth-form" class="auth-form"><div class="field" data-signup-name hidden><label for="auth-name">Display name</label><input id="auth-name" name="name" autocomplete="name"></div><div class="field"><label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></div><div class="field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required aria-describedby="auth-password-hint"><p id="auth-password-hint" class="field-hint" data-signup-hint hidden>Use 8 to 128 characters.</p></div><button class="button primary" type="submit">Sign in</button>${state.emailEnabled ? `<button class="button quiet small" type="button" data-auth-view="forgot">Forgot password?</button>` : ""}</form>`;
 }
 
 function authMarkup(state, message = "") {
@@ -168,12 +182,16 @@ function resultsMarkup(state) {
   return `${submissionCheckMarkup(detail.submissionCheck)}${review}${run ? runResultsMarkup(detail, run) : ""}`;
 }
 
+const VOICE_OFF_PLACEHOLDER = "Start voice to type to the interviewer";
+// Pages of an open Attempt. Each has its own address, so refresh and Back keep it.
+const ATTEMPT_VIEWS = ["workspace", "review", "related"];
+
 const WORKSPACE_TABS = [["problem", "Problem"], ["voice", "Voice"], ["discussion", "Discussion"], ["submissions", "Submissions"]];
 
 function workspaceMarkup(state) {
   const detail = state.attempt;
   const problem = detail.problem;
-  const transcript = detail.transcripts.map((segment) => `<div class="message"><div class="speaker">${escapeHtml(segment.speaker)}<time>${escapeHtml(segment.end_offset_ms)} ms</time></div><p>${escapeHtml(segment.text)}</p></div>`).join("") || `<p class="small muted">No conversation messages recorded yet.</p>`;
+  const transcript = detail.transcripts.map((segment) => `<div class="message"><div class="speaker">${escapeHtml(segment.speaker)}<time>${escapeHtml(offsetLabel(segment.end_offset_ms))}</time></div><p>${escapeHtml(segment.text)}</p></div>`).join("") || `<p class="small muted">No conversation messages recorded yet.</p>`;
   const disabled = detail.attempt.status === "completed" ? "disabled" : "";
   const isVoice = detail.attempt.input_mode === "voice";
   const tabs = WORKSPACE_TABS.filter(([id]) => id !== "voice" || isVoice);
@@ -183,13 +201,17 @@ function workspaceMarkup(state) {
   const samples = (detail.visibleTests ?? []).map((test, index) => `<div class="example"><strong class="small">Sample test ${index}</strong><dl><dt>Input</dt><dd><code>${escapeHtml(testCall(detail, test))}</code></dd><dt>Expected output</dt><dd><code>${escapeHtml(pythonValue(test.expected_output))}</code></dd></dl></div>`).join("");
   const problemPanel = panel("problem", `<div class="problem-scroll"><h2>${escapeHtml(problem.title)}</h2><p class="small muted">${[problem.topic, problem.difficulty].filter(Boolean).map(escapeHtml).join(" · ")}</p><p class="problem-prompt">${escapeHtml(problem.prompt)}</p><p class="small muted">Entry point: <code>${escapeHtml(problem.entry_point)}</code></p>${samples ? `<h3>Sample tests</h3>${samples}` : ""}</div>`);
   const voicePanel = isVoice ? panel("voice", `<div class="voice-panel"><p class="eyebrow">Voice interviewer</p><p id="voice-status" role="status">Voice ready</p><button class="button primary" type="button" data-voice-toggle ${disabled}>Start voice</button><p class="small muted">Deepgram handles listening and speech. ${escapeHtml(state.thinkingModel)} produces the interviewer response. Raw audio is not saved. The conversation appears in Discussion.</p></div>`) : "";
-  const discussionPanel = panel("discussion", `<div class="panel-top"><span>Discussion</span><button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? "Speak, or type while voice is active…" : "Explain your approach…"}" autocomplete="off" ${disabled}><button class="icon-button" type="submit" aria-label="Send message" ${disabled}>→</button></form><p class="composer-note">${isVoice ? "Typed messages go to the live voice interviewer." : "Messages are stored as text evidence."}</p></div>`);
+  const discussionPanel = panel("discussion", `<div class="panel-top"><span>Discussion</span><button class="button quiet small" type="button" data-help ${disabled}>Request help</button></div><div class="conversation-body"><div class="messages" tabindex="0" role="region" aria-label="Recorded conversation">${transcript}</div><form id="personal-message-form" class="composer"><label class="sr-only" for="personal-message">Message the interviewer</label><input id="personal-message" name="message" placeholder="${isVoice ? VOICE_OFF_PLACEHOLDER : "Explain your approach…"}" autocomplete="off" ${isVoice ? "disabled" : disabled}><button class="icon-button" type="submit" aria-label="Send message" ${isVoice ? "disabled" : disabled}>→</button></form><p class="composer-note">${isVoice ? "Typed messages go to the live voice interviewer while voice is on." : "Messages are stored as text evidence."}</p></div>`);
   const submissionsPanel = panel("submissions", `<div class="problem-scroll"><h2>Submissions</h2>${detail.submissionCheck ? `<p><strong>${escapeHtml(submissionCheckSentence(detail.submissionCheck))}</strong></p>` : ""}${runHistoryMarkup(detail)}</div>`);
   const hasResults = detail.runs.length || detail.submissionCheck || detail.review;
   const editor = `<section class="editor-pane pane"><div class="panel-top"><span>Language <span class="language-pill">Python 3</span></span><div class="actions"><button class="icon-button" type="button" data-reset-code aria-label="Reset to starter code" title="Reset to starter code" ${disabled}>${icon('<path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5"/>')}</button></div></div><div class="code-host" id="code-host"></div><div class="editor-status"><span>Esc then Tab leaves the editor</span><span data-cursor>Line: 1 Col: 1</span></div></section>`;
   const actions = `<div class="editor-actions"><button class="button secondary" type="button" data-run ${disabled}>Run code</button><button class="button primary" type="button" data-finish ${disabled}>Submit code</button></div>`;
   const results = `<section class="tests-pane pane" aria-label="Test results" ${hasResults ? "" : "hidden"}><div class="test-body">${resultsMarkup(state)}</div></section>`;
-  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button></div></div><div class="coding-workspace" style="--left-width:${state.leftWidth}%">${rail}<section class="workspace-left pane">${problemPanel}${voicePanel}${discussionPanel}${submissionsPanel}</section><div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="${Math.round(state.leftWidth)}" data-splitter></div><div class="workspace-right">${editor}${actions}${results}</div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+  return `<main id="main" class="workspace-main personal-workspace"><div class="session-header"><div class="actions"><button class="button quiet small" type="button" data-personal-page="sessions">← Sessions</button><h1>${escapeHtml(problem.title)}</h1><span class="badge">${escapeHtml(detail.attempt.mode)} · ${escapeHtml(detail.attempt.status)}</span></div><div class="actions"><span class="small muted">${isVoice ? "Deepgram voice" : "Text"} evidence · revision ${escapeHtml(detail.attempt.draft_revision)}</span><button class="button quiet small" type="button" data-pause ${disabled}>Pause</button><button class="button quiet small" type="button" data-save-draft ${disabled}>Save & exit</button></div></div><div class="coding-workspace" style="--left-width:${state.leftWidth}%">${rail}<section class="workspace-left pane">${problemPanel}${voicePanel}${discussionPanel}${submissionsPanel}</section><div class="splitter" role="separator" tabindex="0" aria-label="Problem and code width" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="${Math.round(state.leftWidth)}" data-splitter></div><div class="workspace-right">${editor}${actions}${results}</div></div>${state.attempt.hasMore ? `<button class="button quiet" data-more-evidence>Load more evidence</button>` : ""}</main>`;
+}
+
+function pausedMarkup(state) {
+  return `<main id="main" class="page-main"><section class="empty-state"><span class="eyebrow">${escapeHtml(state.attempt.problem.title)}</span><h1>Your attempt is paused.</h1><p>Your code is saved and voice is off. Nothing is recorded until you resume.</p><div class="actions"><button class="button primary" type="button" data-resume>Resume</button><button class="button quiet" type="button" data-save-draft>Save & exit</button></div></section></main>`;
 }
 
 function reviewMarkup(state) {
@@ -199,12 +221,12 @@ function reviewMarkup(state) {
     ? `<p class="empty-inline">Your review is still processing. Refresh to check for findings.</p><button class="button secondary" type="button" data-open-review>Refresh review</button>`
     : `<p class="empty-inline">No findings were published. Your attempt and evidence remain available.</p>`;
   const evidence = (finding) => (finding.evidence ?? []).map((item) => `<li><code>${escapeHtml(item.eventId)}</code>${item.locator ? ` · ${escapeHtml(JSON.stringify(item.locator))}` : ""}</li>`).join("") || "<li>No evidence references were published.</li>";
-  return `<main id="main" class="page-main"><button class="back-link button quiet" type="button" data-personal-page="workspace">← Back to attempt</button><section class="finding-head"><p class="eyebrow">Recorded review</p><h1>${review ? `Review ${escapeHtml(review.status)}` : "Review unavailable"}</h1>${submissionCheckMarkup(state.attempt?.submissionCheck)}<p>${escapeHtml(review?.failure_reason || "This review is limited to its recorded evidence; it does not measure lasting ability.")}</p>${findings.map((finding) => `<article class="observation"><h2>${escapeHtml(finding.observation)}</h2><p>${escapeHtml(finding.interpretation || finding.limitations)}</p><p class="small muted">${escapeHtml(finding.limitations)}</p><h3>Evidence</h3><ul>${evidence(finding)}</ul>${finding.is_disputed ? `<p class="badge">Finding disputed</p>` : `<form class="finding-correction-form" data-finding-id="${escapeHtml(finding.id)}"><label>Correct this finding<input name="reason" required></label><button class="button quiet small" type="submit">Submit correction</button></form>`}${finding.retry_checkpoint_id ? `<button class="button primary small" type="button" data-retry-checkpoint="${escapeHtml(finding.retry_checkpoint_id)}">Retry from this checkpoint</button>` : ""}</article>`).join("") || empty}<div class="actions"><button class="button secondary" type="button" data-open-related>Explore related practice</button></div></section></main>`;
+  return `<main id="main" class="page-main"><button class="back-link button quiet" type="button" data-personal-page="workspace">← Back to attempt</button><section class="finding-head"><p class="eyebrow">Recorded review</p><h1>${review ? `Review ${escapeHtml(review.status)}` : "Review unavailable"}</h1>${submissionCheckMarkup(state.attempt?.submissionCheck)}<p>${escapeHtml(review?.failure_reason || "This review is limited to its recorded evidence; it does not measure lasting ability.")}</p>${findings.map((finding) => `<article class="observation"><h2>${escapeHtml(finding.observation)}</h2><p>${escapeHtml(finding.interpretation || finding.limitations)}</p><p class="small muted">${escapeHtml(finding.limitations)}</p><h3>Evidence</h3><ul>${evidence(finding)}</ul>${finding.is_disputed ? `<p class="badge">Finding disputed</p>` : `<form class="finding-correction-form" data-finding-id="${escapeHtml(finding.id)}"><label>Correct this finding<input name="reason" required></label><button class="button quiet small" type="submit">Submit correction</button></form>`}${finding.retry_checkpoint_id ? `<button class="button primary small" type="button" data-retry-checkpoint="${escapeHtml(finding.retry_checkpoint_id)}">Retry from this checkpoint</button>` : ""}</article>`).join("") || empty}<div class="actions">${state.related.length ? `<button class="button secondary" type="button" data-open-related>Explore related practice</button>` : `<button class="button secondary" type="button" data-practice-topic="${escapeHtml(state.attempt.problem.topic)}">Practice another ${escapeHtml(state.attempt.problem.topic)} problem</button>`}</div></section></main>`;
 }
 
 function relatedMarkup(state) {
   const related = state.related ?? [];
-  return `<main id="main" class="page-main"><button class="back-link" type="button" data-personal-page="review">← Back to review</button><section class="related-page"><p class="eyebrow">Optional next step</p><h1>Related practice</h1>${related.length ? `<ol class="catalog-list">${related.map((problem) => `<li><span class="catalog-text"><strong>${escapeHtml(problem.title)}</strong><small>${escapeHtml(problem.topic)} · ${escapeHtml(problem.relationship_reason)}</small></span><span class="small muted">${problem.attempted_before ? "Attempted before" : "New to your record"}</span><button class="button secondary small" type="button" data-start-related="${escapeHtml(problem.id)}">Set up practice<span class="sr-only"> for ${escapeHtml(problem.title)}</span></button></li>`).join("")}</ol>` : `<p class="empty-inline">There is no authored related problem for this attempt.</p>`}</section></main>`;
+  return `<main id="main" class="page-main"><button class="back-link" type="button" data-personal-page="review">← Back to review</button><section class="related-page"><p class="eyebrow">Optional next step</p><h1>Related practice</h1>${related.length ? `<ol class="catalog-list">${related.map((problem) => `<li><span class="catalog-text"><strong>${escapeHtml(problem.title)}</strong><small>${escapeHtml(problem.topic)} · ${escapeHtml(problem.relationship_reason)}</small></span><span class="small muted">${problem.attempted_before ? "Attempted before" : "New to your record"}</span><button class="button secondary small" type="button" data-start-related="${escapeHtml(problem.id)}">Set up practice<span class="sr-only"> for ${escapeHtml(problem.title)}</span></button></li>`).join("")}</ol>` : `<p class="empty-inline">There is no authored related problem for this attempt.</p><button class="button secondary" type="button" data-personal-page="catalog">Browse the roadmap</button>`}</section></main>`;
 }
 
 function personalHeader(state) {
@@ -226,18 +248,26 @@ export function mountPersonal(root) {
   const requestedPage = new URLSearchParams(location.hash.split('?')[1] ?? '').get('page');
   if (['home', 'sessions', 'catalog', 'profile', 'settings'].includes(requestedPage)) state.page = requestedPage;
   let disposed = false;
+  let restoring = false;
+  // The editor bundle (about 450 KB) loads in idle time once a signed-in page shows.
+  let editorPrefetched = false;
   let authMode = new URLSearchParams(location.hash.split("?")[1] ?? "").get("auth") === "sign-up" ? "sign-up" : "sign-in";
   let voiceSession = null;
   let editor = null;
   const showError = (message) => { root.querySelector("#personal-error")?.remove(); const target = root.querySelector("main"); if (target) target.insertAdjacentHTML("afterbegin", `<p id="personal-error" class="inline-alert" role="alert">${escapeHtml(message)}</p>`); };
   const setVoiceStatus = (status) => {
-    setBrandVoice(status);
-    const labels = { connecting: "Connecting…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking", reconnecting: "Reconnecting…", stopped: "Voice ready" };
+    setBrandVoice(status === "disconnected" ? "stopped" : status);
+    const labels = { connecting: "Connecting…", listening: "Listening", thinking: "Thinking…", speaking: "Speaking", reconnecting: "Reconnecting…", stopped: "Voice ready", disconnected: "Voice stopped. Your transcript is saved." };
     const statusNode = root.querySelector("#voice-status");
     if (statusNode) { statusNode.textContent = labels[status] ?? status; statusNode.dataset.voiceState = status; }
     root.querySelector("#tab-voice")?.toggleAttribute("data-live", Boolean(voiceSession?.active));
     const button = root.querySelector("[data-voice-toggle]");
-    if (button) button.textContent = voiceSession?.active ? "Stop voice" : "Start voice";
+    if (button) button.textContent = voiceSession?.active ? "Stop voice" : status === "disconnected" ? "Reconnect voice" : "Start voice";
+    if (state.attempt?.attempt.input_mode !== "voice") return;
+    const live = Boolean(voiceSession?.active) && status !== "connecting";
+    root.querySelectorAll("#personal-message-form input, #personal-message-form button").forEach((control) => { control.disabled = !live; });
+    const message = root.querySelector("#personal-message");
+    if (message) message.placeholder = live ? "Speak, or type to the interviewer…" : VOICE_OFF_PLACEHOLDER;
   };
   const stopVoice = () => {
     voiceSession?.stop();
@@ -249,7 +279,7 @@ export function mountPersonal(root) {
     if (!messages) return;
     if (messages.querySelector(".muted")) messages.innerHTML = "";
     const speaker = role === "user" ? "candidate" : state.attempt.attempt.mode === "coach" ? "coach" : "interviewer";
-    messages.insertAdjacentHTML("beforeend", `<div class="message"><div class="speaker">${escapeHtml(speaker)}<time>${escapeHtml(occurrenceOffsetMs)} ms</time></div><p>${escapeHtml(text)}</p></div>`);
+    messages.insertAdjacentHTML("beforeend", `<div class="message"><div class="speaker">${escapeHtml(speaker)}<time>${escapeHtml(offsetLabel(occurrenceOffsetMs))}</time></div><p>${escapeHtml(text)}</p></div>`);
     messages.scrollTop = messages.scrollHeight;
   };
   const startVoice = async () => {
@@ -258,7 +288,7 @@ export function mountPersonal(root) {
     voiceSession = createDeepgramVoiceSession({
       attempt: state.attempt.attempt,
       onStatus: setVoiceStatus,
-      onError: (error) => showError(error.message),
+      onError: (error) => { setVoiceStatus("disconnected"); showError(error.message); },
       onTranscript: async ({ role, text }) => {
         appendTranscript({ role, text, occurrenceOffsetMs: Date.now() - Date.parse(state.attempt.attempt.created_at) });
       },
@@ -272,6 +302,7 @@ export function mountPersonal(root) {
     const footer = root.closest('.app-content')?.querySelector('.page-footer');
     if (footer) { footer.hidden = Boolean(state.user && (state.selectedProblemId || ['workspace', 'review', 'related'].includes(state.page))); document.documentElement.style.setProperty('--footer-height', `${footer.getBoundingClientRect().height}px`); }
     if (!state.collectionEnabled) { root.innerHTML = collectionUnavailableMarkup(); return; }
+    if (state.resetToken && !state.emailEnabled) state.resetToken = null;
     if (state.resetToken || !state.user) {
       root.innerHTML = authMarkup(state);
       if (!state.resetToken && authMode === 'sign-up') root.querySelector('[data-auth-view="sign-up"]')?.click();
@@ -288,11 +319,16 @@ export function mountPersonal(root) {
     else if (state.selectedProblemId) {
       const problem = state.catalog.find((item) => item.id === state.selectedProblemId);
       content = problem ? setupMarkup(state, problem) : dashboardMarkup(state);
-    } else content = state.attempt ? workspaceMarkup(state) : dashboardMarkup(state);
+    } else content = state.attempt ? (state.paused ? pausedMarkup(state) : workspaceMarkup(state)) : dashboardMarkup(state);
     root.innerHTML = personalHeader(state) + content;
+    // Setup is reached from the catalog, so its address is the catalog.
+    const hash = state.selectedProblemId ? "#personal?page=catalog"
+      : state.attempt && ATTEMPT_VIEWS.includes(state.page) ? `#personal?attempt=${encodeURIComponent(state.attempt.attempt.id)}${state.page === "workspace" ? "" : `&view=${state.page}`}` : null;
+    if (hash && location.hash !== hash) history[restoring ? "replaceState" : "pushState"](null, "", hash);
     if (root.querySelector("#code-host")) mountEditor();
+    else if (!editorPrefetched) { editorPrefetched = true; (window.requestIdleCallback ?? setTimeout)(() => import("./code-editor.js").catch(() => {})); }
   };
-  // The editor bundle loads only when a workspace opens.
+  // Mounts the editor; its bundle is usually already prefetched (see render).
   const mountEditor = async () => {
     const host = root.querySelector("#code-host");
     const { createCodeEditor } = await import("./code-editor.js");
@@ -334,6 +370,7 @@ export function mountPersonal(root) {
     stopVoice();
     if (state.attempt?.attempt.id !== attemptId) state.leftTab = "problem";
     state.attempt = await session.detail(attemptId);
+    state.paused = false;
     state.runIndex = undefined;
     if (disposed) return;
     state.review = state.attempt.review ? await session.review(attemptId).catch(() => null) : null;
@@ -341,6 +378,14 @@ export function mountPersonal(root) {
     state.page = "workspace";
     state.selectedProblemId = null;
     render();
+  };
+  // Gets the current Review and its authored related problems, then shows the Review.
+  const showReview = async () => {
+    const attemptId = state.attempt.attempt.id;
+    const [review, related] = await Promise.all([session.review(attemptId), session.related().catch(() => ({ relatedProblems: [] }))]);
+    if (disposed || state.attempt?.attempt.id !== attemptId) return;
+    state.review = review; state.attempt.review = review.review; state.related = related.relatedProblems ?? [];
+    state.page = "review"; render();
   };
   const navigate = async (page) => {
     await session.saveChangedDraft();
@@ -380,6 +425,7 @@ export function mountPersonal(root) {
         root.querySelector("#auth-password").autocomplete = authMode === "sign-up" ? "new-password" : "current-password";
         // Better Auth's default minimum password length.
         root.querySelector("#auth-password").minLength = authMode === "sign-up" ? 8 : 0;
+        if (authMode === "sign-up") root.querySelector("#auth-password").maxLength = 128; else root.querySelector("#auth-password").removeAttribute("maxlength");
         root.querySelector("#auth-name").required = authMode === "sign-up";
         root.querySelector("#personal-auth-form button[type=submit]").textContent = authMode === "sign-up" ? "Create account" : "Sign in";
         root.querySelectorAll("[data-auth-view]").forEach((button) => { const selected = button.dataset.authView === authMode; button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected)); });
@@ -400,21 +446,18 @@ export function mountPersonal(root) {
       }
       else if (control.dataset.openAttempt) await openAttempt(control.dataset.openAttempt);
       else if (control.hasAttribute("data-open-review")) {
-        const attemptId = state.attempt.attempt.id;
         control.disabled = true;
-        try {
-          const review = await session.review(attemptId);
-          if (disposed || state.attempt?.attempt.id !== attemptId) return;
-          state.review = review; state.attempt.review = review.review;
-          state.page = "review"; render();
-        } finally { control.disabled = false; }
+        try { await showReview(); } finally { control.disabled = false; }
       }
-      else if (control.hasAttribute("data-open-related")) { state.related = (await session.related()).relatedProblems; state.page = "related"; render(); }
+      else if (control.hasAttribute("data-open-related")) { state.page = "related"; render(); }
+      else if (control.dataset.practiceTopic) { state.catalogFilter = { topic: control.dataset.practiceTopic, difficulty: "", limit: 30 }; await navigate("catalog"); }
       else if (control.hasAttribute("data-voice-toggle")) { await startVoice(); }
       else if (control.dataset.startRelated) { state.selectedProblemId = control.dataset.startRelated; state.page = "home"; render(); }
       else if (control.dataset.retryCheckpoint) { const result = await session.retry(control.dataset.retryCheckpoint, "Focused retry"); personalOutcome("retry_started"); await openAttempt(result.attemptId); }
       else if (control.hasAttribute("data-sign-out")) { await session.saveChangedDraft(); await api("/api/auth/sign-out", { method: "POST", body: {} }); if (disposed) return; state.user = null; state.attempt = null; state.attempts = []; state.review = null; state.related = []; state.selectedProblemId = null; state.page = "home"; state.authView = "sign-in"; authMode = "sign-in"; history.replaceState(null, "", "#personal"); render(); }
-      else if (control.hasAttribute("data-save-draft")) { await navigate("sessions"); }
+      else if (control.hasAttribute("data-save-draft")) { state.paused = false; await navigate("sessions"); }
+      else if (control.hasAttribute("data-pause")) { stopVoice(); await session.saveChangedDraft(); state.paused = true; render(); root.querySelector("[data-resume]")?.focus(); }
+      else if (control.hasAttribute("data-resume")) { state.paused = false; render(); root.querySelector("[data-pause]")?.focus(); }
       else if (control.dataset.showRun) {
         state.runIndex = Number(control.dataset.showRun);
         const pane = root.querySelector(".tests-pane");
@@ -422,7 +465,7 @@ export function mountPersonal(root) {
         pane.hidden = false;
         pane.scrollIntoView({ block: "nearest" });
       }
-      else if (control.hasAttribute("data-reset-code")) { if (editor && confirm("Reset your code to the starter code? Your current code will be replaced.")) { editor.value = state.attempt.problem.starter_code ?? ""; editor.focus(); } }
+      else if (control.hasAttribute("data-reset-code")) { if (editor && await confirmAction("Reset to starter code?", "Your current code will be replaced with the starter code.", "Reset code")) { editor.value = state.attempt.problem.starter_code ?? ""; editor.focus(); } }
       else if (control.hasAttribute("data-run")) {
         control.disabled = true; control.textContent = "Running…";
         try {
@@ -433,7 +476,7 @@ export function mountPersonal(root) {
         } finally { control.disabled = false; control.textContent = "Run code"; }
       }
       else if (control.hasAttribute("data-finish")) {
-        if (!confirm("Submit your code and finish the interview? You cannot edit the code after you submit.")) return;
+        if (!await confirmAction("Submit and finish?", "You cannot edit the code after you submit. The hidden tests run, then your review is prepared.", "Submit code")) return;
         control.disabled = true; control.textContent = "Checking your submission…";
         try {
           const result = await session.finish();
@@ -488,7 +531,7 @@ export function mountPersonal(root) {
         // With email verification on, sign-up returns no session token.
         if (authMode === "sign-up" && !result.token) { authMode = "sign-in"; root.innerHTML = authMarkup(state, "Check your email for a confirmation link, then sign in."); return; }
         authMode = "sign-in";
-        await reload(); render();
+        await reload(); render(); await openRequested();
       } else if (form.id === "personal-forgot-form") {
         await api("/api/auth/request-password-reset", { method: "POST", body: { email: new FormData(form).get("email") } });
         state.authView = "sign-in";
@@ -530,6 +573,23 @@ export function mountPersonal(root) {
       }
     } catch (error) { showError(error instanceof Error ? error.message : "The request could not be completed."); }
   });
-  (async () => { try { await reload(); render(); } catch (error) { if (disposed) return; state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); if (!state.resetToken && authMode === "sign-up") root.querySelector('[data-auth-view="sign-up"]')?.click(); } })();
-  return () => { disposed = true; stopVoice(); editor?.destroy(); };
+  // Opens the Attempt view in the address. Restoring replaces history entries instead of adding them.
+  const requested = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  const openRequested = async () => {
+    const attemptId = requested.get("attempt");
+    if (!state.user || !attemptId) return;
+    // The address opens its Attempt once, so a later sign-in on this page starts at home.
+    requested.delete("attempt");
+    const view = requested.get("view");
+    restoring = true;
+    try {
+      await openAttempt(attemptId);
+      if (view !== "workspace" && ATTEMPT_VIEWS.includes(view) && state.attempt.review) { await showReview(); if (view === "related") { state.page = "related"; render(); } }
+    } catch (error) {
+      state.attempt = null; history.replaceState(null, "", "#personal?page=home"); render();
+      showError(error instanceof Error ? error.message : "That attempt could not be opened.");
+    } finally { restoring = false; }
+  };
+  (async () => { try { await reload(); render(); await openRequested(); } catch (error) { if (disposed) return; state.user = null; root.innerHTML = authMarkup(state, state.resetToken ? "" : error instanceof Error ? error.message : "The data service is unavailable."); if (!state.resetToken && authMode === "sign-up") root.querySelector('[data-auth-view="sign-up"]')?.click(); } })();
+  return () => { session.saveChangedDraft().catch(() => {}); disposed = true; stopVoice(); editor?.destroy(); };
 }

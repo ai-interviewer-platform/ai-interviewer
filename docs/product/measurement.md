@@ -23,7 +23,7 @@ Decided under the owner's delegation of 2026-09-30, on the baseline of `docs/pro
 | Processor inventory | Cloudflare (hosting, request processing) and Neon PostgreSQL (storage). Google Fonts receives font requests as before, with no measurement data. No AI processing of measurement, feedback or bug-report records. |
 | Minimization | Allowlisted fields only. The server rejects unknown event names, surfaces, actions and zones and stores only allowlisted columns. No email, receipt, free text, code, transcript, URL, query, referrer, IP address or account identifier. |
 | Outage behavior | Measurement never blocks product, feedback or bug-report work: adapter errors are swallowed, and the server returns 503 when off. |
-| Abuse limit | A project-wide limit of 1200 events per minute (`limits` in `src/security.ts`). Exhausting it drops events, never product work. No identifier is stored for rate limiting. |
+| Abuse limit | A project-wide limit of 1200 events per minute (`limits` in `src/security.ts`). Exhausting it drops events, never product work. No identifier is stored for rate limiting. A per-visitor limit of 120 events per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. |
 
 ## Event contract
 
@@ -67,7 +67,7 @@ The report never calculates a rate between client documents and server outcomes:
 | Landing → waitlist | `waitlist_request_accepted`, `waitlist_withdrawal_accepted`; server `waitlist_joined`/`withdrawn` | No (form) | waitlist test, report waitlist counts |
 | Landing → sample practice → review → retry | `cta_selected`, `practice_started`, `practice_completed`, `review_opened`, `retry_started` (`sample`) | No | journey events, landing funnel steps |
 | Personal practice → review → retry | server-confirmed `practice_started`, `practice_completed`, `retry_started`; `review_opened` (`personal`); server cohort | No | server cohort in the measurement test; client emissions and exclusion of code and account data in the mocked personal flow (`test/userflow-navigation.test.mjs`) |
-| Sample pages (fictional): `welcome`, `roadmap`, `sessions`, `setup`, `interview`, `review`, `retry`, `complete`, `related`, `preferences`, `system`, `demo-profile` | `page_viewed` (`sample`) | No | route loop |
+| Sample pages (fictional): `welcome`, `roadmap`, `sessions`, `interview`, `review`, `retry`, `complete`, `related`, `preferences`, `system`, `demo-profile` | `page_viewed` (`sample`) | No | route loop |
 | Legal: `terms`, `privacy`, `cookies` | `page_viewed` (`none`) | No | route loop |
 | `personal` (account, workspace, review) | `page_viewed` (`personal`) | No | route loop |
 | `operator` | none | No | not in the allowlist |

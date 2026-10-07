@@ -37,6 +37,10 @@ try {
     await pool.query("INSERT INTO security_rate_limits (key, count, expires_at) VALUES ($1, 1000000, now() + interval '1 minute') ON CONFLICT (key) DO UPDATE SET count = 1000000, expires_at = now() + interval '1 minute'", [rateKey]);
     assert.equal((await request(path, {}, {}, {})).status, 429, `${kind}: project-wide rate limit`);
     await pool.query('DELETE FROM security_rate_limits WHERE key = $1', [rateKey]);
+    const keys = [];
+    const limiter = { limit: async ({ key }) => { keys.push(key); return { success: false }; } };
+    assert.equal((await request(path, {}, { 'cf-connecting-ip': '203.0.113.9' }, { [rateKey === 'site:measure' ? 'MEASURE_VISITOR_LIMITER' : 'FORM_VISITOR_LIMITER']: limiter }, untouched)).status, 429, `${kind}: visitor rate limit, before the database`);
+    assert.deepEqual(keys, [`${rateKey.slice(5)}:203.0.113.9`], `${kind}: the visitor limit is keyed by kind and address`);
   }
   assert.equal((await request('/api/waitlist/withdraw', { receipt: 'unknown' }, {}, { WAITLIST_COLLECTION_APPROVED: 'false' })).status, 200, 'Withdrawal stays open while the waitlist is closed');
   assert.deepEqual(await (await request('/api/site-config', undefined, {}, { FEEDBACK_COLLECTION_APPROVED: 'false' }, untouched)).json(), { measurementEnabled: true, feedbackEnabled: false, bugReportsEnabled: true, waitlistEnabled: true });
@@ -44,5 +48,5 @@ try {
   const landing = await (await request('/api/landing-config', undefined, {}, { WAITLIST_COLLECTION_APPROVED: 'false' }, untouched)).json();
   assert.equal(landing.policy.version, 'fixture-v1', 'Landing content stays readable while the waitlist is closed');
   assert.deepEqual(Object.keys(landing).sort(), ['experiment', 'policy', 'primaryAction'], 'The landing configuration holds only landing content');
-  console.log('PASS one Site collection gate: fixed order, closed collection, origin, body limit, JSON, Operator token, Operator access while closed, database failure and rate limit for every kind');
+  console.log('PASS one Site collection gate: fixed order, closed collection, origin, body limit, JSON, Operator token, Operator access while closed, database failure, visitor and project-wide rate limits for every kind');
 } finally { await site.close(); }

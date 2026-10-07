@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://ai-interviewer.jack-cao.workers.dev/sitemap.xml

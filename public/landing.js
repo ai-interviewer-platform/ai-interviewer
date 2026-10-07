@@ -14,7 +14,7 @@ export function landingScreen() {
       <h1 id="landing-title" data-copy-slot="headline">Make your thinking<br>part of the answer.</h1>
       <p class="intro" data-copy-slot="intro">You know enough Python to attempt the problem. Now practice explaining your approach, testing it, and revising what didn’t work.</p>
       <div class="actions" id="landing-actions"><a class="button secondary pressable" href="#sample" data-launch-action="sample">Explore the guided sample</a></div>
-      <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p></div>
+      <p class="small" id="landing-availability" role="status">Checking personal practice availability…</p><button class="button quiet small" type="button" data-check-personal hidden>Check again</button></div>
       <aside class="landing-evidence" aria-label="Fictional review example" data-heat-zone="sample-evidence"><div class="landing-evidence-label">Fictional sample · evidence, not a verdict</div>
         <pre><code>for index, tag in enumerate(tags):
     if tag in seen:
@@ -34,7 +34,7 @@ export function landingScreen() {
     <section class="landing-waitlist" aria-labelledby="waitlist-title" data-heat-zone="waitlist"><p class="eyebrow">Keep in touch</p><h2 id="waitlist-title">Join the waitlist</h2><p id="waitlist-unavailable" role="status">Checking whether the waitlist is open…</p>
       <div id="waitlist-policy" hidden></div>
       <form id="waitlist-form" hidden novalidate><label for="waitlist-email">Email address</label><input id="waitlist-email" name="email" type="email" autocomplete="email" required aria-describedby="waitlist-error"><label class="landing-consent"><input id="waitlist-consent" type="checkbox" required><span id="waitlist-purpose"></span></label><button class="button primary pressable" type="submit">Join the waitlist</button><p id="waitlist-error" role="alert"></p></form>
-      <div id="waitlist-success" hidden><p role="status">Request saved. If this address was already registered, its existing record stays unchanged. Joining is not a practice attempt.</p><label for="waitlist-receipt">Withdrawal receipt — save your first receipt</label><textarea id="waitlist-receipt" readonly rows="2"></textarea><p class="small">Only the receipt from your original signup can remove that record. No confirmation email is sent.</p></div>
+      <div id="waitlist-success" hidden><p role="status">Request saved. If this address was already registered, its existing record stays unchanged. Joining is not a practice attempt.</p><label for="waitlist-receipt">Withdrawal receipt — save your first receipt</label><textarea id="waitlist-receipt" readonly rows="2"></textarea><p class="small">Only the receipt from your original signup can remove that record. No confirmation email is sent. This browser keeps it until you withdraw or clear site data.</p><button class="button secondary pressable" type="button" id="waitlist-receipt-save">Save receipt as a file</button></div>
       <details id="waitlist-withdrawal"><summary>Withdraw waitlist interest</summary><form id="waitlist-withdraw-form"><label for="withdraw-receipt">Original withdrawal receipt</label><input id="withdraw-receipt" required autocomplete="off"><button class="button secondary" type="submit">Withdraw interest</button><p id="withdraw-status" role="status"></p></form></details>
     </section></div>
   </div>`;
@@ -48,9 +48,10 @@ export function mountLanding(root) {
   const consent = root.querySelector('#waitlist-consent');
   const error = root.querySelector('#waitlist-error');
   const withdrawal = root.querySelector('#withdraw-receipt');
-  try { withdrawal.value = JSON.parse(sessionStorage.getItem('coursay-waitlist-receipt') || 'null')?.receipt || ''; } catch { /* Receipt remains manually usable. */ }
+  try { withdrawal.value = JSON.parse(localStorage.getItem('coursay-waitlist-receipt') || 'null')?.receipt || ''; } catch { /* Receipt remains manually usable. */ }
   if (!exposureEmitted) { measure('landing_exposed'); exposureEmitted = true; }
   root.addEventListener('click', event => {
+    if (event.target.closest('[data-check-personal]')) checkPersonal(true);
     const link = event.target.closest('[data-launch-action]');
     if (link) measure('cta_selected', { action: link.dataset.launchAction });
     // Heatmap cells over the landing. Clicks in text fields are masked. A keyboard
@@ -63,12 +64,33 @@ export function mountLanding(root) {
     measure('landing_click', { zone: event.target.closest('[data-heat-zone]')?.dataset.heatZone ?? 'other', cellX: cell(x - bounds.left, bounds.width), cellY: cell(y - bounds.top, bounds.height), viewport: innerWidth < 768 ? 'narrow' : 'wide' });
   });
   const api = async (url, body) => {
-    const response = await fetch(url, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(url, body === undefined ? { signal: AbortSignal.timeout(10000) } : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     if (!response.ok) throw Error(data.error || 'Unable to save. Check your connection and try again.');
     return data;
   };
-  Promise.all([api('/api/landing-config').catch(() => null), api('/api/personal-availability').catch(() => null), siteConfig()]).then(([config, personal, site]) => {
+  const landingConfig = api('/api/landing-config').catch(() => null);
+  const actions = root.querySelector('#landing-actions');
+  // Personal availability has its own check, so a failed check offers a retry.
+  const checkPersonal = (retried = false) => {
+    const status = root.querySelector('#landing-availability');
+    const retry = root.querySelector('[data-check-personal]');
+    status.textContent = 'Checking personal practice availability…';
+    Promise.all([landingConfig, api('/api/personal-availability').catch(() => null)]).then(([config, personal]) => {
+      if (!active) return;
+      retry.hidden = Boolean(personal);
+      if (!personal) { status.textContent = 'Personal practice availability could not be checked.'; return; }
+      const ready = personal.collectionEnabled && personal.mvpReady;
+      status.textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice is not open yet. Explore the fictional sample without an account.';
+      // A primary waitlist button stays first.
+      const waitlistButton = actions.querySelector('button[data-launch-action="waitlist"]');
+      if (ready && !actions.querySelector('[data-launch-action="personal_practice"]')) (waitlistButton ?? actions).insertAdjacentHTML(waitlistButton ? 'afterend' : 'afterbegin', `<a class="button ${config?.primaryAction === 'personal_practice' ? 'primary' : 'secondary'} pressable" href="#personal" data-launch-action="personal_practice">Start personal practice</a>`);
+      // The retry button is gone, so focus moves to the first action.
+      if (retried) actions.querySelector('a, button')?.focus();
+    });
+  };
+  checkPersonal();
+  Promise.all([landingConfig, siteConfig()]).then(([config, site]) => {
     if (!active) return;
     policy = config?.policy;
     // A running experiment assigns this document a variant. Opted-out browsers keep the control and send nothing.
@@ -81,10 +103,6 @@ export function mountLanding(root) {
         experimentEmitted = true;
       }
     }
-    const ready = personal?.collectionEnabled && personal?.mvpReady;
-    root.querySelector('#landing-availability').textContent = ready ? `Personal practice is enabled. ${personal.voiceEnabled ? 'Voice and text modes available.' : 'Text mode available; voice is unavailable.'}` : 'Personal practice availability is not confirmed. Explore the fictional sample without an account.';
-    const actions = root.querySelector('#landing-actions');
-    if (ready) actions.insertAdjacentHTML('afterbegin', `<a class="button ${config?.primaryAction === 'personal_practice' ? 'primary' : 'secondary'} pressable" href="#personal" data-launch-action="personal_practice">Start personal practice</a>`);
     // An unreachable site configuration keeps the form for a published notice; the server still refuses a closed waitlist.
     if (policy && (site ? site.waitlistEnabled : true)) {
       root.querySelector('#waitlist-unavailable').hidden = true;
@@ -112,9 +130,9 @@ export function mountLanding(root) {
       try {
         const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.value.trim().toLowerCase()));
         const emailHash = Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
-        const previous = JSON.parse(sessionStorage.getItem('coursay-waitlist-receipt') || 'null');
+        const previous = JSON.parse(localStorage.getItem('coursay-waitlist-receipt') || 'null');
         if (previous?.emailHash === emailHash) receipt = previous.receipt;
-        sessionStorage.setItem('coursay-waitlist-receipt', JSON.stringify({ emailHash, receipt }));
+        localStorage.setItem('coursay-waitlist-receipt', JSON.stringify({ emailHash, receipt }));
       } catch { /* Display the receipt even without storage. */ }
       root.querySelector('#waitlist-receipt').value = receipt; withdrawal.value = receipt;
       root.querySelector('#waitlist-success').hidden = false; form.hidden = true;
@@ -123,12 +141,23 @@ export function mountLanding(root) {
     } catch (failure) { error.textContent = failure.message; }
     finally { button.disabled = false; form.removeAttribute('aria-busy'); }
   });
+  // A file keeps the receipt after site data is cleared or on another device.
+  root.querySelector('#waitlist-receipt-save').addEventListener('click', () => {
+    const file = new Blob([`Coursay waitlist withdrawal receipt
+
+${root.querySelector('#waitlist-receipt').value}
+
+Use it in "Withdraw waitlist interest" on the Coursay landing page. Do not share it.
+`], { type: 'text/plain' });
+    const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: 'coursay-waitlist-receipt.txt' });
+    link.click(); setTimeout(() => URL.revokeObjectURL(link.href));
+  });
   root.querySelector('#waitlist-withdraw-form').addEventListener('submit', async event => {
     event.preventDefault(); const status = root.querySelector('#withdraw-status'); const button = event.target.querySelector('button'); button.disabled = true;
     try {
       await api('/api/waitlist/withdraw', { receipt: withdrawal.value.trim() });
       status.textContent = 'Withdrawal processed. Any record matching this receipt has been deleted. If you lost your original receipt, use the published contact channel.';
-      try { sessionStorage.removeItem('coursay-waitlist-receipt'); } catch { /* No effect on server withdrawal. */ }
+      try { localStorage.removeItem('coursay-waitlist-receipt'); } catch { /* No effect on server withdrawal. */ }
       root.querySelector('#waitlist-success').hidden = true;
       measure('waitlist_withdrawal_accepted', { authority: 'server', action: 'waitlist' });
     } catch (failure) { status.textContent = failure.message; }

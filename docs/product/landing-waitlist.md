@@ -37,7 +37,7 @@ Set `LANDING_PRIMARY_ACTION` to the owner's choice: `waitlist` or `personal_prac
 
 Missing/incomplete policy or missing operator secret disables new collection. Withdrawal and authenticated operator deletion remain available after collection is switched off. The actual waitlist disclosures are published in the configured policy and public privacy notice. Additional analytics/heatmap processing requires its own #23 disclosure and implementation; this configuration enables neither analytics nor automatic outreach.
 
-Joining and withdrawing share a project-wide limit of 30 requests per minute, with no IP address or other identifier stored, and a 4 KiB body limit (#50). Past the limit the page shows that the waitlist is busy.
+Joining and withdrawing share a project-wide limit of 30 requests per minute, with no IP address or other identifier stored, and a 4 KiB body limit (#50). A per-visitor limit of 10 requests per minute, counted by Cloudflare for each IP address, stops one visitor from using it up; the address is not stored. Past the limit the page shows that the waitlist is busy.
 
 Operator API, private bearer token required:
 
@@ -46,7 +46,7 @@ Operator API, private bearer token required:
 
 Joining requires email, affirmative purpose consent, current notice version. The server atomically saves the unique normalized email and a `waitlist_joined` outcome. Duplicate submissions return the same response shape and do not expose membership, replace the original receipt or create extra joined outcomes. A receipt from a duplicate request does not control an existing record; UI states this and directs lost-receipt requests to the published contact.
 
-Receipt withdrawal atomically deletes a matching entry and records an anonymous `waitlist_withdrawn` outcome. Repeated or unmatched receipts receive the same confirmation and do not create outcomes. Email is not retained as a tombstone. Browser session storage retains the current email hash and receipt; a matching repeat preserves that receipt, a different email gets its own new receipt. The receipt is shown so candidates can save it outside the tab. Server stores only its SHA-256 hash. No receipt or email enters measurement payloads.
+Receipt withdrawal atomically deletes a matching entry and records an anonymous `waitlist_withdrawn` outcome. Repeated or unmatched receipts receive the same confirmation and do not create outcomes. Email is not retained as a tombstone. Browser local storage retains the current email hash and receipt until withdrawal or cleared site data; a matching repeat preserves that receipt, a different email gets its own new receipt. The page also offers the receipt as a text file. The receipt is shown so candidates can save it, for example as the offered text file. Server stores only its SHA-256 hash. No receipt or email enters measurement payloads.
 
 ## Shared outcome contract for #23
 

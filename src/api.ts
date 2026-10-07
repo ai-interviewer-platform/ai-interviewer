@@ -200,7 +200,7 @@ async function saveDraft(pool: Pool, attempt: AttemptRow, body: Record<string, u
     );
     return { status: "saved", attempt: result.rows[0] } as const;
   });
-  if (saved.status === "conflict") return json({ error: "The draft changed elsewhere. Reload before saving again." }, { status: 409 });
+  if (saved.status === "conflict") return json({ error: "This code was saved from another tab or device. Copy your unsaved changes, then reload the page to get the latest saved code." }, { status: 409 });
   if (saved.status !== "saved") return notRecorded(saved, invalid);
   return json({ draftRevision: saved.attempt.draft_revision, updatedAt: saved.attempt.updated_at });
 }

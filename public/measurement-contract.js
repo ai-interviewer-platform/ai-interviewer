@@ -6,7 +6,7 @@ export const outcomeNames = eventNames.filter(name => !['landing_exposed', 'land
 // Why an `experiment_exposed` document is or is not counted in the comparison.
 export const eligibilities = ['eligible', 'automation', 'internal'];
 // Every rendered page and its activity. A new page is added here only.
-export const pageActivity = { landing: 'none', welcome: 'sample', roadmap: 'sample', sessions: 'sample', setup: 'sample', sample: 'sample', interview: 'sample', review: 'sample', retry: 'sample', complete: 'sample', related: 'sample', preferences: 'sample', system: 'sample', 'demo-profile': 'sample', terms: 'none', privacy: 'none', cookies: 'none', personal: 'personal' };
+export const pageActivity = { landing: 'none', welcome: 'sample', roadmap: 'sample', sessions: 'sample', sample: 'sample', interview: 'sample', review: 'sample', retry: 'sample', complete: 'sample', related: 'sample', preferences: 'sample', system: 'sample', 'demo-profile': 'sample', terms: 'none', privacy: 'none', cookies: 'none', personal: 'personal' };
 export const activities = ['none', 'sample', 'personal'];
 export const actions = ['none', 'sample', 'waitlist', 'personal_practice'];
 export const authorities = ['client', 'server'];

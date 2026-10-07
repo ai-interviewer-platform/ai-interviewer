@@ -51,7 +51,7 @@ let typed = '';
 let mapScroll = 0;
 const state = {
   personal: initialAttempt(), sample: initialAttempt('duplicate'), retry: null,
-  input: 'text', audio: false, consent: true, goal: 'Internship interviews', concern: '', studied: 'Arrays, loops, sets',
+  input: 'text', audio: false,
   conversation: 'compact', muted: false, guide: true, caseIndex: 2, checkpoint: 'run',
   leftTab: 'findings', mobilePane: 'problem', historyDeleted: false, reduce: false,
   theme: 'dark', sessionFilter: 'All', layout: 40, codeSize: 14, reviewState: '', sampleRoute: 'sample', replaying: false, replayPosition: 78, reviewOpened: false,
@@ -109,7 +109,7 @@ function currentExercise() { return exercises[activeAttempt().problem]; }
 
 function chrome(content, workspace = false) {
   const navItem = (label, path) => {
-    const destination = path === 'sessions' || (accountUser && ['welcome', 'roadmap'].includes(path)) ? `personal?page=${{ welcome: 'home', roadmap: 'catalog', sessions: 'sessions' }[path]}` : path === 'welcome' ? 'landing' : path;
+    const destination = path === 'welcome' && !accountUser ? 'landing' : `personal?page=${{ welcome: 'home', roadmap: 'catalog', sessions: 'sessions' }[path]}`;
     const current = route.page === destination;
     return link(label, destination, `nav-link ${current ? 'current' : ''}`).replace('href=', `${current ? 'aria-current="page" ' : ''}href=`);
   };
@@ -117,9 +117,15 @@ function chrome(content, workspace = false) {
     ${brandWordmark().replace('href="#welcome"', accountUser ? 'href="#personal?page=home"' : 'href="#landing"')}
     <nav class="nav-primary" aria-label="Primary">${navItem('Home', 'welcome')}${navItem('Roadmap', 'roadmap')}${navItem('Sessions', 'sessions')}</nav>
     <nav class="nav-account" aria-label="Account">${accountMenu(accountUser)}</nav>
-  </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${content}</main>
+  </header></div><div class="app-content"><main id="main" tabindex="-1" class="${workspace ? 'workspace-main' : 'page-main'}">${sampleExempt.includes(route.page) ? '' : sampleBanner}${content}</main>
   ${['sample', 'interview', 'review', 'retry', 'complete', 'related'].includes(route.page) ? '' : pageFooter()}</div></div>`;
 }
+
+// Every other screen is part of the Sample, so it carries this banner and a way into Personal practice.
+const sampleExempt = ['landing', 'operator', 'terms', 'privacy', 'cookies'];
+const sampleBanner = `<p class="sample-banner" role="note"><span>Sample screens · fictional data · nothing is saved</span><a class="text-link" href="#personal">Start personal practice →</a></p>`;
+// The design specimen and scene picker are for local development only.
+const internal = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 // The prototype screens are fictional; this link is the way into the real app.
 // It is checked on load and after leaving #personal, where sign-in state changes.
@@ -215,19 +221,6 @@ function sessions() {
   ${mode === 'error' ? emptyState('Session history couldn’t load', 'Your saved work is not marked as lost. Try loading the history again, or explore the guided sample.', link('Try loading again', 'sessions', 'primary') + link('Try the sample', 'sample', 'secondary'), 'clock') : empty ? emptyState('Your first session starts here', 'Practice a problem, then return to its conversation, code, and review.', link('Try a guided sample', 'sample', 'primary'), 'message') : `<nav class="session-filters segmented" aria-label="Filter sessions">${['All', 'Review ready', 'Draft saved', 'Review pending'].map(label => link(label, `sessions?filter=${encodeURIComponent(label)}`, filter === label ? 'selected' : '')).join('')}</nav><div class="session-table" data-filter="${esc(filter)}"><div class="table-heading"><span>Problem / activity</span><span>Mode</span><span>Status</span><span></span></div>${sessionRow(exercises[state.personal.problem].title, 'Fictional session · Today, 10:42', 'Mock', state.personal.draft ? 'Draft saved' : 'Review ready', state.personal.draft ? 'interview' : 'review', state.personal.draft ? 'Resume' : 'Open review')}${sessionRow('First threshold alert', 'Fictional session · Yesterday', 'Mock', 'Draft saved', 'interview?problem=alert', 'Resume')}${sessionRow('First consecutive pair', 'Fictional session · Earlier', 'Mock', 'Review pending', 'review?state=pending&problem=runs', 'View attempt')}</div><div class="history-bottom">${icon('shield')} A review describes an attempt. It doesn’t predict an interview outcome.</div>`}`;
 }
 
-function setup() {
-  const problem = route.params.get('problem') ?? state.personal.problem;
-  const exercise = exercises[problem] ?? exercises.tags;
-  const micError = route.params.get('state') === 'mic';
-  return `<a class="back-link" href="#${esc(origin)}">${icon('back')}Back to roadmap</a><div class="setup-grid"><section><p class="eyebrow">Before you begin</p><h1>Make room to think.</h1><div class="setup-problem">${icon('code')}<div><span class="small muted">Selected problem</span><h2>${exercise.title}</h2><p>${exercise.topic} · Python · English</p></div></div><div class="detail-note">This is a preview of personal setup. The next screen uses a prepared attempt, not a live AI interview.</div></section>
-  <form id="setup-form" class="setup-form"><h2>Session preferences</h2><label for="goal">What are you preparing for?</label><select id="goal" name="goal">${['Internship interviews', 'New-grad interviews', 'General coding practice'].map((goal) => `<option ${state.goal === goal ? 'selected' : ''}>${goal}</option>`).join('')}</select><label for="studied">Topics you have studied</label><input id="studied" name="studied" value="${esc(state.studied)}" autocomplete="off"><label for="concern">Anything you want to work on? <span class="muted">Optional</span></label><input id="concern" name="concern" value="${esc(state.concern)}" placeholder="Explaining why my approach works" autocomplete="off">
-  <fieldset><legend>How would you like to respond?</legend><div class="choice-pair"><label class="choice"><input type="radio" name="input" value="text" ${state.input === 'text' ? 'checked' : ''}>${icon('message')}<span>Text<small>No microphone needed</small></span></label><label class="choice"><input type="radio" name="input" value="voice" ${state.input === 'voice' ? 'checked' : ''}>${icon('mic')}<span>Voice<small>Preview only</small></span></label></div></fieldset>
-  ${micError ? `<div class="inline-alert">Microphone unavailable in this preview. Continue with text; spoken delivery won’t be assessed.${button('Use text instead', 'use-text', 'quiet')}</div>` : state.input === 'voice' ? `<div class="notice">No microphone is accessed in the prototype. ${button('Preview microphone check', 'mic-check', 'quiet')}</div>` : ''}
-  <label class="check-row"><input type="checkbox" name="audio" ${state.audio ? 'checked' : ''}><span>Save audio for replay<small>Optional in the product. Separate from live voice processing.</small></span></label>
-  <label class="check-row"><input type="checkbox" name="consent" ${state.consent ? 'checked' : ''}><span>Allow transcript, code, and session records for review<small>The product will explain retention before collecting anything. This prototype collects no session data.</small></span></label>
-  <div class="form-error" id="consent-error" ${state.consent ? 'hidden' : ''}>Personal review needs session records. You can use the guided sample without them.</div><div class="actions"><button class="button primary" type="submit">${icon('play')}Start interview preview</button>${link('Use the sample instead', 'sample', 'quiet')}</div></form></div>`;
-}
-
 function workspace() {
   const review = route.page === 'review';
   const retry = route.page === 'retry';
@@ -300,7 +293,7 @@ function related() {
   return `<a class="back-link" href="#complete">${icon('back')}Back to retry</a><div class="related-page"><p class="eyebrow">An optional next step</p><h1>Same decision.<br>A different problem.</h1><p class="intro">Practice stopping at the first qualifying event in a new setting.</p><section class="related-card"><div>${badge('Author-linked exercise')}<h2>First threshold alert</h2><p>Find the earliest reading above a threshold, rather than the earliest repeated tag.</p><div class="detail-note"><strong>Why it’s related</strong><p>Both tasks ask you to stop at the first match. This is an authored connection, not a claim that the exercises have equal difficulty.</p></div></div>${icon('code')}</section><fieldset class="familiar"><legend>Have you seen this problem before?</legend><label><input type="radio" name="familiar" value="no" checked>Not that I remember</label><label><input type="radio" name="familiar" value="yes">Yes, it’s familiar</label></fieldset><div class="actions">${link('Set up this practice', 'setup?problem=alert', 'primary', 'arrow')}${link('Finish for now', 'sessions', 'quiet')}</div><p id="familiar-note" class="small muted">Prior familiarity and any guidance will be noted in the product.</p></div>`;
 }
 function preferences() {
-  return `<div class="page-title"><div><p class="eyebrow">Preferences</p><h1>Recording preferences</h1></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a><a href="#system">Design & motion preview</a></nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><div class="actions">${button('Export example record', 'export', 'secondary')}${button('Delete demo sessions', 'delete', 'danger')}${button('Explore screens', 'scenes', 'quiet')}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2 id="appearance">Motion and appearance</h2><label class="setting-row"><span><strong>Theme</strong></span><select name="theme" aria-label="Theme">${['dark', 'light', 'system'].map(value => `<option value="${value}" ${state.theme === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
+  return `<div class="page-title"><div><p class="eyebrow">Preferences</p><h1>Recording preferences</h1></div></div><div class="preferences-grid"><nav aria-label="Preference sections"><a class="selected" href="#preferences">Recording & data</a>${internal ? '<a href="#system">Design & motion preview</a>' : ''}</nav><section class="preferences-content"><div class="notice">${icon('shield')}Nothing here accesses your microphone or uploads data. These controls preview the intended product choices.</div><h2>Voice and audio</h2><label class="setting-row"><span><strong>Use voice for interviews</strong><small>Live speech processing is separate from saving audio. Text is always available.</small></span><input type="checkbox" name="voice-pref" ${state.input === 'voice' ? 'checked' : ''}></label><label class="setting-row"><span><strong>Save audio for replay</strong><small>Optional audio alongside the transcript. Off by default.</small></span><input type="checkbox" name="audio-pref" ${state.audio ? 'checked' : ''}></label><h2>Session records</h2><p>Personal review needs the transcript, code checkpoints, run results, and feedback. The product’s retention policy must be defined before real recording begins.</p><div class="detail-note">No webcam analysis. No training-data collection. A typed session doesn’t assess spoken delivery.</div><h2>Export or remove a session</h2><div class="actions">${button('Export example record', 'export', 'secondary')}${(state.historyDeleted ? button('Restore demo sessions', 'reset', 'secondary') : button('Delete demo sessions', 'delete', 'danger'))}${internal ? button('Explore screens', 'scenes', 'quiet') : ''}</div><p class="small muted">Deletion affects this prototype tab’s demo history only.</p><h2 id="appearance">Motion and appearance</h2><label class="setting-row"><span><strong>Theme</strong></span><select name="theme" aria-label="Theme">${['dark', 'light', 'system'].map(value => `<option value="${value}" ${state.theme === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Reduce motion in this preview</strong><small>Your operating-system preference is always respected.</small></span><input type="checkbox" name="reduce" ${state.reduce ? 'checked' : ''}></label></section></div>`;
 }
 function system() {
   return `<div class="page-title"><div><p class="eyebrow">Prototype foundation</p><h1>Graphite. Chalk. Annotation.</h1><p>A lit desk. Teal for action, amber for evidence, lilac for the coach.</p></div>${link('Explore the workspace', 'interview', 'secondary', 'arrow')}</div><section class="system-materials"><article class="plane"><h2>Working plane</h2><p>A top light and contact shadow bring the work forward.</p><div class="recess">Recess · code and evidence stay still</div></article><article class="plane-quiet"><h2>Quiet plane</h2><p>Conversation and supporting context.</p><div class="annotation">Annotation · a location, never a verdict</div></article><article class="float"><h2>Floating surface</h2><p>Dialogs and drawers carry the ambient shadow.</p>${button('Inspect floating surface', 'motion-dialog', 'secondary')}</article></section><section class="system-section"><div><h2>Color with a purpose</h2><p>Accent means action or selection. Error and success belong to specific results, never a person.</p></div><div class="swatches">${[['Canvas', 'canvas'], ['Surface', 'surface'], ['Raised', 'raised'], ['Accent', 'accent'], ['Success', 'success'], ['Error', 'error']].map(([label, token]) => `<div><span style="background:var(--${token})"></span><small>${label}</small></div>`).join('')}</div></section><section class="system-section"><div><h2>Readable at work</h2><p>Gabarito headings, Geist interface text, and Geist Mono code, with local platform fallbacks.</p></div><div><h2 class="type-specimen">Look closer. Try again.</h2><p>A review connects what you said with what your code did.</p><code class="type-code">return first_match</code><p class="small muted">Supporting text · revision 1 · 04:26</p></div></section><section class="system-section"><div><h2>Small, deliberate feedback</h2><p>Try pointer press and keyboard focus. Motion is removed for keyboard input and reduced-motion preferences.</p></div><div class="actions">${button('Primary action', 'specimen', 'primary')}${button('Secondary action', 'specimen', 'secondary')}${button('Open disclosure', 'motion-dialog', 'quiet')}</div></section><section class="system-section"><div><h2>Evidence, not verdicts</h2><p>State and uncertainty have words. A color is never the only explanation.</p></div><div class="actions">${badge('Review ready', 'accent')}${badge('Draft saved')}${badge('Finding disputed')}${badge('Runner unavailable', 'error')}</div></section><section class="system-section"><div><h2>Motion tokens</h2><p>No looping decoration, delayed results, or animated typing.</p></div><dl class="token-list"><div><dt>Feedback</dt><dd>200 ms · state feedback</dd></div><div><dt>Disclosure</dt><dd>350 ms entrance · 450 ms pane · 120 ms exit</dd></div><div><dt>Ease</dt><dd>Enter: cubic-bezier(.16, 1, .3, 1)</dd></div><div><dt>Pressed surface</dt><dd>1px travel · 150 ms · pointer only</dd></div></dl></section>`;
@@ -319,6 +312,10 @@ function render(navigation = false) {
   route = parseRoute(location.hash);
   if (route.page === 'welcome' && accountUser) {
     location.replace('#personal?page=home');
+    return;
+  }
+  if (route.page === 'setup') {
+    location.replace('#personal?page=catalog');
     return;
   }
   if (route.page === 'profile' || route.page === 'settings' || route.page === 'signin' || route.page === 'sign-in') {
@@ -351,14 +348,15 @@ function render(navigation = false) {
   if (leftPersonal) { leftPersonal = false; refreshAccountLabel(); }
   if (isSample()) { state.sampleRoute = location.hash.slice(1) || 'sample'; persist(); }
   const requestedProblem = route.params.get('problem');
-  if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem && route.page !== 'setup') state.personal = initialAttempt(requestedProblem);
+  if (requestedProblem && ['tags', 'alert', 'runs'].includes(requestedProblem) && requestedProblem !== state.personal.problem) state.personal = initialAttempt(requestedProblem);
   if (route.page === 'review' && !isSample()) { state.reviewOpened = true; persist(); }
-  const screens = { landing: landingScreen, 'demo-profile': profile, welcome, roadmap, sessions, setup, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, system, operator: operatorScreen, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
+  const screens = { landing: landingScreen, 'demo-profile': profile, welcome, roadmap, sessions, sample: workspace, interview: workspace, review: workspace, retry: workspace, complete, related, preferences, ...(internal ? { system } : {}), operator: operatorScreen, terms: () => legalScreen('terms'), privacy: () => legalScreen('privacy'), cookies: () => legalScreen('cookies') };
   const workspacePage = ['sample', 'interview', 'review', 'retry'].includes(route.page);
   if (drawer.open && (route.page !== 'roadmap' || !getPracticeLeaf(route))) drawer.close();
   navbarObserver.disconnect();
   roadmapObserver.disconnect();
-  app.innerHTML = chrome((screens[route.page] ?? welcome)(), workspacePage);
+  if (!screens[route.page]) { location.replace('#landing'); return; }
+  app.innerHTML = chrome(screens[route.page](), workspacePage);
   if (route.page === 'landing') unmountLanding = mountLanding(app.querySelector('.landing'));
   if (route.page === 'operator') mountOperator(app.querySelector('#operator'));
   if (navigation) document.querySelectorAll('.home-layout > section, .profile-panel, .session-row, .setup-grid > *, .preferences-content').forEach((element, index) => { element.classList.add('enter'); element.style.setProperty('--i', index); });
@@ -423,8 +421,6 @@ function handleAction(action) {
     case 'restart-sample': state.sample = initialAttempt('duplicate'); state.retry = null; state.sampleRoute = 'sample'; state.guide = true; persist(); go('sample'); break;
     case 'close-dialog': closeDialog(); break;
     case 'map-help': showDialog('Choose a direction, not a score', '<p>Connections suggest a learning order. They never lock a topic.</p><p>Select a topic to see its exercises. Use the list if you prefer a linear view. Recorded activity means practice took place—not mastery.</p><p>The prototype catalog is illustrative, with original prepared exercises.</p>'); break;
-    case 'use-text': state.input = 'text'; go('setup'); break;
-    case 'mic-check': go('setup?state=mic'); break;
     case 'replay': state.replaying = !state.replaying; render(); notify('Playback state preview only. No audio file is loaded.'); break;
     case 'latest-message': document.querySelector('#messages')?.scrollTo({ top: document.querySelector('#messages').scrollHeight }); break;
     case 'hide-guide': state.guide = false; render(); break;
@@ -452,8 +448,8 @@ function handleAction(action) {
     case 'reset-layout': state.layout = 40; state.codeSize = 14; closeDialog(); render(); break;
     case 'apply-layout': state.layout = Number(document.querySelector('#pane-width').value); state.codeSize = Number(document.querySelector('#code-size').value); closeDialog(); render(); break;
     case 'export': exportRecord(); break;
-    case 'delete': showDialog('Delete demo sessions?', `<p>This removes the fictional session history in this prototype tab. It does not delete real account data. You can restore the fixtures from Explore screens.</p><div class="actions">${button('Cancel', 'close-dialog', 'secondary')}${button('Delete demo sessions', 'confirm-delete', 'danger')}</div>`); dialog.querySelector('[data-action="close-dialog"]').focus(); break;
-    case 'confirm-delete': state.historyDeleted = true; state.reviewOpened = false; state.personal = initialAttempt(); state.retry = null; persist(); closeDialog(); render(); notify('Demo sessions removed. Restore them from Explore screens.'); break;
+    case 'delete': showDialog('Delete demo sessions?', `<p>This removes the fictional session history in this prototype tab. It does not delete real account data. You can restore them here in Preferences.</p><div class="actions">${button('Cancel', 'close-dialog', 'secondary')}${button('Delete demo sessions', 'confirm-delete', 'danger')}</div>`); dialog.querySelector('[data-action="close-dialog"]').focus(); break;
+    case 'confirm-delete': state.historyDeleted = true; state.reviewOpened = false; state.personal = initialAttempt(); state.retry = null; persist(); closeDialog(); render(); notify('Demo sessions removed. Restore them in Preferences.'); break;
     case 'reset': state.personal = initialAttempt(); state.sample = initialAttempt('duplicate'); state.retry = null; state.sampleRoute = 'sample'; state.historyDeleted = false; state.reviewOpened = false; messages = []; typed = ''; persist(); closeDialog(); go('welcome'); break;
     case 'specimen': notify('Preview action selected. No external action was performed.'); break;
     case 'motion-dialog': showDialog('A quiet disclosure', '<p>This dialog uses a short opacity and transform transition. Keyboard navigation and reduced motion open it immediately.</p><p>The browser handles focus containment and Escape. Closing returns you to the trigger.</p>'); break;
@@ -510,11 +506,6 @@ document.addEventListener('click', (event) => {
   const action = event.target.closest('[data-action]');
   if (action) handleAction(action.dataset.action);
   const anchor = event.target.closest('a[href^="#"]');
-  if (anchor?.getAttribute('href') === '#setup') {
-    event.preventDefault();
-    go('welcome');
-    return;
-  }
   if (anchor && drawer.contains(anchor)) origin = location.hash.slice(1);
   if (anchor && dialog.open) {
     if (anchor.classList.contains('scene-link')) {
@@ -524,21 +515,15 @@ document.addEventListener('click', (event) => {
     closeDialog();
   }
   if (anchor?.getAttribute('href') === '#main') { event.preventDefault(); document.querySelector('#main').focus(); }
-  if (anchor?.getAttribute('href').startsWith('#setup') && route.page === 'roadmap') origin = location.hash.slice(1);
 });
 document.addEventListener('input', (event) => {
   if (event.target.id === 'message') typed = event.target.value;
   if (event.target.id === 'replay-position') { state.replayPosition = Number(event.target.value); document.querySelector('#replay-time').textContent = replayTime(state.replayPosition); event.target.setAttribute('aria-valuetext', replayTime(state.replayPosition)); }
-  if (event.target.id === 'concern') state.concern = event.target.value;
-  if (event.target.id === 'studied') state.studied = event.target.value;
 });
 document.addEventListener('change', (event) => {
   const input = event.target;
   if (input.name === 'theme') { state[input.name] = input.value; persist(); render(); }
-  if (input.name === 'input') { state.input = input.value; render(); }
-  if (input.name === 'goal') state.goal = input.value;
-  if (['audio', 'audio-pref'].includes(input.name)) state.audio = input.checked;
-  if (input.name === 'consent') { state.consent = input.checked; const consentError = document.querySelector('#consent-error'); if (consentError) consentError.hidden = input.checked; input.removeAttribute('aria-invalid'); }
+  if (input.name === 'audio-pref') state.audio = input.checked;
   if (input.name === 'voice-pref') state.input = input.checked ? 'voice' : 'text';
   if (input.name === 'reduce') { state.reduce = input.checked; document.documentElement.dataset.reduce = String(state.reduce); persist(); notify(state.reduce ? 'Reduced motion enabled.' : 'Operating-system motion preference is used.'); }
   if (input.id === 'checkpoint') { state.checkpoint = input.value; render(); notify('Saved checkpoint changed. Code and results now match the selected checkpoint.'); }
@@ -550,12 +535,6 @@ document.addEventListener('submit', (event) => {
     const form = new FormData(event.target);
     state.profile = { name: String(form.get('profile-name')).trim() || 'Alex', bio: String(form.get('profile-bio')).trim() };
     closeDialog(); render(); notify('Profile updated for this preview.');
-  }
-  if (event.target.id === 'setup-form') {
-    if (!state.consent) { const consent = event.target.querySelector('[name="consent"]'); consent.setAttribute('aria-invalid', 'true'); consent.setAttribute('aria-describedby', 'consent-error'); consent.focus(); return; }
-    const problem = route.params.get('problem') ?? state.personal.problem;
-    state.personal = initialAttempt(['tags', 'alert', 'runs'].includes(problem) ? problem : 'tags');
-    state.historyDeleted = false; messages = []; typed = ''; state.reviewState = ''; persist(); go('interview');
   }
   if (event.target.id === 'message-form' && typed.trim()) {
     messages.push(typed.trim()); typed = ''; render(); document.querySelector('#message')?.focus();

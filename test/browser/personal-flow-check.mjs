@@ -81,8 +81,8 @@ try {
   assert.ok(order.lastIndexOf('code_run') < order.indexOf('help_requested'), `Run precedes help: ${order.join(', ')}`);
   console.log('Passed: evidence timeline preserves the order of actions');
 
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Submit code' }).click();
+  await page.getByRole('dialog', { name: 'Submit and finish?' }).getByRole('button', { name: 'Submit code' }).click();
   await page.locator('#personal-error').getByText(/Attempt completed/).waitFor();
   assert.equal(await page.locator('#personal-code').isDisabled(), true);
   let review;

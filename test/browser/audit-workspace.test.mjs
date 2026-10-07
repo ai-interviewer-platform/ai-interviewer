@@ -43,6 +43,7 @@ test('workspace submission stays clickable; results identify tested code; review
       else if(path==='/api/attempts') body={attempts:[{id:'attempt',title:problem.title,status,mode:'mock'}],hasMore:false,page:0};
       else if(path==='/api/attempts/attempt') body=detail();
       else if(path.endsWith('/review')) {requests.push(reviewStatus);body={review:{id:'review',status:reviewStatus},findings:reviewStatus==='ready'?[{id:'finding',observation:'Fresh finding',limitations:'Fixture evidence',evidence:[]}]:[]};}
+      else if(path.endsWith('/related')) body={relatedProblems:[]};
       else if(path.endsWith('/finish')) {finished++;status='completed';body={dispatch:'queued',submissionCheck:{state:'checked',passed:3,total:3,failures:{}}};}
       else {throw new Error(`Unexpected API request: ${path}`);}
       await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
@@ -54,10 +55,15 @@ test('workspace submission stays clickable; results identify tested code; review
     assert.match(await page.locator('.test-body').innerText(),/Current saved code differs from this run/);
     await page.getByText('View tested code',{exact:true}).click();
     assert.equal(await page.locator('.test-body details pre').innerText(),testedCode);
+    await page.getByRole('button',{name:'Pause'}).click();
+    await page.getByRole('heading',{name:'Your attempt is paused.'}).waitFor();
+    assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Resume');
+    await page.getByRole('button',{name:'Resume'}).click();
+    await page.locator('.cm-content').waitFor();
     for (const viewport of [{width:1280,height:720},devices['iPhone 13'].viewport]) {
       await page.setViewportSize(viewport);
-      page.once('dialog', dialog => dialog.dismiss());
       await page.locator('[data-finish]').click();
+      await page.getByRole('dialog',{name:'Submit and finish?'}).getByRole('button',{name:'Cancel'}).click();
       assert.equal(finished,0,'mouse reached Submit confirmation without Report interception');
     }
     await page.setViewportSize({width:1280,height:720});
@@ -67,14 +73,19 @@ test('workspace submission stays clickable; results identify tested code; review
       await page.locator('[data-open-attempt]').click();
       assert.equal(await page.locator('.run-summary strong').innerText(),heading);
     }
-    page.once('dialog', dialog => dialog.accept());
     await page.locator('[data-finish]').click();
+    await page.getByRole('dialog',{name:'Submit and finish?'}).getByRole('button',{name:'Submit code'}).click();
     await page.getByRole('button',{name:'Inspect review'}).waitFor();
     assert.equal(finished,1);
     reviewStatus='ready';
     await page.getByRole('button',{name:'Inspect review'}).click();
     await page.getByRole('heading',{name:'Review ready'}).waitFor();
     assert.equal(await page.getByText('Fresh finding',{exact:true}).count(),1);
+    // Without authored related problems, the next step is the same topic in the catalog.
+    await page.getByRole('button',{name:'Practice another Arrays problem'}).waitFor();
+    assert.equal(new URL(page.url()).hash,'#personal?attempt=attempt&view=review');
+    await page.reload();
+    await page.getByRole('heading',{name:'Review ready'}).waitFor();
     assert.equal(requests.at(-1),'ready');
     await page.getByRole('button',{name:'← Back to attempt'}).click();
     reviewStatus='pending';
