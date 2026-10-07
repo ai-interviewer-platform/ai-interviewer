@@ -9,7 +9,7 @@ export const feedbackQuestions = {
   personal: { id: 'personal-practice', version: 1, question: 'How is personal practice working for you?', answers: { expected: 'As expected', confusing: 'Somewhat confusing', blocked: 'It did not work for me' } },
 };
 // The feature each page asks about. Every page in public/measurement-contract.js has one.
-export const pageFeature = { landing: 'landing', welcome: 'navigation', roadmap: 'navigation', sessions: 'navigation', setup: 'practice', sample: 'practice', interview: 'practice', review: 'review', retry: 'practice', complete: 'review', related: 'navigation', preferences: 'navigation', system: 'navigation', 'demo-profile': 'navigation', terms: 'policy', privacy: 'policy', cookies: 'policy', personal: 'personal' };
+export const pageFeature = { landing: 'landing', welcome: 'navigation', roadmap: 'navigation', sessions: 'navigation', sample: 'practice', interview: 'practice', review: 'review', retry: 'practice', complete: 'review', related: 'navigation', preferences: 'navigation', system: 'navigation', 'demo-profile': 'navigation', terms: 'policy', privacy: 'policy', cookies: 'policy', personal: 'personal' };
 export const feedbackCategories = ['usability', 'content', 'bug', 'feature_request', 'praise', 'other'];
 export const feedbackStatuses = ['new', 'reviewing', 'planned', 'resolved', 'declined'];
 // Closing a response needs a recorded resolution.

@@ -28,7 +28,7 @@ Decided under the owner's delegation of 2026-09-30. The shared collection, acces
 | Page (`#…`) | Feature and question | Activity | Test |
 |---|---|---|---|
 | `landing` | landing: "How clear is what Coursay offers?" | none | keyboard, dismissal, error, save; route loop |
-| `setup`, `sample`, `interview`, `retry` | practice: "How did this practice step work for you?" | sample | route loop; save with `app.js` and site configuration unavailable |
+| `sample`, `interview`, `retry` | practice: "How did this practice step work for you?" | sample | route loop; save with `app.js` and site configuration unavailable |
 | `review`, `complete` | review: "How understandable is this review?" with the Correction note | sample | route loop; save beside "Disagree with this feedback" |
 | `welcome`, `roadmap`, `sessions`, `related`, `preferences`, `system`, `demo-profile` | navigation: "How easy was it to find what you needed here?" | sample | route loop |
 | `terms`, `privacy`, `cookies` | policy: "How clear is this page?" | none | route loop |

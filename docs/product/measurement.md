@@ -67,7 +67,7 @@ The report never calculates a rate between client documents and server outcomes:
 | Landing → waitlist | `waitlist_request_accepted`, `waitlist_withdrawal_accepted`; server `waitlist_joined`/`withdrawn` | No (form) | waitlist test, report waitlist counts |
 | Landing → sample practice → review → retry | `cta_selected`, `practice_started`, `practice_completed`, `review_opened`, `retry_started` (`sample`) | No | journey events, landing funnel steps |
 | Personal practice → review → retry | server-confirmed `practice_started`, `practice_completed`, `retry_started`; `review_opened` (`personal`); server cohort | No | server cohort in the measurement test; client emissions and exclusion of code and account data in the mocked personal flow (`test/userflow-navigation.test.mjs`) |
-| Sample pages (fictional): `welcome`, `roadmap`, `sessions`, `setup`, `interview`, `review`, `retry`, `complete`, `related`, `preferences`, `system`, `demo-profile` | `page_viewed` (`sample`) | No | route loop |
+| Sample pages (fictional): `welcome`, `roadmap`, `sessions`, `interview`, `review`, `retry`, `complete`, `related`, `preferences`, `system`, `demo-profile` | `page_viewed` (`sample`) | No | route loop |
 | Legal: `terms`, `privacy`, `cookies` | `page_viewed` (`none`) | No | route loop |
 | `personal` (account, workspace, review) | `page_viewed` (`personal`) | No | route loop |
 | `operator` | none | No | not in the allowlist |
